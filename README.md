@@ -66,5 +66,3 @@ git commit -m "Proyecto: PRD del equipo fldsmdfr"
 # Enviar entrega a GitHub
 git push origin entregas_franco_christian
 ```
-
-*Nota:* No es necesario abrir Pull Request. Después de hacer el push, responder en la **Discussion #44** del repositorio de la materia con el enlace al archivo en tu rama.
