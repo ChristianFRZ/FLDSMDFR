@@ -1,0 +1,22 @@
+services:
+  monolito:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fldsmdfr-monolito
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./db:/app/db
+      - ./media/audio:/app/media/audio
+    environment:
+      - FLDSMDFR_HOST=0.0.0.0
+      - FLDSMDFR_PORT=8000
+      - FLDSMDFR_DB_PATH=/app/db/fldsmdfr.db
+      - FLDSMDFR_MEDIA_DIR=/app/media/audio
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
