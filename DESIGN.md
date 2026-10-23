@@ -4,17 +4,15 @@
 
 FLDSMDFR es una plataforma moderna de streaming musical. El diseño visual se inspira en interfaces de streaming contemporáneas (como Spotify o Apple Music), con un tema oscuro refinado que reduce la fatiga visual y realza el contenido multimedia.
 
-### 1.1. Paleta de Colores
+### 1.1. Paleta de Colores (Estilo Cálido y Orgánico)
+- El sistema utiliza una paleta cromática basada en tonos otoñales y terrosos para ofrecer una experiencia inmersiva y reconfortante.
 
-- **Fondo Principal (`--bg-primary`):** `#121212` (Gris carbón profundo)
-- **Fondo Secundario / Tarjetas (`--bg-surface`):** `#181818` (Gris superficie)
-- **Fondo Elevado / Modales (`--bg-elevated`):** `#242424`
-- **Color de Acento / Interactivo (`--accent`):** `#1DB954` (Verde Neón FLDSMDFR)
-- **Acento Hover (`--accent-hover`):** `#1ed760`
-- **Texto Principal (`--text-main`):** `#FFFFFF`
-- **Texto Secundario / Metadatos (`--text-muted`):** `#A7A7A7`
-- **Bordes y Divisores (`--border-subtle`):** `#282828`
-- **Estados de Éxito / Alerta (`--status-warning` / `--status-error`):** `#F59E0B` / `#EF4444`
+- Fondo Principal (Beige Avena): #F4EFE6 - Base limpia y cálida para el fondo general (body).
+- Acento Principal (Naranja Arce / Ocre): #D36135 - Llamadas a la acción (botones de Play, sliders de progreso).
+- Fondo de Componentes (Café Tostado): #5C3D2E - Áreas de anclaje visual (Reproductor Persistente, Sidebar).
+- Superficies y Tarjetas (Crema Suave): #FFF9F0 - Fondo de las tarjetas del catálogo para crear separación tridimensional.
+- Texto Principal (Madera Oscura): #2E221F - Tipografía general sobre fondos claros.
+- Texto Invertido (Blanco Hueso): #FDFBF7 - Texto e iconos sobre los fondos oscuros.
 
 ### 1.2. Tipografía
 

@@ -463,7 +463,7 @@ const App = {
             <h2>${data.name}</h2>
             <p style="color: var(--text-muted); margin-top: 4px;">${data.description || ''}</p>
           </div>
-          <span style="font-size: 11px; color: var(--accent); background: rgba(29, 185, 84, 0.1); padding: 4px 8px; border-radius: 4px;">
+          <span style="font-size: 11px; color: var(--accent); background: var(--accent-subtle); padding: 4px 8px; border-radius: 4px;">
             ⚡ Latencia JSON: ${latency} ms (&lt; 200 ms)
           </span>
         </div>
