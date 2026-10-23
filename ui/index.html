@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FLDSMDFR · Streaming Musical (Monolito)</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- BARRA LATERAL (SIDEBAR) -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <div class="brand-text">
+          <h2>FLDSMDFR</h2>
+          <span class="badge-phase">01-monolito</span>
+        </div>
+      </div>
+
+      <!-- Selector de Usuario Activo -->
+      <div class="user-selector-card">
+        <label for="userSelect">👤 Usuario Activo:</label>
+        <select id="userSelect" class="form-select"></select>
+      </div>
+
+      <!-- Menú de Navegación -->
+      <nav class="nav-menu">
+        <button class="nav-item active" data-view="catalog">
+          <span class="icon">🎵</span> Catálogo
+        </button>
+        <button class="nav-item" data-view="playlists">
+          <span class="icon">📁</span> Playlists
+        </button>
+        <button class="nav-item" data-view="metrics">
+          <span class="icon">🏆</span> Top Popularidad
+        </button>
+        <a href="/docs" target="_blank" class="nav-item external-link">
+          <span class="icon">📖</span> API Docs (Swagger)
+        </a>
+      </nav>
+
+      <!-- Panel informativo del sistema distribuido -->
+      <div class="sidebar-footer">
+        <p class="sd-info-title">Sistemas Distribuidos FI-UNAM</p>
+        <p class="sd-info-desc">Fase 1: Monolito modular con streaming por HTTP Range y telemetría idempotente.</p>
+      </div>
+    </aside>
+
+    <!-- ÁREA PRINCIPAL DE CONTENIDO -->
+    <main class="main-content">
+      <!-- VISTA: CATÁLOGO -->
+      <section id="view-catalog" class="view-section active">
+        <div class="section-header">
+          <div>
+            <h1>Catálogo Musical</h1>
+            <p class="text-muted">Explora pistas de audio con soporte de streaming por chunks (HTTP 206 Partial Content).</p>
+          </div>
+          <div class="header-actions">
+            <input type="text" id="searchInput" placeholder="🔍 Buscar por título o artista..." class="search-input">
+            <button id="btnNewSongModal" class="btn btn-secondary">+ Nueva Canción</button>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">#</th>
+                <th>Título</th>
+                <th>Artista</th>
+                <th>Álbum</th>
+                <th>Duración</th>
+                <th>Reproducciones</th>
+                <th style="text-align: right;">Acciones</th>
+              </tr>
+            </thead>
+            <tbody id="songsTableBody">
+              <!-- Canciones inyectadas dinámicamente -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- VISTA: PLAYLISTS -->
+      <section id="view-playlists" class="view-section">
+        <div class="section-header">
+          <div>
+            <h1>Mis Playlists</h1>
+            <p class="text-muted">Gestiona colecciones y asocia canciones a tu perfil de oyente.</p>
+          </div>
+          <button id="btnNewPlaylistModal" class="btn btn-primary">+ Crear Playlist</button>
+        </div>
+
+        <div class="playlists-layout">
+          <div class="playlists-list" id="playlistsContainer">
+            <!-- Listado de tarjetas de playlists -->
+          </div>
+          <div class="playlist-detail-card" id="playlistDetailCard">
+            <div class="placeholder-msg">Selecciona una playlist para ver su contenido.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VISTA: TOP MÉTRICAS -->
+      <section id="view-metrics" class="view-section">
+        <div class="section-header">
+          <div>
+            <h1>Top Canciones Más Escuchadas</h1>
+            <p class="text-muted">Ranking generado con métricas sincronizadas y claves de idempotencia UUID.</p>
+          </div>
+          <button id="btnRefreshMetrics" class="btn btn-secondary">🔄 Actualizar</button>
+        </div>
+
+        <div class="metrics-grid" id="metricsContainer">
+          <!-- Tarjetas de métricas inyectadas dinámicamente -->
+        </div>
+      </section>
+    </main>
+
+    <!-- REPRODUCTOR GLOBAL PERSISTENTE -->
+    <footer class="player-bar">
+      <div class="player-left">
+        <div class="track-artwork" id="playerArtwork">🎵</div>
+        <div class="track-details">
+          <div class="track-title" id="playerTitle">Selecciona una pista</div>
+          <div class="track-artist" id="playerArtist">FLDSMDFR Streaming</div>
+        </div>
+      </div>
+
+      <div class="player-center">
+        <div class="playback-controls">
+          <button id="btnPlayPause" class="ctrl-btn play-btn" disabled>▶</button>
+        </div>
+        <div class="progress-bar-container">
+          <span id="currentTime" class="time-label">0:00</span>
+          <input type="range" id="seekSlider" class="seek-slider" min="0" max="100" value="0" disabled>
+          <span id="totalDuration" class="time-label">0:00</span>
+        </div>
+        <audio id="audioElement" preload="metadata"></audio>
+      </div>
+
+      <div class="player-right">
+        <!-- Indicador de Telemetría Idempotente -->
+        <div class="telemetry-badge" id="telemetryBadge" title="Se envía telemetría automáticamente tras 10 segundos continuos de reproducción">
+          <span class="telemetry-dot"></span>
+          <span id="telemetryText">Telemetría: Inactiva</span>
+        </div>
+        <button id="btnRetryIdempotency" class="btn-sm btn-outline" style="display: none;" title="Prueba reenviar la misma clave UUID para verificar la idempotencia">
+          Probar Idempotencia
+        </button>
+      </div>
+    </footer>
+  </div>
+
+  <!-- MODAL: CREAR PLAYLIST -->
+  <div id="modalPlaylist" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Nueva Playlist</h3>
+        <button class="modal-close" data-close="modalPlaylist">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="playlistName">Nombre de la lista:</label>
+          <input type="text" id="playlistName" class="form-input" placeholder="Ej. Sintetizadores nocturnos" required>
+        </div>
+        <div class="form-group">
+          <label for="playlistDesc">Descripción (opcional):</label>
+          <textarea id="playlistDesc" class="form-input" rows="3" placeholder="Descripción breve..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modalPlaylist">Cancelar</button>
+        <button id="btnSavePlaylist" class="btn btn-primary">Guardar Playlist</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: AGREGAR A PLAYLIST -->
+  <div id="modalAddToPlaylist" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Agregar Canción a Playlist</h3>
+        <button class="modal-close" data-close="modalAddToPlaylist">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="addToPlaylistSongTitle" style="margin-bottom: 15px; color: var(--accent);"></p>
+        <div class="form-group">
+          <label for="selectPlaylistToAdd">Selecciona la playlist de destino:</label>
+          <select id="selectPlaylistToAdd" class="form-select"></select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modalAddToPlaylist">Cancelar</button>
+        <button id="btnConfirmAddToPlaylist" class="btn btn-primary">Agregar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: NUEVA CANCIÓN -->
+  <div id="modalNewSong" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Registrar Nueva Canción</h3>
+        <button class="modal-close" data-close="modalNewSong">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="newSongTitle">Título:</label>
+          <input type="text" id="newSongTitle" class="form-input" placeholder="Ej. Synth Wave Echoes" required>
+        </div>
+        <div class="form-group">
+          <label for="newSongArtist">Artista:</label>
+          <input type="text" id="newSongArtist" class="form-input" placeholder="Ej. Cyber Orchestra" required>
+        </div>
+        <div class="form-group">
+          <label for="newSongAlbum">Álbum:</label>
+          <input type="text" id="newSongAlbum" class="form-input" placeholder="Ej. Neon Nights">
+        </div>
+        <div class="form-group">
+          <label for="newSongDuration">Duración (segundos):</label>
+          <input type="number" id="newSongDuration" class="form-input" value="20" min="1">
+        </div>
+        <div class="form-group">
+          <label for="newSongFile">Ruta del archivo en el servidor:</label>
+          <input type="text" id="newSongFile" class="form-input" value="media/audio/cosmic_lofi.wav">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-close="modalNewSong">Cancelar</button>
+        <button id="btnSaveNewSong" class="btn btn-primary">Registrar Canción</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICACIONES -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
