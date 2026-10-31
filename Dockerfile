@@ -9,6 +9,10 @@ ENV PYTHONPATH=/app PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
 COPY pyproject.toml alembic.ini ./
 COPY app ./app
+COPY scripts ./scripts
+COPY media/seed ./media/seed
 RUN pip install --no-cache-dir ".[dev]"
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+RUN chmod +x /app/scripts/entrypoint.sh
+
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]
