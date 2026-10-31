@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAvisos } from './composables/useAvisos'
 import { useSession } from './composables/useSession'
 
 // Las vistas se cargan bajo demanda.
@@ -20,7 +21,7 @@ export const router = createRouter({
       path: '/cabina',
       name: 'cabina',
       component: () => import('./views/CabinaView.vue'),
-      meta: { auth: true, admin: true },
+      meta: { auth: true, admin: true, encabezadoPropio: true },
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
@@ -36,6 +37,9 @@ router.beforeEach(async (to) => {
   await sesionCargada
 
   if (to.meta.auth && !session.user.value) return { name: 'acceso' }
-  if (to.meta.admin && !session.isAdmin.value) return { name: 'casetera' }
+  if (to.meta.admin && !session.isAdmin.value) {
+    useAvisos().mostrar('La cabina de grabación es solo para administradores.', 'error')
+    return { name: 'casetera' }
+  }
   if (to.name === 'acceso' && session.user.value) return { name: 'casetera' }
 })

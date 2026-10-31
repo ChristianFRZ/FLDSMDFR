@@ -210,17 +210,7 @@ onBeforeUnmount(() => {
   text-underline-offset: 3px;
 }
 
-.boton-contorno {
-  min-height: 40px;
-  padding: 0 var(--space-4);
-  border: 2px solid currentColor;
-  border-radius: 999px;
-  background: transparent;
-  font-weight: 500;
-}
-
 @media (hover: hover) {
-  .boton-contorno:hover,
   .tienda__pestana[aria-selected='false']:hover {
     background: color-mix(in srgb, currentColor 12%, transparent);
   }

@@ -491,14 +491,15 @@ dos columnas en escritorio:
 ```text
 ┌──────────────────────────────┬───────────────────────────────────────────┐
 │ CABINA (--deck)              │ (--bg)                     [Lado A|Lado B]│
-│ Cabina de grabación   (h1)   │ ( Canciones ) ( Usuarios )                │
-│ ← Volver a la casetera       │                                           │
-│                              │ ╭ Buscar canción ╮                        │
-│ Resumen                      │ Granizo · Los Meteoros   Activa  [Editar] │
-│ ┌──────┐┌──────┐┌──────┐     │ Monzón · Tormenta Norte  Activa  [Editar] │
-│ │ 1 284││  37  ││  12  │     │ Neblina · Calma Chicha   Inactiva[Editar] │
-│ │reprod.││canc. ││usuar.│     │                                           │
-│ └──────┘└──────┘└──────┘     │                                           │
+│ Cabina de grabación   (h1)   │ Canciones                                 │
+│ ← Volver a la casetera       │ ╭ Buscar canción ╮                        │
+│                              │ Granizo · Los Meteoros  [Editar][Retirar…]│
+│ Resumen                      │ Monzón · Tormenta Norte [Editar][Retirar…]│
+│ ┌──────┐┌──────┐┌──────┐     │                                           │
+│ │ 1 284││  37  ││  12  │     │ Usuarios                                  │
+│ │reprod.││canc. ││usuar.│     │ ╭ Buscar por correo ╮                     │
+│ └──────┘└──────┘└──────┘     │ Ana  ana@…  Oyente        [Hacer admin]   │
+│ Lo más escuchado (top 10)    │ Luis luis@… Admin         [Quitar admin]  │
 │                              │                                           │
 │ Subir canción                │                                           │
 │ ╭ Arrastra o elige archivo ╮ │                                           │
@@ -508,21 +509,29 @@ dos columnas en escritorio:
 ```
 
 - **Resumen** (`GET /api/metrics/summary`): tarjetas `--tape` con número en Fraunces
-  28 px 800 y rótulo en 13 px. Estados: cargando (esqueleto), error (`Aviso`).
+  28 px 800 y rótulo en 13 px, y debajo el top 10 con su cuenta. Estados: cargando
+  (esqueleto), error (`AvisoEnLinea` + "Reintentar"). Se vuelve a pedir tras subir o retirar
+  una canción.
 - **Subir canción:** zona de soltar con borde 2 px discontinuo `--deck-ink`, acepta
-  `.mp3`, `.ogg`, `.wav` hasta 20 MB (se valida en el cliente antes de enviar y se
-  muestra el error del servidor si lo rechaza). Campos Título, Artista, Álbum. Durante
-  la subida: barra de progreso con porcentaje y botón "Subiendo…" deshabilitado. Éxito:
-  `Aviso` "«Granizo» ya está en el catálogo."
-- **Canciones:** tabla con título, artista, estado ("Activa" / "Inactiva", con texto,
-  no solo color), y acciones "Editar" (edición en línea de título/artista/álbum) y
-  "Desactivar" (confirmación en línea: "Los oyentes dejarán de verla en el catálogo.").
-- **Usuarios:** buscador por correo y lista con rol; botón "Hacer admin" / "Quitar
-  admin". El admin actual no puede quitarse su propio rol (botón deshabilitado con
-  explicación "No puedes quitarte tu propio rol de admin.").
-- Usuarios no admin que entran a `/cabina` se redirigen a `/` con un `Aviso`: "La cabina
-  de grabación es solo para administradores."
-- En < 900 px: se apila; pestañas "Resumen / Subir / Canciones / Usuarios".
+  `.mp3`, `.ogg`, `.wav` hasta 20 MB (20 × 1024 × 1024 bytes; se valida en el cliente antes
+  de enviar y se muestra el error del servidor por `code`: `invalid_audio`, `unsupported_format`,
+  `file_too_large`). Campos Título, Artista, Álbum y Archivo, todos requeridos; los errores de
+  campo sobre `--deck` van en una etiqueta `--paper` porque `--danger` solo está medido sobre
+  `--paper` y `--bg`. Durante la subida el botón dice "Subiendo…" y queda deshabilitado (la
+  API `fetch` no informa progreso, así que no hay barra de porcentaje). Éxito: `Aviso`
+  "Canción subida"; la canción aparece al inicio de la tabla sin recargar.
+- **Canciones:** lista con título, artista y álbum (el catálogo solo trae canciones activas,
+  por eso no hay columna de estado) y acciones "Editar" (edición en línea de
+  título/artista/álbum con "Guardar" y "Cancelar") y "Retirar del catálogo" (confirmación
+  con `window.confirm` que cita el título; es una baja lógica: la canción queda "No
+  disponible" en los casetes que ya la tenían).
+- **Usuarios:** buscador por correo y lista con rol ("Admin" / "Oyente"); botón "Hacer
+  admin" / "Quitar admin". El admin actual no ve el botón en su propia fila (el servidor
+  también lo rechaza con 403).
+- Usuarios no admin que entran a `/cabina` se redirigen a `/` con un `Aviso` de error: "La
+  cabina de grabación es solo para administradores."
+- En < 900 px se apila: primero el interruptor de lado, luego la columna `--deck` (resumen y
+  subida) y después Canciones y Usuarios. No hay pestañas en la cabina.
 
 ---
 

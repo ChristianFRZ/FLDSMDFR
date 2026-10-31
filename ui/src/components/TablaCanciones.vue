@@ -1,0 +1,357 @@
+<script setup lang="ts">
+// Catálogo para administradores: búsqueda, edición en línea y retiro (DELETE = baja lógica).
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { ApiError } from '../api/http'
+import * as songs from '../api/songs'
+import type { SongOut } from '../api/types'
+import { useAvisos } from '../composables/useAvisos'
+import AvisoEnLinea from './AvisoEnLinea.vue'
+
+const ESPERA_MS = 250
+const FILAS_ESQUELETO = 4
+
+const emit = defineEmits<{ cambio: [] }>()
+const { mostrar } = useAvisos()
+
+const busqueda = ref('')
+const buscado = ref('')
+const canciones = ref<SongOut[]>([])
+const total = ref(0)
+const cargando = ref(true)
+const cargandoMas = ref(false)
+const error = ref('')
+
+const editando = ref<string | null>(null)
+const borrador = reactive({ title: '', artist: '', album: '' })
+const errorEdicion = ref('')
+// Ids con una operación en curso (guardar o retirar), para no repetirla.
+const ocupadas = ref<ReadonlySet<string>>(new Set())
+
+let temporizador: ReturnType<typeof setTimeout> | undefined
+let peticion = 0
+
+function mensajeDe(e: unknown, respaldo: string): string {
+  return e instanceof ApiError ? e.message : respaldo
+}
+
+function marcar(id: string, activa: boolean): void {
+  const nuevas = new Set(ocupadas.value)
+  if (activa) nuevas.add(id)
+  else nuevas.delete(id)
+  ocupadas.value = nuevas
+}
+
+async function buscar(): Promise<void> {
+  const q = busqueda.value.trim()
+  const mia = ++peticion
+  cargando.value = true
+  error.value = ''
+  try {
+    const pagina = await songs.list(q, 0)
+    if (mia !== peticion) return
+    canciones.value = pagina.items
+    total.value = pagina.total
+    buscado.value = q
+  } catch (e) {
+    if (mia !== peticion) return
+    canciones.value = []
+    total.value = 0
+    error.value = mensajeDe(e, 'No pudimos cargar las canciones. Vuelve a intentarlo.')
+  } finally {
+    if (mia === peticion) cargando.value = false
+  }
+}
+
+async function cargarMas(): Promise<void> {
+  const mia = peticion
+  cargandoMas.value = true
+  error.value = ''
+  try {
+    const pagina = await songs.list(buscado.value, canciones.value.length)
+    if (mia !== peticion) return
+    canciones.value = [...canciones.value, ...pagina.items]
+    total.value = pagina.total
+  } catch (e) {
+    if (mia === peticion) error.value = mensajeDe(e, 'No pudimos cargar más canciones.')
+  } finally {
+    cargandoMas.value = false
+  }
+}
+
+function onInput(): void {
+  clearTimeout(temporizador)
+  temporizador = setTimeout(() => void buscar(), ESPERA_MS)
+}
+
+/** Agrega una canción recién subida al principio, sin recargar la lista. */
+function agregar(cancion: SongOut): void {
+  if (canciones.value.some((c) => c.id === cancion.id)) return
+  canciones.value = [cancion, ...canciones.value]
+  total.value += 1
+}
+
+function editar(cancion: SongOut): void {
+  editando.value = cancion.id
+  borrador.title = cancion.title
+  borrador.artist = cancion.artist
+  borrador.album = cancion.album
+  errorEdicion.value = ''
+}
+
+function cancelar(): void {
+  editando.value = null
+  errorEdicion.value = ''
+}
+
+async function guardar(cancion: SongOut): Promise<void> {
+  if (ocupadas.value.has(cancion.id)) return
+  const datos = {
+    title: borrador.title.trim(),
+    artist: borrador.artist.trim(),
+    album: borrador.album.trim(),
+  }
+  if (!datos.title || !datos.artist || !datos.album) {
+    errorEdicion.value = 'Título, artista y álbum no pueden quedar vacíos.'
+    return
+  }
+  marcar(cancion.id, true)
+  errorEdicion.value = ''
+  try {
+    const actualizada = await songs.update(cancion.id, datos)
+    canciones.value = canciones.value.map((c) => (c.id === actualizada.id ? actualizada : c))
+    editando.value = null
+    mostrar('Cambios guardados')
+  } catch (e) {
+    errorEdicion.value = mensajeDe(e, 'No pudimos guardar los cambios. Vuelve a intentarlo.')
+  } finally {
+    marcar(cancion.id, false)
+  }
+}
+
+async function retirar(cancion: SongOut): Promise<void> {
+  if (ocupadas.value.has(cancion.id)) return
+  if (!window.confirm(`¿Retirar «${cancion.title}» del catálogo? Los oyentes dejarán de verla.`)) return
+  marcar(cancion.id, true)
+  try {
+    await songs.deactivate(cancion.id)
+    canciones.value = canciones.value.filter((c) => c.id !== cancion.id)
+    total.value = Math.max(0, total.value - 1)
+    if (editando.value === cancion.id) cancelar()
+    mostrar(`«${cancion.title}» salió del catálogo`)
+    emit('cambio')
+  } catch (e) {
+    mostrar(mensajeDe(e, 'No pudimos retirar la canción. Vuelve a intentarlo.'), 'error')
+  } finally {
+    marcar(cancion.id, false)
+  }
+}
+
+onMounted(() => void buscar())
+onBeforeUnmount(() => clearTimeout(temporizador))
+defineExpose({ agregar })
+</script>
+
+<template>
+  <section class="tabla" aria-labelledby="titulo-tabla">
+    <h2 id="titulo-tabla">Canciones</h2>
+
+    <div class="tabla__buscador">
+      <input
+        v-model="busqueda"
+        type="search"
+        placeholder="Buscar canción, artista o álbum"
+        aria-label="Buscar canción, artista o álbum"
+        autocomplete="off"
+        @input="onInput"
+      />
+    </div>
+
+    <ul v-if="cargando" class="tabla__lista" aria-label="Cargando canciones…">
+      <li v-for="n in FILAS_ESQUELETO" :key="n" class="tabla__esqueleto" aria-hidden="true"><span /><span /></li>
+    </ul>
+
+    <AvisoEnLinea v-else-if="error && canciones.length === 0" reintentar @reintentar="buscar">
+      {{ error }}
+    </AvisoEnLinea>
+
+    <p v-else-if="canciones.length === 0" class="tabla__vacio">
+      {{ buscado ? `No encontramos canciones con «${buscado}».` : 'Todavía no hay canciones en el catálogo.' }}
+    </p>
+
+    <template v-else>
+      <ul class="tabla__lista">
+        <li v-for="cancion in canciones" :key="cancion.id" class="tabla__fila">
+          <form
+            v-if="editando === cancion.id"
+            class="tabla__edicion"
+            novalidate
+            @submit.prevent="guardar(cancion)"
+          >
+            <div class="campo">
+              <label :for="`editar-titulo-${cancion.id}`">Título</label>
+              <input :id="`editar-titulo-${cancion.id}`" v-model="borrador.title" type="text" maxlength="200" />
+            </div>
+            <div class="campo">
+              <label :for="`editar-artista-${cancion.id}`">Artista</label>
+              <input :id="`editar-artista-${cancion.id}`" v-model="borrador.artist" type="text" maxlength="200" />
+            </div>
+            <div class="campo">
+              <label :for="`editar-album-${cancion.id}`">Álbum</label>
+              <input :id="`editar-album-${cancion.id}`" v-model="borrador.album" type="text" maxlength="200" />
+            </div>
+            <p v-if="errorEdicion" class="campo__error" role="alert">{{ errorEdicion }}</p>
+            <div class="tabla__acciones">
+              <button type="submit" class="boton-contorno" :disabled="ocupadas.has(cancion.id)">Guardar</button>
+              <button type="button" class="boton-contorno" @click="cancelar">Cancelar</button>
+            </div>
+          </form>
+
+          <template v-else>
+            <div class="tabla__textos">
+              <span class="tabla__titulo" :title="cancion.title">{{ cancion.title }}</span>
+              <span class="tabla__detalle" :title="`${cancion.artist} · ${cancion.album}`">
+                {{ cancion.artist }} · {{ cancion.album }}
+              </span>
+            </div>
+            <div class="tabla__acciones">
+              <button
+                type="button"
+                class="boton-contorno"
+                :aria-label="`Editar «${cancion.title}»`"
+                @click="editar(cancion)"
+              >
+                Editar
+              </button>
+              <button
+                type="button"
+                class="boton-contorno tabla__retirar"
+                :disabled="ocupadas.has(cancion.id)"
+                :aria-label="`Retirar «${cancion.title}» del catálogo`"
+                @click="retirar(cancion)"
+              >
+                Retirar del catálogo
+              </button>
+            </div>
+          </template>
+        </li>
+      </ul>
+
+      <AvisoEnLinea v-if="error" reintentar @reintentar="cargarMas">{{ error }}</AvisoEnLinea>
+
+      <button
+        v-if="canciones.length < total"
+        type="button"
+        class="boton-contorno tabla__mas"
+        :disabled="cargandoMas"
+        :aria-busy="cargandoMas || undefined"
+        @click="cargarMas"
+      >
+        {{ cargandoMas ? 'Cargando canciones…' : 'Cargar más' }}
+      </button>
+    </template>
+  </section>
+</template>
+
+<style scoped>
+.tabla {
+  display: grid;
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.tabla__buscador input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--paper);
+}
+
+.tabla__lista {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tabla__fila {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tabla__textos {
+  display: grid;
+  min-width: 0;
+}
+
+.tabla__titulo,
+.tabla__detalle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabla__titulo {
+  font-weight: 700;
+}
+
+.tabla__detalle {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.tabla__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.tabla__retirar {
+  color: var(--danger);
+}
+
+.tabla__edicion {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.tabla__vacio {
+  margin: 0;
+}
+
+.tabla__esqueleto {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.tabla__esqueleto span {
+  height: 12px;
+  border-radius: var(--radius-s);
+  background: var(--rule);
+}
+
+.tabla__esqueleto span:first-child {
+  width: 55%;
+}
+
+.tabla__esqueleto span:last-child {
+  width: 35%;
+}
+
+.tabla__mas {
+  justify-self: center;
+  padding: 0 var(--space-5);
+}
+
+@media (min-width: 600px) {
+  .tabla__fila:not(:has(form)) {
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: var(--space-3);
+  }
+}
+</style>

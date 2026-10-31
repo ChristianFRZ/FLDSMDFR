@@ -295,48 +295,10 @@ async function enviar(): Promise<void> {
   gap: var(--space-4);
 }
 
-.campo {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.campo label {
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.campo input {
-  width: 100%;
-  min-width: 0;
-  min-height: 44px;
-  padding: 0 var(--space-3);
-  border: 2px solid var(--ink);
-  border-radius: var(--radius-s);
-  background: var(--paper);
-}
-
-.campo input.campo--error {
-  border-color: var(--danger);
-}
-
 .campo__password {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: var(--space-2);
-}
-
-.campo__error,
-.campo__ayuda {
-  margin: 0;
-  font-size: 13px;
-}
-
-.campo__error {
-  color: var(--danger);
-}
-
-.campo__ayuda {
-  opacity: 0.8;
 }
 
 .boton-contorno {
