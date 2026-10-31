@@ -163,3 +163,48 @@ async def test_stream_rejects_path_outside_media_dir(client, session, media_dir)
         assert r.json()["error"]["code"] == "audio_missing"
     finally:
         outside.unlink(missing_ok=True)
+
+
+async def test_oversized_content_length_rejected_before_body(admin, small_upload_limit, media_dir):
+    before = _files(media_dir)
+    r = await admin.post(
+        "/api/songs",
+        data=FIELDS,
+        files={"file": ("x.wav", b"\0" * (1024 * 1024 + 2048), "audio/wav")},
+    )
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "file_too_large"
+    assert _files(media_dir) == before
+
+
+async def test_missing_content_length_rejected(admin):
+    async def body():
+        yield b"--x--"
+
+    r = await admin.post(
+        "/api/songs", content=body(), headers={"Content-Type": "multipart/form-data; boundary=x"}
+    )
+    assert r.status_code == 422
+    assert r.json()["error"]["code"] == "file_too_large"
+
+
+@pytest.mark.parametrize("rollback_fails", [False, True])
+async def test_failure_after_move_leaves_no_files(
+    session, media_dir, tmp_path, monkeypatch, rollback_fails
+):
+    from app.modules.catalog import repository, service
+
+    async def boom(*_a, **_k):
+        raise RuntimeError("insert falló")
+
+    async def bad_rollback():
+        raise ConnectionError("conexión caída")
+
+    monkeypatch.setattr(repository, "add", boom)
+    if rollback_fails:
+        monkeypatch.setattr(session, "rollback", bad_rollback)
+    wav = make_wav(tmp_path / "s.wav", 1)
+    before = _files(media_dir)
+    with pytest.raises((RuntimeError, ConnectionError)):
+        await service.import_song_file(session, wav, "T", "A", "B")
+    assert _files(media_dir) == before

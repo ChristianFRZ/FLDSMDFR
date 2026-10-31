@@ -117,9 +117,11 @@ async def _ingest_audio(
         await repository.add(session, song)
         return SongOut.model_validate(song)
     except BaseException:
-        await session.rollback()
-        tmp_path.unlink(missing_ok=True)
-        final_path.unlink(missing_ok=True)
+        try:
+            await session.rollback()
+        finally:
+            tmp_path.unlink(missing_ok=True)
+            final_path.unlink(missing_ok=True)
         raise
 
 
