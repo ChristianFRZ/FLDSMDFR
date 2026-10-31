@@ -5,4 +5,5 @@ para poblar `Base.metadata`. Cada tarea que agrega un modulo anade aqui su impor
 """
 
 import app.modules.catalog.models  # noqa: E402, F401
+import app.modules.playlists.models  # noqa: E402, F401
 import app.modules.users.models  # noqa: E402, F401
