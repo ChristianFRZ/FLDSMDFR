@@ -53,3 +53,8 @@ async def add(session: AsyncSession, song: Song) -> Song:
 
 async def count(session: AsyncSession) -> int:
     return await session.scalar(select(func.count()).select_from(Song)) or 0
+
+
+async def save(session: AsyncSession, song: Song) -> Song:
+    await session.commit()
+    return song

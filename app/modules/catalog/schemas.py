@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SongOut(BaseModel):
@@ -17,3 +17,9 @@ class SongOut(BaseModel):
 class SongPage(BaseModel):
     items: list[SongOut]
     total: int
+
+
+class SongUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=200)
+    artist: str | None = Field(None, min_length=1, max_length=200)
+    album: str | None = Field(None, min_length=1, max_length=200)

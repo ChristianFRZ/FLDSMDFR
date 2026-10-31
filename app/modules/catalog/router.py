@@ -1,12 +1,12 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Header, Query, Response
+from fastapi import APIRouter, Depends, Form, Header, Query, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.catalog import service
-from app.modules.catalog.schemas import SongOut, SongPage
+from app.modules.catalog.schemas import SongOut, SongPage, SongUpdate
 from app.modules.catalog.streaming import file_response
-from app.shared.deps import current_user, get_session
+from app.shared.deps import current_user, get_session, require_admin
 
 router = APIRouter(prefix="/api", tags=["catalog"], dependencies=[Depends(current_user)])
 
@@ -34,3 +34,31 @@ async def stream_song(
 ) -> Response:
     stream = await service.get_stream_file(session, song_id)
     return await file_response(stream.path, stream.mime_type, stream.size, range_header)
+
+
+@router.post(
+    "/songs", response_model=SongOut, status_code=201, dependencies=[Depends(require_admin)]
+)
+async def create_song(
+    file: UploadFile,
+    title: str = Form(..., min_length=1, max_length=200),
+    artist: str = Form(..., min_length=1, max_length=200),
+    album: str = Form(..., min_length=1, max_length=200),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.create_song(session, title, artist, album, file)
+
+
+@router.patch("/songs/{song_id}", response_model=SongOut, dependencies=[Depends(require_admin)])
+async def update_song(
+    song_id: uuid.UUID, data: SongUpdate, session: AsyncSession = Depends(get_session)
+):
+    return await service.update_song(session, song_id, data)
+
+
+@router.delete("/songs/{song_id}", status_code=204, dependencies=[Depends(require_admin)])
+async def deactivate_song(
+    song_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> Response:
+    await service.deactivate_song(session, song_id)
+    return Response(status_code=204)
