@@ -2,72 +2,62 @@
 
 ## 1. Arquitectura del proyecto
 
-Para construir un monolito necesitamos:
+FLDSMDFR es un **monolito modular**: una sola aplicación FastAPI, un solo proceso y una sola base de datos PostgreSQL, organizada para poder separarse después en servicios (PRD §6).
 
-- **Módulos claros:** cada módulo debe tener una responsabilidad específica.
-- **Límites bien definidos:** cada módulo debe tener funciones y responsabilidades delimitadas.
-- **Dependencias controladas:** evitar acoplamiento innecesario entre módulos.
+- **Módulos claros:** cada módulo tiene una responsabilidad específica.
+- **Límites bien definidos:** cada módulo expone solo su interfaz pública.
+- **Dependencias controladas:** se evita el acoplamiento innecesario entre módulos.
 
 ### 1.1. Estructura general
 
-Todo se ejecuta dentro de una sola aplicación, organizada por responsabilidades:
-
 ```text
-/ui       # Interfaz de usuario
-/core     # Lógica de negocio
-/db       # Acceso y gestión de datos
+app/modules/   # Lógica de negocio: users, catalog, playlists, playback
+app/db/        # Acceso y gestión de datos: sesión, base declarativa, migraciones Alembic
+app/shared/    # Transversal: errores uniformes, seguridad (JWT, hashing), dependencias
+app/main.py    # Ensamblado de la aplicación; app/spa.py sirve el SPA compilado
+ui/            # Interfaz de usuario (Vue 3 + Vite + TypeScript)
+scripts/       # Entrypoint del contenedor y semilla idempotente
+tests/         # Pruebas de backend (pytest), incluida la de arquitectura
 ```
+
+Cada módulo de `app/modules/<nombre>/` tiene `router.py` (HTTP), `service.py` (lógica), `repository.py` (consultas), `models.py` (tablas) y `schemas.py` (contratos Pydantic).
+
+**Regla de módulos (obligatoria):**
+
+- Un módulo solo usa a otro mediante `app.modules.<otro>.service` y `app.modules.<otro>.schemas`. Nunca importa su `models` ni su `repository`.
+- No hay llaves foráneas entre tablas de módulos distintos; las referencias entre módulos son identificadores sin FK.
+- Lo verifica `tests/test_architecture.py`. Si una prueba de arquitectura falla, se corrige el código, no la prueba.
 
 ### 1.2. Archivos del proyecto
 
 - `AGENTS.md`: define cómo debe trabajar el agente de programación.
-- `DESIGN.md`: define cómo debe verse el producto, incluyendo su diseño visual, componentes y experiencia de usuario.
+- `DESIGN.md`: fuente de verdad visual del producto (diseño, componentes y experiencia de usuario). La UI debe seguirlo.
 - `SKILLS.md`: reúne habilidades, procedimientos y prompts reutilizables para tareas de desarrollo.
+- `docs/PRD.md`: requisitos y plan de separación en servicios.
 
-## 2. Herramientas para el proyecto
+## 2. Pila tecnológica
 
-### 2.1. Laravel
+- **Backend:** Python 3.12, FastAPI, SQLAlchemy 2 asíncrono (asyncpg), Alembic, Pydantic, JWT (PyJWT), Argon2 (pwdlib) y mutagen para leer audio.
+- **Base de datos:** PostgreSQL 16.
+- **Frontend:** Vue 3, Vue Router y Vite con TypeScript. Sin Pinia. Pruebas con Vitest.
+- **Empaquetado:** Docker Compose (`db` + `app`; perfil `test` para las pruebas). El SPA se compila en el `Dockerfile` y lo sirve FastAPI.
+- **Calidad:** `ruff` para el backend y `vue-tsc` en el build del frontend.
 
-Framework de desarrollo web de código abierto escrito en PHP. Permite construir aplicaciones web y API mediante una arquitectura organizada, siguiendo principalmente el patrón Modelo-Vista-Controlador (MVC). Destaca por su sintaxis expresiva, sus herramientas integradas y su amplio ecosistema.
+Comandos habituales:
 
-### 2.2. Vue.js
+```bash
+docker compose up --build                       # levantar todo (http://localhost:8000)
+docker compose --profile test run --rm tests    # pruebas de backend
+docker compose run --rm tests ruff check .      # lint
+cd ui && npm test && npm run build              # pruebas y build del frontend
+```
 
-Framework progresivo de JavaScript para construir interfaces de usuario. Proporciona herramientas, componentes y convenciones que facilitan el desarrollo de interfaces interactivas, reutilizables y mantenibles.
-
-### 2.3. MySQL
-
-Sistema de gestión de bases de datos relacionales desarrollado por Oracle. Utiliza SQL para organizar, almacenar, consultar y modificar información de manera estructurada.
-
-Documentación: https://www.oracle.com/latam/mysql/what-is-mysql/
-
-### 2.4. Plataformas de despliegue
-
-- **Vercel:** plataforma para desplegar aplicaciones web, especialmente proyectos frontend y frameworks como Next.js. También admite otros frameworks mediante sus configuraciones correspondientes.
-- **Netlify:** plataforma para desplegar y gestionar sitios web y aplicaciones frontend.
-- **Railway:** plataforma para desplegar aplicaciones backend, servicios y bases de datos.
-
-La plataforma debe seleccionarse según la arquitectura del proyecto y los requisitos de despliegue.
-
-Enlaces:
-- https://vercel.com/
-- https://www.netlify.com/
-- https://railway.com/
-
-### 2.5. Cursor AI
-
-Entorno de desarrollo basado en Visual Studio Code e integrado con herramientas de inteligencia artificial. Permite analizar código, generar implementaciones, detectar errores y facilitar la comprensión de proyectos existentes.
-
-### 2.6. Durable AI
-
-Plataforma basada en inteligencia artificial generativa orientada a la creación rápida de sitios web y herramientas para pequeños negocios.
+Las dependencias nuevas solo se agregan con una necesidad concreta (regla 8).
 
 ## 3. Herramientas generales
 
-- **Husky:** permite ejecutar scripts y verificaciones asociados a eventos de Git, como los commits.
-  - https://github.com/typicode/husky
 - **Codex / Claude Code:** agentes de programación que pueden analizar repositorios, modificar archivos, ejecutar comandos y apoyar en tareas de desarrollo.
-- **Copy.ai:** plataforma de inteligencia artificial orientada a la generación de contenido comercial, marketing y automatización de procesos de ventas.
-  - https://www.copy.ai/
+- **Docker Compose:** única forma soportada de levantar el entorno completo y de ejecutar las pruebas de backend.
 
 ## 4. Reglas de trabajo del agente
 
