@@ -44,6 +44,13 @@ def upgrade() -> None:
         sa.Column(
             "added_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
         ),
+        sa.UniqueConstraint(
+            "playlist_id",
+            "position",
+            name="uq_playlist_songs_position",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
     )
 
 

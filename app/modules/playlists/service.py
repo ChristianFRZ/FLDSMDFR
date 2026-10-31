@@ -29,9 +29,9 @@ def _summary(playlist: Playlist, song_count: int) -> PlaylistSummary:
 
 
 async def _get_owned(
-    session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID
+    session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID, for_update: bool = False
 ) -> Playlist:
-    playlist = await repository.get_owned(session, owner_id, playlist_id)
+    playlist = await repository.get_owned(session, owner_id, playlist_id, for_update)
     if playlist is None:
         raise NotFound(_NOT_FOUND, code="playlist_not_found")
     return playlist
@@ -98,7 +98,7 @@ async def get_playlist(
 async def rename_playlist(
     session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID, data: PlaylistIn
 ) -> PlaylistSummary:
-    playlist = await _get_owned(session, owner_id, playlist_id)
+    playlist = await _get_owned(session, owner_id, playlist_id, for_update=True)
     playlist.name = data.name.strip()
     repository.touch(playlist)
     await session.commit()
@@ -108,13 +108,15 @@ async def rename_playlist(
 async def delete_playlist(
     session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID
 ) -> None:
-    await repository.delete_playlist(session, await _get_owned(session, owner_id, playlist_id))
+    await repository.delete_playlist(
+        session, await _get_owned(session, owner_id, playlist_id, for_update=True)
+    )
 
 
 async def add_song(
     session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID, song_id: uuid.UUID
 ) -> PlaylistDetail:
-    playlist = await _get_owned(session, owner_id, playlist_id)
+    playlist = await _get_owned(session, owner_id, playlist_id, for_update=True)
     song = await catalog_service.get_song(session, song_id)
     if await repository.get_entry(session, playlist.id, song_id) is not None:
         raise _duplicate()
@@ -145,7 +147,7 @@ def _duplicate() -> Conflict:
 async def remove_song(
     session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID, song_id: uuid.UUID
 ) -> PlaylistDetail:
-    playlist = await _get_owned(session, owner_id, playlist_id)
+    playlist = await _get_owned(session, owner_id, playlist_id, for_update=True)
     entry = await repository.get_entry(session, playlist.id, song_id)
     if entry is None:
         raise NotFound("Esa canción no está en el casete.", code="song_not_in_playlist")
@@ -163,7 +165,7 @@ async def remove_song(
 async def reorder(
     session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID, data: ReorderIn
 ) -> PlaylistDetail:
-    playlist = await _get_owned(session, owner_id, playlist_id)
+    playlist = await _get_owned(session, owner_id, playlist_id, for_update=True)
     entries = {e.song_id: e for e in await repository.list_songs(session, playlist.id)}
     if len(data.song_ids) != len(entries) or set(data.song_ids) != set(entries):
         raise InvalidInput(

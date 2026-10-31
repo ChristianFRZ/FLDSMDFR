@@ -1,12 +1,12 @@
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints
 
 
 class PlaylistIn(BaseModel):
-    name: str = Field(min_length=1, max_length=60)
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 
 
 class PlaylistSummary(BaseModel):

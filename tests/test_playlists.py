@@ -1,3 +1,4 @@
+import asyncio
 import time
 import uuid
 
@@ -79,6 +80,8 @@ async def test_rename_playlist(user):
     assert r.status_code == 200
     assert r.json()["name"] == "Otro"
     assert (await user.patch(f"/api/playlists/{pl['id']}", json={"name": ""})).status_code == 422
+    assert (await user.patch(f"/api/playlists/{pl['id']}", json={"name": "   "})).status_code == 422
+    assert (await user.post("/api/playlists", json={"name": "  \t "})).status_code == 422
 
 
 async def test_remove_and_reorder(user, session, media_dir):
@@ -163,3 +166,12 @@ async def test_delete_playlist(user, session, media_dir):
     await _add(user, pl["id"], a.id)
     assert (await user.delete(f"/api/playlists/{pl['id']}")).status_code == 204
     assert (await user.get(f"/api/playlists/{pl['id']}")).status_code == 404
+
+
+async def test_concurrent_adds_keep_positions_unique(user, session, media_dir):
+    songs = [await insert_song(session, media_dir, title=f"T{i}") for i in range(5)]
+    pl = await _new_playlist(user)
+    responses = await asyncio.gather(*(_add(user, pl["id"], s.id) for s in songs))
+    assert [r.status_code for r in responses] == [201] * 5
+    detail = (await user.get(f"/api/playlists/{pl['id']}")).json()
+    assert sorted(s["position"] for s in detail["songs"]) == [1, 2, 3, 4, 5]

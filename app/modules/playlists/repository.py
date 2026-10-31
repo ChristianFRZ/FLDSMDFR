@@ -7,10 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.playlists.models import Playlist, PlaylistSong
 
 
-async def get_owned(session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID):
-    return await session.scalar(
-        select(Playlist).where(Playlist.id == playlist_id, Playlist.owner_id == owner_id)
-    )
+async def get_owned(
+    session: AsyncSession,
+    owner_id: uuid.UUID,
+    playlist_id: uuid.UUID,
+    for_update: bool = False,
+):
+    """`for_update` bloquea la fila del casete: serializa las mutaciones concurrentes."""
+    stmt = select(Playlist).where(Playlist.id == playlist_id, Playlist.owner_id == owner_id)
+    if for_update:
+        stmt = stmt.with_for_update()
+    return await session.scalar(stmt)
 
 
 async def add(session: AsyncSession, playlist: Playlist) -> Playlist:

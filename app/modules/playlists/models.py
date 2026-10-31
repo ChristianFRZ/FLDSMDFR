@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -20,6 +20,16 @@ class Playlist(Base):
 
 class PlaylistSong(Base):
     __tablename__ = "playlist_songs"
+    __table_args__ = (
+        # Respaldo ante carreras; diferido para que reordenar/recompactar no falle a mitad.
+        UniqueConstraint(
+            "playlist_id",
+            "position",
+            name="uq_playlist_songs_position",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+    )
 
     playlist_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("playlists.id", ondelete="CASCADE"), primary_key=True
