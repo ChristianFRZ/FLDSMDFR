@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.catalog.router import router as catalog_router
 from app.modules.users.router import router as users_router
 from app.shared.deps import get_session
 from app.shared.errors import register_error_handlers
@@ -12,6 +13,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="FLDSMDFR", docs_url="/docs")
     register_error_handlers(app)
     app.include_router(users_router)
+    app.include_router(catalog_router)
 
     @app.get("/api/health")
     async def health(session: AsyncSession = Depends(get_session)):

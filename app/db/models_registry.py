@@ -4,4 +4,5 @@ Es el unico lugar (junto con alembic/env.py) que importa los `models` de varios 
 para poblar `Base.metadata`. Cada tarea que agrega un modulo anade aqui su import.
 """
 
+import app.modules.catalog.models  # noqa: E402, F401
 import app.modules.users.models  # noqa: E402, F401
