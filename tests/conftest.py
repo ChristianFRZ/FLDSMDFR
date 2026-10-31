@@ -1,41 +1,65 @@
+import asyncio
 import os
 import tempfile
-from collections.abc import Generator
 from pathlib import Path
 
-import pytest
-from fastapi.testclient import TestClient
+# Los env de prueba se fijan ANTES de importar `app`.
+os.environ.setdefault(
+    "FLDSMDFR_DATABASE_URL",
+    "postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/fldsmdfr_test",
+)
+os.environ.setdefault("FLDSMDFR_JWT_SECRET", "secreto-de-pruebas")
+os.environ.setdefault("FLDSMDFR_ADMIN_EMAIL", "admin@test.mx")
+os.environ.setdefault("FLDSMDFR_ADMIN_PASSWORD", "admin12345")
+os.environ.setdefault("FLDSMDFR_LISTENER_EMAIL", "oyente@test.mx")
+os.environ.setdefault("FLDSMDFR_LISTENER_PASSWORD", "oyente12345")
+_MEDIA_TMP = tempfile.TemporaryDirectory(prefix="fldsmdfr-media-")
+os.environ["FLDSMDFR_MEDIA_DIR"] = _MEDIA_TMP.name
 
-from db.init_db import init_database
+import httpx  # noqa: E402
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from alembic import command  # noqa: E402
+from alembic.config import Config  # noqa: E402
+from sqlalchemy import text  # noqa: E402
 
+import app.db.models_registry  # noqa: E402, F401
+from app.db.base import Base  # noqa: E402
+from app.db.session import SessionLocal, engine  # noqa: E402
+from app.main import app  # noqa: E402
 
-@pytest.fixture(scope="session")
-def test_db_path() -> Generator[Path, None, None]:
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
-        db_path = Path(tmp.name)
-
-    # Establecer variable de entorno para que toda la app use esta DB temporal
-    os.environ["FLDSMDFR_DB_PATH"] = str(db_path)
-
-    import core.config
-
-    core.config.DB_PATH = db_path
-    import db.connection
-
-    db.connection.DB_PATH = db_path
-
-    # Inicializar schema y seeds
-    init_database(db_path=db_path, seed=True)
-
-    yield db_path
-
-    if db_path.exists():
-        db_path.unlink()
+ROOT = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture(scope="session")
-def client(test_db_path: Path) -> Generator[TestClient, None, None]:
-    from main import app
+def media_dir() -> Path:
+    return Path(_MEDIA_TMP.name)
 
-    with TestClient(app) as c:
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def _migrate() -> None:
+    cfg = Config(str(ROOT / "alembic.ini"))
+    cfg.set_main_option("script_location", str(ROOT / "app/db/migrations"))
+    # env.py usa asyncio.run: se ejecuta en un hilo aparte del loop de pruebas.
+    await asyncio.to_thread(command.upgrade, cfg, "head")
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _clean_tables(_migrate) -> None:
+    tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
+    if tables:
+        async with engine.begin() as conn:
+            await conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
+
+
+@pytest_asyncio.fixture
+async def session():
+    async with SessionLocal() as s:
+        yield s
+
+
+@pytest_asyncio.fixture
+async def client():
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as c:
         yield c

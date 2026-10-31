@@ -1,1 +1,0 @@
-# FLDSMDFR Core Package
