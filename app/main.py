@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.modules.catalog.router import router as catalog_router
 from app.modules.catalog.upload_guard import UploadSizeGuard
 from app.modules.playback.router import router as playback_router
@@ -10,6 +11,7 @@ from app.modules.playlists.router import router as playlists_router
 from app.modules.users.router import router as users_router
 from app.shared.deps import get_session
 from app.shared.errors import register_error_handlers
+from app.spa import mount_spa
 
 
 def create_app() -> FastAPI:
@@ -29,6 +31,8 @@ def create_app() -> FastAPI:
             return JSONResponse({"status": "degraded", "database": "error"}, status_code=503)
         return {"status": "ok", "database": "ok"}
 
+    # Al final: la ruta comodín del SPA no debe tapar ninguna ruta de la API.
+    mount_spa(app, get_settings().ui_dist_dir)
     return app
 
 

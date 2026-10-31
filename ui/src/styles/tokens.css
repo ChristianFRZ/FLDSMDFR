@@ -1,0 +1,54 @@
+/*
+ * Tokens del sistema visual. Fuente de verdad: DESIGN.md (sección 3).
+ * Los dos temas usan los mismos nombres; el activo lo fija <html data-lado="A|B">.
+ * Los componentes solo leen var(--…): nunca colores escritos a mano.
+ */
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --radius-s: 6px;
+  --radius-m: 12px;
+
+  --font-display: 'Fraunces Variable', Georgia, serif;
+  --font-body: 'Figtree Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-hand: 'Caveat Variable', 'Segoe Print', cursive;
+}
+
+/* Lado A · Mostaza y oliva (claro). También es el valor por omisión. */
+:root,
+:root[data-lado='A'] {
+  color-scheme: light;
+  --bg: #f5d7a1;
+  --ink: #33210f;
+  --paper: #fff3dc;
+  --deck: #5b5a24;
+  --deck-ink: #fff3dc;
+  --tape: #8a3a16;
+  --accent: #c4501e;
+  --on-accent: #fff3dc;
+  --accent2: #f2b33d;
+  --rule: #e3bc7e;
+  --rule-deck: #76753a;
+  --danger: #9e2a1c;
+}
+
+/* Lado B · Ámbar nocturno (oscuro). */
+:root[data-lado='B'] {
+  color-scheme: dark;
+  --bg: #2a1b1d;
+  --ink: #fce9d8;
+  --paper: #3a2629;
+  --deck: #1d1213;
+  --deck-ink: #fce9d8;
+  --tape: #b4452f;
+  --accent: #f2a541;
+  --on-accent: #2a1b1d;
+  --accent2: #f2a541;
+  --rule: #4a3236;
+  --rule-deck: #3a2629;
+  --danger: #ff8a6b;
+}
