@@ -97,6 +97,8 @@ async function play(song: SongOut, newQueue?: SongOut[]): Promise<void> {
   } catch (error) {
     // Un play() interrumpido por otra carga (cambio rápido de canción) no es un fallo.
     if (error instanceof DOMException && error.name === 'AbortError') return
+    // Si el medio falló al cargar, el evento `error` ya avisó: no se avisa dos veces.
+    if (audio?.error) return
     fallarReproduccion()
   }
 }
@@ -105,7 +107,8 @@ function toggle(): void {
   if (!audio || !current.value) return
   if (audio.paused) {
     audio.play().catch((error) => {
-      if (!(error instanceof DOMException && error.name === 'AbortError')) fallarReproduccion()
+      const abortado = error instanceof DOMException && error.name === 'AbortError'
+      if (!abortado && !audio?.error) fallarReproduccion()
     })
   } else {
     audio.pause()

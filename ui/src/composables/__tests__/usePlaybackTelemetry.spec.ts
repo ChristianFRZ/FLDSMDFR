@@ -118,6 +118,21 @@ describe('createPlaybackTelemetry', () => {
     expect(sendMock.mock.calls[1][0].song_id).toBe('song-2')
   })
 
+  it('stale session retries never touch the status of the current session', async () => {
+    const { telemetry, sendMock } = setup(() => Promise.reject(new Error('red')))
+    telemetry.startSession('song-1')
+    tick(telemetry, 0, 10)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(telemetry.status.value).toBe('sending')
+    telemetry.startSession('song-2')
+    tick(telemetry, 0, 5)
+    await vi.advanceTimersByTimeAsync(10_000)
+    // La sesión 1 agotó sus 4 intentos, pero la 2 sigue contando.
+    expect(sendMock).toHaveBeenCalledTimes(4)
+    expect(sendMock.mock.calls.every((c) => c[0].playback_id === 'id-1')).toBe(true)
+    expect(telemetry.status.value).toBe('counting')
+  })
+
   it('ignores ticks without a session', () => {
     const { telemetry, sendMock } = setup()
     tick(telemetry, 0, 12)

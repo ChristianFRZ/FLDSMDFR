@@ -65,6 +65,19 @@ describe('usePlayer', () => {
     expect(useAvisos().avisos.value.map((x) => x.texto)).toContain('No se pudo reproducir la canción.')
   })
 
+  it('un fallo de carga con play() rechazado y evento error avisa una sola vez', async () => {
+    const texto = 'No se pudo reproducir la canción.'
+    const cuenta = () => useAvisos().avisos.value.filter((x) => x.texto === texto).length
+    const antes = cuenta()
+    Object.defineProperty(el, 'error', { value: { code: 4 } })
+    el.play = vi.fn(() => {
+      el.dispatchEvent(new Event('error'))
+      return Promise.reject(new DOMException('no soportado', 'NotSupportedError'))
+    })
+    await player.play(a)
+    expect(cuenta() - antes).toBe(1)
+  })
+
   it('setVolume limita al rango 0..1 y llega al elemento', () => {
     player.setVolume(5)
     expect(el.volume).toBe(1)
