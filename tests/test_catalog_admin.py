@@ -208,3 +208,23 @@ async def test_failure_after_move_leaves_no_files(
     with pytest.raises((RuntimeError, ConnectionError)):
         await service.import_song_file(session, wav, "T", "A", "B")
     assert _files(media_dir) == before
+
+
+async def test_upload_blank_fields_rejected_and_values_stripped(admin, tmp_path, media_dir):
+    wav = make_wav(tmp_path / "a.wav", 1)
+    files = {"file": ("a.wav", wav.read_bytes(), "audio/wav")}
+    before = _files(media_dir)
+    for field in ("title", "artist", "album"):
+        r = await admin.post("/api/songs", data={**FIELDS, field: "   "}, files=files)
+        assert r.status_code == 422, field
+        assert r.json()["error"]["code"] == "invalid_input"
+    assert _files(media_dir) == before
+
+    r = await admin.post(
+        "/api/songs",
+        data={"title": "  Nueva ", "artist": " Artista ", "album": " Disco  "},
+        files=files,
+    )
+    assert r.status_code == 201
+    body = r.json()
+    assert (body["title"], body["artist"], body["album"]) == ("Nueva", "Artista", "Disco")

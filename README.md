@@ -118,7 +118,7 @@ El API Gateway (`02-separacion` y siguientes) será un componente nuevo. Gracias
 
 ## Limitaciones conocidas y riesgos
 
-- **Rol dentro del JWT:** el rol del usuario viaja en el token (vigencia de 8 h). Un administrador degradado conserva sus permisos hasta que el token expire.
+- **Rol dentro del JWT:** el rol del usuario viaja en el token (vigencia de 8 h) y los permisos se deciden con él. Tras una promoción o degradación, la sesión abierta conserva el rol anterior hasta la siguiente llamada a `/api/auth/me` (es decir, la próxima carga de página), que reemite la cookie con el rol vigente. Las peticiones de un token ya emitido que no pasen por `/auth/me` siguen usando el rol antiguo.
 - **Subidas sin sesión:** en `POST /api/songs`, la guarda temprana de tamaño (`Content-Length` mayor a 20 MB + 1 MiB responde 422) se ejecuta antes de la autenticación; una subida enorme sin sesión recibe 422 en lugar de 401.
 - **Configuración de seguridad:** `FLDSMDFR_COOKIE_SECURE` es `false` por defecto para HTTP local; debe ser `true` detrás de HTTPS. El secreto JWT por defecto de `.env.example` y de `docker-compose.yml` debe cambiarse fuera de desarrollo local.
 - **Contador de reproducciones:** en el monolito se incrementa de forma síncrona (PRD §6), pero la lista "lo más escuchado" se documenta como eventualmente consistente.

@@ -49,10 +49,15 @@ async def logout() -> Response:
 
 @router.get("/auth/me", response_model=UserOut)
 async def me(
+    response: Response,
     user: CurrentUser = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    return await service.get_user(session, user.user_id)
+    current = await service.get_user(session, user.user_id)
+    if current.role != user.role:
+        # El token lleva un rol desactualizado (promoción o degradación): se reemite.
+        _token_response(current, response)
+    return current
 
 
 @router.get("/users", response_model=list[UserOut], dependencies=[Depends(require_admin)])

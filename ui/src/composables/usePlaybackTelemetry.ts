@@ -1,5 +1,7 @@
 import { readonly, ref, type Ref } from 'vue'
+import { ApiError } from '../api/http'
 import type { PlaybackIn } from '../api/types'
+import { uuidv4 } from './uuid'
 
 export type TelemetryStatus = 'idle' | 'counting' | 'sending' | 'sent' | 'failed'
 
@@ -28,7 +30,7 @@ export function createPlaybackTelemetry(deps: TelemetryDeps): {
   onTimeUpdate: (currentTime: number) => void
   status: Readonly<Ref<TelemetryStatus>>
 } {
-  const uuid = deps.uuid ?? (() => crypto.randomUUID())
+  const uuid = deps.uuid ?? uuidv4
   const sleep = deps.sleep ?? sleepPorDefecto
   const status = ref<TelemetryStatus>('idle')
 
@@ -47,8 +49,10 @@ export function createPlaybackTelemetry(deps: TelemetryDeps): {
         await deps.send(body)
         if (vigente()) status.value = 'sent'
         return
-      } catch {
-        if (intento === ESPERAS_REINTENTO_MS.length) break
+      } catch (error) {
+        // Un 4xx es permanente: reintentar el mismo cuerpo no lo arregla.
+        const permanente = error instanceof ApiError && error.status >= 400 && error.status < 500
+        if (permanente || intento === ESPERAS_REINTENTO_MS.length) break
         await sleep(ESPERAS_REINTENTO_MS[intento])
       }
     }

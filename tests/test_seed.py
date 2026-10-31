@@ -146,3 +146,18 @@ async def test_seed_does_not_reimport_deactivated_songs(session, tmp_path):
     assert (await catalog_service.list_songs(session, None)).total == 0
     again = await catalog_service.find_song_by_title_artist(session, "Uno", "Banda A")
     assert again is not None and again.is_active is False
+
+
+async def test_seed_entry_with_stray_spaces_is_imported_once(session, tmp_path):
+    make_wav(tmp_path / "uno.wav")
+    _write_seed(
+        tmp_path,
+        [{"file": "uno.wav", "title": " Uno ", "artist": " Banda A ", "album": " Disco "}],
+        [],
+    )
+
+    first = await run_seed(session, tmp_path)
+    second = await run_seed(session, tmp_path)
+
+    assert first.songs_imported == 1
+    assert second.songs_imported == 0

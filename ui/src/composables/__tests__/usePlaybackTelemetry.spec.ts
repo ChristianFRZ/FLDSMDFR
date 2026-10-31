@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPlaybackTelemetry } from '../usePlaybackTelemetry'
 import type { PlaybackIn } from '../../api/types'
+import { ApiError } from '../../api/http'
 
 function setup(send: (b: PlaybackIn) => Promise<unknown> = () => Promise.resolve({})) {
   const sendMock = vi.fn(send)
@@ -137,5 +138,50 @@ describe('createPlaybackTelemetry', () => {
     const { telemetry, sendMock } = setup()
     tick(telemetry, 0, 12)
     expect(sendMock).not.toHaveBeenCalled()
+  })
+
+  it('genera un UUID v4 válido sin crypto.randomUUID', async () => {
+    vi.stubGlobal('crypto', { getRandomValues: (a: Uint8Array) => a.fill(255) })
+    try {
+      const sendMock = vi.fn((_: PlaybackIn) => Promise.resolve({}))
+      const telemetry = createPlaybackTelemetry({ send: sendMock })
+      telemetry.startSession('song-1')
+      tick(telemetry, 0, 10)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(sendMock.mock.calls[0][0].playback_id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      )
+    } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('no reintenta errores 4xx: falla de inmediato', async () => {
+    const { telemetry, sendMock, delays } = setup(() =>
+      Promise.reject(new ApiError(422, 'invalid_input', 'Datos inválidos')),
+    )
+    telemetry.startSession('song-1')
+    tick(telemetry, 0, 10)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(sendMock).toHaveBeenCalledTimes(1)
+    expect(delays).toEqual([])
+    expect(telemetry.status.value).toBe('failed')
+  })
+
+  it('reintenta errores de red y 5xx', async () => {
+    for (const error of [
+      new ApiError(0, 'network_error', 'Sin conexión'),
+      new ApiError(503, 'unavailable', 'Caído'),
+    ]) {
+      let calls = 0
+      const { telemetry, sendMock } = setup(() =>
+        ++calls === 1 ? Promise.reject(error) : Promise.resolve({}),
+      )
+      telemetry.startSession('song-1')
+      tick(telemetry, 0, 10)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(sendMock).toHaveBeenCalledTimes(2)
+      expect(telemetry.status.value).toBe('sent')
+    }
   })
 })

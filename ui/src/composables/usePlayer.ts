@@ -82,6 +82,15 @@ function attach(el: HTMLAudioElement): void {
   }
 }
 
+/** La telemetría nunca debe impedir que suene la música: si falla, se avisa y se sigue. */
+function iniciarSesionDeEscucha(songId: string): void {
+  try {
+    telemetry.startSession(songId)
+  } catch {
+    mostrar('No pudimos registrar esta reproducción; la música sigue.', 'info')
+  }
+}
+
 async function play(song: SongOut, newQueue?: SongOut[]): Promise<void> {
   if (!audio) return
   current.value = song
@@ -90,7 +99,7 @@ async function play(song: SongOut, newQueue?: SongOut[]): Promise<void> {
   duration.value = song.duration_seconds
   buffered.value = []
   audio.src = songs.streamUrl(song.id)
-  telemetry.startSession(song.id)
+  iniciarSesionDeEscucha(song.id)
   try {
     await audio.play()
     isPlaying.value = true
@@ -106,6 +115,8 @@ async function play(song: SongOut, newQueue?: SongOut[]): Promise<void> {
 function toggle(): void {
   if (!audio || !current.value) return
   if (audio.paused) {
+    // Repetir desde el principio tras terminar es una escucha nueva (spec §4.8).
+    if (audio.ended) iniciarSesionDeEscucha(current.value.id)
     audio.play().catch((error) => {
       const abortado = error instanceof DOMException && error.name === 'AbortError'
       if (!abortado && !audio?.error) fallarReproduccion()

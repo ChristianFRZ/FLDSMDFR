@@ -136,6 +136,9 @@ async def _ingest_audio(
 async def create_song(
     session: AsyncSession, title: str, artist: str, album: str, upload: UploadFile
 ) -> SongOut:
+    title, artist, album = title.strip(), artist.strip(), album.strip()
+    if not (title and artist and album):
+        raise InvalidInput("Título, artista y álbum no pueden estar vacíos.")
     return await _ingest_audio(
         session, upload.filename or "", _read_chunks(upload.read), title, artist, album
     )

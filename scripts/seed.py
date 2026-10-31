@@ -70,7 +70,9 @@ async def _import_songs(
             logger.warning("Semilla: la entrada %s es inválida; se omite", label)
             report.songs_skipped.append(label)
             continue
-        file_name, title, artist = entry["file"], entry["title"], entry["artist"]
+        file_name = entry["file"]
+        title, artist = entry["title"].strip(), entry["artist"].strip()
+        album = entry["album"].strip() if isinstance(entry.get("album"), str) else ""
         existing = await catalog_service.find_song_by_title_artist(session, title, artist)
         if existing is not None:
             if existing.is_active:
@@ -87,7 +89,7 @@ async def _import_songs(
                 source,
                 title,
                 artist,
-                entry.get("album") if isinstance(entry.get("album"), str) else "",
+                album,
             )
         except DomainError as exc:
             logger.warning("Semilla: %s no es válido (%s); se omite", file_name, exc.message)

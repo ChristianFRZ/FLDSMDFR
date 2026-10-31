@@ -119,3 +119,47 @@ async def test_logout_clears_cookie(client):
     r = await client.post("/api/auth/logout")
     assert r.status_code == 204
     assert (await client.get("/api/auth/me")).status_code == 401
+
+
+async def test_me_reissues_cookie_after_promotion(session, client):
+    listener = (await signup(client))["user"]
+    assert (await client.get("/api/users")).status_code == 403
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as other:
+        admin = await make_admin_client(session, other)
+        try:
+            r = await admin.patch(f"/api/users/{listener['id']}/role", json={"role": "admin"})
+            assert r.status_code == 200
+        finally:
+            await admin.aclose()
+
+    me = await client.get("/api/auth/me")
+    assert me.status_code == 200
+    assert me.json()["role"] == "admin"
+    assert get_settings().cookie_name in me.headers.get("set-cookie", "")
+    assert (await client.get("/api/users")).status_code == 200
+
+
+async def test_me_reissues_cookie_after_demotion(session, client):
+    promoted = (await signup(client, email="otro@test.mx"))["user"]
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as other:
+        admin = await make_admin_client(session, other)
+        try:
+            await admin.patch(f"/api/users/{promoted['id']}/role", json={"role": "admin"})
+            relogin = await client.post(
+                "/api/auth/login", json={"email": "otro@test.mx", "password": "secreta123"}
+            )
+            assert relogin.json()["user"]["role"] == "admin"
+            assert (await client.get("/api/users")).status_code == 200
+            await admin.patch(f"/api/users/{promoted['id']}/role", json={"role": "listener"})
+        finally:
+            await admin.aclose()
+
+    me = await client.get("/api/auth/me")
+    assert me.json()["role"] == "listener"
+    assert (await client.get("/api/users")).status_code == 403
+
+
+async def test_me_does_not_reissue_cookie_when_role_matches(client):
+    await signup(client)
+    me = await client.get("/api/auth/me")
+    assert "set-cookie" not in me.headers

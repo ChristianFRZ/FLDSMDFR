@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SongOut } from '../../api/types'
 
 vi.mock('../../api/playbacks', () => ({ send: vi.fn(() => Promise.resolve({})) }))
@@ -96,5 +96,54 @@ describe('usePlayer', () => {
     expect(player.current.value).toBeNull()
     expect(player.queue.value).toEqual([])
     expect(player.isPlaying.value).toBe(false)
+  })
+
+  describe('sesiones de escucha y fallos de telemetría', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('reproduce aunque crypto.randomUUID no exista (HTTP sin contexto seguro)', async () => {
+      vi.stubGlobal('crypto', { getRandomValues: (a: Uint8Array) => a.fill(7) })
+      await player.play(a)
+      expect(el.play).toHaveBeenCalled()
+      expect(player.isPlaying.value).toBe(true)
+    })
+
+    it('si la telemetría lanza al iniciar, la música suena y se avisa', async () => {
+      const boom = () => {
+        throw new Error('sin crypto')
+      }
+      vi.stubGlobal('crypto', { randomUUID: boom, getRandomValues: boom })
+      await player.play(a)
+      expect(el.play).toHaveBeenCalled()
+      expect(player.isPlaying.value).toBe(true)
+      expect(useAvisos().avisos.value.map((x) => x.texto)).toContain(
+        'No pudimos registrar esta reproducción; la música sigue.',
+      )
+    })
+
+    it('repetir tras terminar abre una sesión de escucha nueva', async () => {
+      const randomUUID = vi.fn(() => '00000000-0000-4000-8000-000000000000')
+      vi.stubGlobal('crypto', { randomUUID, getRandomValues: (x: Uint8Array) => x })
+      await player.play(a)
+      expect(randomUUID).toHaveBeenCalledTimes(1)
+      el.dispatchEvent(new Event('ended'))
+      Object.defineProperty(el, 'ended', { value: true, configurable: true })
+      Object.defineProperty(el, 'paused', { value: true, configurable: true })
+      player.toggle()
+      expect(randomUUID).toHaveBeenCalledTimes(2)
+      expect(el.play).toHaveBeenCalledTimes(2)
+    })
+
+    it('reanudar tras una pausa normal no abre sesión nueva', async () => {
+      const randomUUID = vi.fn(() => '00000000-0000-4000-8000-000000000000')
+      vi.stubGlobal('crypto', { randomUUID, getRandomValues: (x: Uint8Array) => x })
+      await player.play(a)
+      Object.defineProperty(el, 'paused', { value: true, configurable: true })
+      Object.defineProperty(el, 'ended', { value: false, configurable: true })
+      player.toggle()
+      expect(randomUUID).toHaveBeenCalledTimes(1)
+    })
   })
 })
