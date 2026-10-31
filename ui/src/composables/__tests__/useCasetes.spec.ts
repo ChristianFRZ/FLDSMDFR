@@ -172,4 +172,80 @@ describe('useCasetes', () => {
     expect(casetes.casetes.value.map((c) => c.id)).toEqual(['p2'])
     expect(casetes.activo.value?.id).toBe('p2')
   })
+
+  it('una mutación que responde tras cambiar de casete no reemplaza al activo', async () => {
+    const { casetes } = await freshCasetes()
+    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa'), resumen('p2', 'Correr')])
+    get.mockResolvedValueOnce(detalle('p1', 'Tarde lluviosa'))
+    await casetes.cargar()
+
+    let responder!: (d: PlaylistDetail) => void
+    addSong.mockReturnValue(new Promise<PlaylistDetail>((r) => (responder = r)))
+    const grabando = casetes.grabar('s1')
+    get.mockResolvedValueOnce(detalle('p2', 'Correr'))
+    await casetes.seleccionar('p2')
+    responder(detalle('p1', 'Tarde lluviosa', ['s1']))
+    await grabando
+
+    expect(casetes.activo.value?.id).toBe('p2')
+    expect(casetes.casetes.value.find((c) => c.id === 'p1')?.song_count).toBe(1)
+  })
+
+  it('quitar y mover tardíos tampoco reemplazan al casete activo', async () => {
+    const { casetes } = await freshCasetes()
+    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa'), resumen('p2', 'Correr')])
+    get.mockResolvedValueOnce(detalle('p1', 'Tarde lluviosa', ['a', 'b']))
+    await casetes.cargar()
+
+    let responderQuitar!: (d: PlaylistDetail) => void
+    let responderMover!: (d: PlaylistDetail) => void
+    removeSong.mockReturnValue(new Promise<PlaylistDetail>((r) => (responderQuitar = r)))
+    reorder.mockReturnValue(new Promise<PlaylistDetail>((r) => (responderMover = r)))
+    const quitando = casetes.quitar('a')
+    const moviendo = casetes.mover('b', -1)
+    get.mockResolvedValueOnce(detalle('p2', 'Correr', ['z']))
+    await casetes.seleccionar('p2')
+    responderQuitar(detalle('p1', 'Tarde lluviosa', ['b']))
+    responderMover(detalle('p1', 'Tarde lluviosa', ['b', 'a']))
+    await Promise.all([quitando, moviendo])
+
+    expect(casetes.activo.value?.id).toBe('p2')
+    expect(casetes.activo.value?.songs.map((s) => s.song_id)).toEqual(['z'])
+  })
+
+  it('una selección en curso no repone un casete recién borrado', async () => {
+    const { casetes } = await freshCasetes()
+    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa')])
+    get.mockResolvedValueOnce(detalle('p1', 'Tarde lluviosa'))
+    await casetes.cargar()
+
+    let responderGet!: (d: PlaylistDetail) => void
+    get.mockReturnValueOnce(new Promise<PlaylistDetail>((r) => (responderGet = r)))
+    const seleccionando = casetes.seleccionar('p1')
+    remove.mockResolvedValue(undefined)
+    await casetes.eliminar()
+    responderGet(detalle('p1', 'Tarde lluviosa'))
+    await seleccionando
+
+    expect(casetes.activo.value).toBeNull()
+    expect(casetes.casetes.value).toEqual([])
+  })
+
+  it('reiniciar vacía el estado y descarta una carga en curso', async () => {
+    const { casetes } = await freshCasetes()
+    list.mockResolvedValueOnce([resumen('p1', 'Tarde lluviosa')])
+    get.mockResolvedValueOnce(detalle('p1', 'Tarde lluviosa'))
+    await casetes.cargar()
+
+    let responderLista!: (l: PlaylistSummary[]) => void
+    list.mockReturnValueOnce(new Promise<PlaylistSummary[]>((r) => (responderLista = r)))
+    const cargando = casetes.cargar()
+    casetes.reiniciar()
+    responderLista([resumen('p1', 'Tarde lluviosa')])
+    await cargando
+
+    expect(casetes.casetes.value).toEqual([])
+    expect(casetes.activo.value).toBeNull()
+    expect(casetes.cargando.value).toBe(false)
+  })
 })

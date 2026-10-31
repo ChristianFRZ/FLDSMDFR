@@ -12,6 +12,8 @@ const error = ref('')
 
 // Cada selección incrementa el turno; una respuesta de un turno viejo se descarta.
 let turno = 0
+// Cambia al reiniciar (cerrar sesión): descarta listas que lleguen de la sesión anterior.
+let generacion = 0
 
 const { mostrar } = useAvisos()
 
@@ -26,8 +28,12 @@ function sincronizarResumen(detalle: PlaylistDetail): void {
   )
 }
 
+/**
+ * Aplica la respuesta de una mutación. Si mientras tanto se cambió de casete, la respuesta
+ * solo actualiza el resumen del estante: nunca reemplaza al casete que está en la casetera.
+ */
 function aplicarDetalle(detalle: PlaylistDetail): void {
-  activo.value = detalle
+  if (activo.value?.id === detalle.id) activo.value = detalle
   sincronizarResumen(detalle)
 }
 
@@ -37,7 +43,10 @@ async function seleccionar(id: string): Promise<void> {
   error.value = ''
   try {
     const detalle = await playlists.get(id)
-    if (miTurno === turno) aplicarDetalle(detalle)
+    if (miTurno === turno) {
+      activo.value = detalle
+      sincronizarResumen(detalle)
+    }
   } catch (e) {
     if (miTurno === turno) error.value = mensajeDe(e)
   } finally {
@@ -46,15 +55,20 @@ async function seleccionar(id: string): Promise<void> {
 }
 
 async function cargar(): Promise<void> {
+  const miGeneracion = generacion
   cargando.value = true
   error.value = ''
+  let lista: PlaylistSummary[]
   try {
-    casetes.value = await playlists.list()
+    lista = await playlists.list()
   } catch (e) {
+    if (miGeneracion !== generacion) return
     error.value = mensajeDe(e)
     cargando.value = false
     return
   }
+  if (miGeneracion !== generacion) return
+  casetes.value = lista
   // Se conserva el activo si sigue existiendo (p. ej. al volver de la cabina); si no, el primero.
   const sigue = activo.value && casetes.value.some((c) => c.id === activo.value?.id)
   const destino = sigue ? activo.value!.id : casetes.value[0]?.id
@@ -93,7 +107,10 @@ async function eliminar(): Promise<void> {
     return
   }
   casetes.value = casetes.value.filter((c) => c.id !== actual.id)
+  // Invalida una selección en curso para que no reponga el casete borrado.
+  turno++
   activo.value = null
+  cargando.value = false
   mostrar(`Borraste «${actual.name}»`, 'info')
   const siguiente = casetes.value[0]
   if (siguiente) await seleccionar(siguiente.id)
@@ -142,6 +159,16 @@ async function mover(songId: string, direccion: -1 | 1): Promise<void> {
   }
 }
 
+/** Vacía el estado (al cerrar sesión) para que el siguiente usuario no vea casetes ajenos. */
+function reiniciar(): void {
+  turno++
+  generacion++
+  casetes.value = []
+  activo.value = null
+  cargando.value = false
+  error.value = ''
+}
+
 export function useCasetes(): {
   casetes: Ref<PlaylistSummary[]>
   activo: Ref<PlaylistDetail | null>
@@ -155,6 +182,7 @@ export function useCasetes(): {
   grabar: (songId: string) => Promise<void>
   quitar: (songId: string) => Promise<void>
   mover: (songId: string, direccion: -1 | 1) => Promise<void>
+  reiniciar: () => void
 } {
   return {
     casetes,
@@ -169,5 +197,6 @@ export function useCasetes(): {
     grabar,
     quitar,
     mover,
+    reiniciar,
   }
 }

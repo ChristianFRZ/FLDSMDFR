@@ -142,6 +142,22 @@ function seek(seconds: number): void {
   currentTime.value = target
 }
 
+/** Detiene y vacía el reproductor (p. ej. al cerrar sesión): sin canción, sin cola, sin fuente. */
+function stop(): void {
+  if (audio) {
+    audio.pause()
+    // Quitar el atributo (no asignar '') evita un evento `error` y su aviso.
+    audio.removeAttribute('src')
+    audio.load()
+  }
+  current.value = null
+  queue.value = []
+  isPlaying.value = false
+  currentTime.value = 0
+  duration.value = 0
+  buffered.value = []
+}
+
 function setVolume(v: number): void {
   const clamped = Math.min(Math.max(Number.isFinite(v) ? v : 0, 0), 1)
   volume.value = clamped
@@ -163,6 +179,7 @@ export function usePlayer() {
     next,
     prev,
     seek,
+    stop,
     setVolume,
   }
 }

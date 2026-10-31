@@ -77,7 +77,7 @@ scroll por dentro de su columna; la página no hace scroll.
 │ └─────────────────────────────┘ │ ╭──────────────────────────────────╮     │
 │ CaseteActivo (--tape)           │ │ Buscar canción, artista o álbum  │     │
 │                                 │ ╰──────────────────────────────────╯     │
-│ (|<) ( > ) (>|) Nubes de… (vol) │                                          │
+│ (|<) ( > ) (>|) Nubes de… (vol) │ Ana        Cabina de grabación  (Salir)  │
 │                Los Meteoros     │ Granizo                     3:12  (+)    │
 │ ━━━━━━━━░░░░──────── 1:12/3:41  │ Los Meteoros · Pronóstico                │
 │ BarraProgreso                   │ ──────────────────────────────────────── │
@@ -87,13 +87,15 @@ scroll por dentro de su columna; la página no hace scroll.
 │   Frente frío            2:58   │ Neblina                     2:44  (+)    │
 │ ListaCasete (scroll)            │ Calma Chicha · Barlovento                │
 │                                 │                                          │
-│ [Tarde lluv.][Correr][+ Nueva]  │ PanelCatalogo / PanelTop (scroll)        │
+│ [Tarde lluv.][+ Nuevo casete]   │ PanelCatalogo / PanelTop (scroll)        │
 │ EstanteCasetes (al pie)         │                                          │
 └─────────────────────────────────┴──────────────────────────────────────────┘
 ```
 
-Orden de lectura y de tabulación: interruptor de lado → casete activo → controles →
-barra de progreso → lista del casete → estante → pestañas → buscador → resultados.
+Orden de lectura y de tabulación: casete activo → controles → barra de progreso → lista
+del casete → estante → encabezado de la tienda (cabina, "Salir", interruptor de lado) →
+pestañas → buscador → resultados. El interruptor queda en el encabezado de la tienda (columna
+derecha), por eso llega después de la casetera.
 
 ### 2.2. Pantallas angostas (< 900 px): se apila
 
@@ -123,8 +125,14 @@ Debajo, tres pestañas reparten el contenido:
 
 - **Catálogo:** `PanelCatalogo`.
 - **Mi casete:** `ListaCasete` seguida de `EstanteCasetes` (el estante pasa a una rejilla
-  de 2 columnas).
+  de 2 columnas). El panel conserva el fondo `--deck` para mantener los contrastes de la
+  casetera.
 - **Lo más escuchado:** `PanelTop`.
+
+Entre la casetera compacta y las pestañas va una fila con el nombre del usuario, "Cabina de
+grabación" (solo admin) y "Salir"; esa fila no es fija. Las pestañas pasan a otra línea si no
+caben. En < 480 px el control de volumen de `ControlesReproductor` se oculta: en teléfonos el
+volumen lo controlan los botones del equipo y el deslizador provocaría scroll horizontal.
 
 Margen lateral 16 px (`--space-4`). Ningún elemento provoca scroll horizontal; los
 títulos largos se cortan con elipsis y el texto completo va en `title`.
@@ -320,6 +328,7 @@ Fila con ⏮ anterior, ▶/⏸ reproducir‑pausar, ⏭ siguiente, título/artis
   silencia. `aria-label="Volumen"` en el deslizador y "Silenciar"/"Activar sonido" en el botón.
 - `aria-label` obligatorios: "Anterior", "Reproducir"/"Pausar" (cambia con el estado),
   "Siguiente".
+- En < 480 px el volumen se oculta (sección 2.2).
 - **Estados:**
   - Sin canción: play deshabilitado; metadatos "Nada suena todavía".
   - Primera / última canción: ⏮ / ⏭ deshabilitados.
@@ -346,13 +355,17 @@ Fila con ⏮ anterior, ▶/⏸ reproducir‑pausar, ⏭ siguiente, título/artis
 Canciones del casete activo, sobre `--deck`.
 
 - Fila: posición implícita, título 15 px, duración 13 px a la derecha (`tabular-nums`),
-  separador 1 px `--rule-deck`, alto mínimo 44 px. Acción "Quitar del casete" (botón de
-  icono de 40 px) visible al hover/foco de la fila y siempre en pantallas táctiles.
+  separador 1 px `--rule-deck`, alto mínimo 44 px. Acciones "Subir", "Bajar" y "Quitar del
+  casete" (botones de icono de 40 px con `aria-label` que nombra la canción, p. ej.
+  "Subir «Monzón»") visibles al hover/foco de la fila y siempre en pantallas táctiles.
+  "Subir" se deshabilita en la primera fila y "Bajar" en la última.
 - Canción que suena: icono ▶ y barra izquierda de 3 px en `--accent2`, título en
   `--deck-ink` 700 (restricción 2) y `aria-current="true"`.
-- Doble clic o Enter en una fila: reproduce desde esa canción.
-- Reordenar: botones "Subir"/"Bajar" en el menú de la fila (no se depende solo de
-  arrastrar).
+- Clic (o Enter / Espacio: la fila es un botón) reproduce desde esa canción; la cola son
+  las canciones del casete que no están "No disponible".
+- Reordenar: con los botones "Subir"/"Bajar" de la fila (no se depende de arrastrar).
+- Canción con datos de respaldo (`status: "degraded"`): marca discreta "Datos guardados" en
+  13 px con `title` que lo explica.
 - Pie: "3 canciones · 10:44" en 13 px.
 - **Estados:** cargando (esqueleto de 3 filas); vacío ("Este casete está vacío. Busca una
   canción y pulsa + para grabarla."); error (`Aviso` + "Reintentar"); degradado (`Aviso`
@@ -367,14 +380,14 @@ Los casetes del usuario al pie de la casetera.
   Separación `--space-2`. En escritorio fila con scroll horizontal interno; en < 900 px
   rejilla de 2 columnas.
 - Casete activo: contorno 2 px `--accent2` con 2 px de separación, `aria-pressed="true"`.
-- "+ Nueva": mismo tamaño, fondo transparente, borde 2 px discontinuo `--deck-ink`. Al
+- "Nuevo casete" (con icono +): mismo tamaño, fondo transparente, borde 2 px discontinuo `--deck-ink`. Al
   pulsarlo se convierte en un campo en línea ("Nombre del casete") con botones "Crear
   casete" y "Cancelar"; Enter crea, Escape cancela. Nombre de 1 a 60 caracteres.
 - Renombrar / borrar: menú del casete activo ("Renombrar", "Borrar casete"). Borrar pide
   confirmación en línea: "¿Borrar «Correr»? Esta acción no se puede deshacer." con
   "Borrar casete" (`--danger`) y "Cancelar".
 - **Estados:** cargando (3 casetes esqueleto); vacío ("Aún no tienes casetes. Crea el
-  primero con + Nueva."); error al crear (mensaje bajo el campo, en `--danger` sobre
+  primero con «Nuevo casete»."); error al crear (mensaje bajo el campo, en `--danger` sobre
   `--paper`); creando ("Creando…", botón deshabilitado).
 
 ### 6.6. `PanelCatalogo`
@@ -384,7 +397,8 @@ Columna derecha, pestaña "Catálogo".
 - Título h2 "Catálogo".
 - Buscador: píldora `--paper`, borde 2 px `--ink`, alto 44 px, icono de lupa,
   placeholder "Buscar canción, artista o álbum" (placeholder con opacidad 0.75, cumple
-  AA). Busca al escribir con 300 ms de espera; `aria-label="Buscar en el catálogo"`.
+  AA). Busca al escribir con 250 ms de espera; `aria-label="Buscar canción, artista o álbum"`.
+- Clic en una fila (es un botón) reproduce esa canción; la cola son los resultados cargados.
 - Fila: rejilla `1fr auto 40px`, separación `--space-3`, título 15 px 700, debajo
   "Artista · Álbum" 13 px opacidad 0.8, duración 13 px, y botón **+** (40 px, círculo
   `--accent`, icono `--on-accent`) con `aria-label="Grabar «Granizo» en el casete"`.
@@ -392,12 +406,12 @@ Columna derecha, pestaña "Catálogo".
 - Paginación: botón "Cargar más" al final (no scroll infinito).
 - **Estados:**
   - Cargando: esqueleto de 5 filas.
-  - Vacío por búsqueda: "No encontramos canciones para «xyz». Prueba con otro título o
-    artista."
+  - Vacío por búsqueda: "No encontramos canciones con «xyz»."
   - Catálogo vacío: "Todavía no hay canciones en el catálogo."
-  - Error: `Aviso` + "Reintentar".
-  - **+** sin casete activo: deshabilitado con `title`/tooltip "Elige o crea un casete
-    para grabar".
+  - Error: `Aviso` + "Reintentar". Si falla una búsqueda se quitan los resultados
+    anteriores y "Reintentar" repite esa búsqueda.
+  - **+** sin casete activo: atenuado con `aria-disabled="true"` y `title` "Elige o crea un
+    casete para grabar"; sigue enfocable y al pulsarlo avisa "Crea un casete primero."
   - **+** grabando: icono de carga, `aria-busy`. Al terminar, el icono pasa a ✓ durante
     1.5 s y se anuncia "Grabada en «Tarde lluviosa»" por la región viva.
   - **+** si la canción ya está en el casete: icono ✓, deshabilitado, `aria-label`
@@ -464,6 +478,10 @@ Mensaje en línea para información, éxito, degradado o error.
 
 La distribución de la sección 2. Requiere sesión. Una región viva `aria-live="polite"`
 (oculta visualmente) anuncia "Grabada en …", "Casete creado", cambios de canción.
+
+El único `<audio>` de la app vive en `App.vue`, fuera de las vistas: la música sigue al ir a
+la cabina y volver. Al cerrar sesión (o si expira) el reproductor se detiene y se vacían los
+casetes en memoria, para que el siguiente usuario no vea los del anterior.
 
 ### 7.3. Cabina de grabación (`/cabina`, solo admin)
 
@@ -558,8 +576,8 @@ del casete se usan en las acciones principales.
 | Agregar canción | "Grabar en el casete" | "Agregar a playlist", "Añadir" |
 | Crear playlist | "Crear casete" | "Nueva playlist", "Guardar" |
 | Casete vacío | "Este casete está vacío. Busca una canción y pulsa + para grabarla." | "No hay elementos." |
-| Sin casetes | "Aún no tienes casetes. Crea el primero con + Nueva." | "Lista vacía" |
-| Búsqueda sin resultados | "No encontramos canciones para «xyz». Prueba con otro título o artista." | "0 resultados" |
+| Sin casetes | "Aún no tienes casetes. Crea el primero con «Nuevo casete»." | "Lista vacía" |
+| Búsqueda sin resultados | "No encontramos canciones con «xyz»." | "0 resultados" |
 | Error de red | "No pudimos cargar el catálogo. Revisa tu conexión y vuelve a intentarlo." | "Error 500" |
 | Canción no disponible | "No disponible" | "ERROR: canción inactiva" |
 | Modo degradado | "Mostramos la última versión guardada; algunos datos pueden estar desactualizados." | "Servicio degradado" |

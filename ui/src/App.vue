@@ -1,10 +1,18 @@
 <script setup lang="ts">
+import { onMounted, ref } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import Aviso from './components/Aviso.vue'
 import InterruptorLado from './components/InterruptorLado.vue'
+import { usePlayer } from './composables/usePlayer'
 
 // Las vistas con encabezado propio (la casetera) colocan ahí su InterruptorLado.
 const route = useRoute()
+
+// El único <audio> vive aquí para que la música siga al pasar de la casetera a la cabina.
+const audio = ref<HTMLAudioElement | null>(null)
+onMounted(() => {
+  if (audio.value) usePlayer().attach(audio.value)
+})
 </script>
 
 <template>
@@ -16,6 +24,7 @@ const route = useRoute()
       <RouterView />
     </main>
     <Aviso />
+    <audio ref="audio" preload="metadata" />
   </div>
 </template>
 

@@ -20,8 +20,6 @@ const { user, isAdmin, logout } = useSession()
 const { activo, cargando, cargar } = useCasetes()
 const player = usePlayer()
 
-const audio = ref<HTMLAudioElement | null>(null)
-
 // En escritorio la lista del casete vive en la columna izquierda; en < 900 px pasa a una pestaña.
 const consulta = typeof matchMedia === 'function' ? matchMedia(ANCHO_ESCRITORIO) : null
 const ancho = ref(consulta?.matches ?? true)
@@ -68,15 +66,12 @@ function moverPestana(evento: KeyboardEvent): void {
 }
 
 onMounted(() => {
-  if (audio.value) player.attach(audio.value)
   consulta?.addEventListener('change', onCambioAncho)
   void cargar()
 })
 
 onBeforeUnmount(() => {
   consulta?.removeEventListener('change', onCambioAncho)
-  // Un <audio> fuera del DOM sigue sonando: al salir de la vista se pausa.
-  audio.value?.pause()
 })
 </script>
 
@@ -141,8 +136,6 @@ onBeforeUnmount(() => {
         <PanelTop v-else />
       </div>
     </section>
-
-    <audio ref="audio" preload="metadata" />
   </div>
 </template>
 

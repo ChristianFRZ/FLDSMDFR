@@ -85,4 +85,16 @@ describe('usePlayer', () => {
     expect(el.volume).toBe(0.4)
     expect(player.volume.value).toBe(0.4)
   })
+
+  it('stop pausa, quita la fuente y vacía la canción y la cola', async () => {
+    el.load = vi.fn()
+    await player.play(b, [a, b, c])
+    player.stop()
+    expect(el.pause).toHaveBeenCalled()
+    expect(el.hasAttribute('src')).toBe(false)
+    expect(el.load).toHaveBeenCalled()
+    expect(player.current.value).toBeNull()
+    expect(player.queue.value).toEqual([])
+    expect(player.isPlaying.value).toBe(false)
+  })
 })

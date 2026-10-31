@@ -44,7 +44,11 @@ async function buscar(): Promise<void> {
     total.value = pagina.total
     buscado.value = q
   } catch (e) {
-    if (mia === peticion) error.value = mensajeDe(e)
+    if (mia !== peticion) return
+    // Sin resultados viejos en pantalla: el error ocupa la lista y "Reintentar" repite la búsqueda.
+    canciones.value = []
+    total.value = 0
+    error.value = mensajeDe(e)
   } finally {
     if (mia === peticion) cargando.value = false
   }

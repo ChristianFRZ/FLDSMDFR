@@ -114,4 +114,27 @@ describe('PanelCatalogo', () => {
 
     expect(wrapper.text()).toContain('Granizo')
   })
+
+  it('si falla una búsqueda nueva no deja los resultados viejos y "Reintentar" repite esa búsqueda', async () => {
+    const { ApiError } = await import('../../api/http')
+    list.mockResolvedValueOnce({ items: [cancion('s1', 'Granizo')], total: 1 })
+    const wrapper = mount(PanelCatalogo)
+    await flushPromises()
+
+    list.mockRejectedValueOnce(new ApiError(500, 'internal_error', 'Algo salió mal. Vuelve a intentarlo.'))
+    await wrapper.get('input[type="search"]').setValue('monzón')
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+
+    expect(wrapper.findAll('.catalogo__reproducir')).toHaveLength(0)
+    expect(wrapper.text()).toContain('Algo salió mal. Vuelve a intentarlo.')
+
+    list.mockResolvedValueOnce({ items: [cancion('s2', 'Monzón')], total: 1 })
+    const reintentar = wrapper.findAll('button').find((b) => b.text() === 'Reintentar')
+    await reintentar!.trigger('click')
+    await flushPromises()
+
+    expect(list).toHaveBeenLastCalledWith('monzón', 0)
+    expect(wrapper.text()).toContain('Monzón')
+  })
 })

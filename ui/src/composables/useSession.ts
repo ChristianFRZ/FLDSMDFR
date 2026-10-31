@@ -4,17 +4,26 @@ import { onUnauthorized } from '../api/http'
 import type { UserOut } from '../api/types'
 import { router } from '../router'
 import { useAvisos } from './useAvisos'
+import { useCasetes } from './useCasetes'
+import { usePlayer } from './usePlayer'
 
 // Estado singleton a nivel de módulo. El token vive en una cookie httpOnly: el cliente nunca lo toca.
 const user = ref<UserOut | null>(null)
 const ready = ref(false)
 const isAdmin = computed(() => user.value?.role === 'admin')
 
+/** Cierra la sesión local: sin usuario, sin música sonando y sin casetes del usuario anterior. */
+function cerrarSesionLocal(): void {
+  user.value = null
+  usePlayer().stop()
+  useCasetes().reiniciar()
+}
+
 // Un 401 con sesión abierta significa que expiró: se limpia y se manda a entrar de nuevo.
 // Sin usuario (p. ej. el 401 inicial de /auth/me) no hay nada que cerrar.
 onUnauthorized(() => {
   if (user.value === null) return
-  user.value = null
+  cerrarSesionLocal()
   useAvisos().mostrar('Tu sesión terminó. Entra de nuevo para seguir escuchando.', 'error')
   void router.push('/acceso')
 })
@@ -44,7 +53,7 @@ async function logout(): Promise<void> {
   } catch {
     // Si el servidor no responde igual se cierra la sesión local; la cookie expira sola.
   }
-  user.value = null
+  cerrarSesionLocal()
   await router.push('/acceso')
 }
 

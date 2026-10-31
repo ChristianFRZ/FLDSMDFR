@@ -8,12 +8,16 @@ const login = vi.fn()
 const register = vi.fn()
 const logout = vi.fn()
 const push = vi.fn()
+const stop = vi.fn()
+const reiniciar = vi.fn()
 
 // El estado de sesión es un singleton de módulo: cada prueba importa una copia nueva.
 async function freshSession() {
   vi.resetModules()
   vi.doMock('../../api/auth', () => ({ me, login, register, logout }))
   vi.doMock('../../router', () => ({ router: { push } }))
+  vi.doMock('../usePlayer', () => ({ usePlayer: () => ({ stop }) }))
+  vi.doMock('../useCasetes', () => ({ useCasetes: () => ({ reiniciar }) }))
   const { ApiError } = await import('../../api/http')
   const { useSession } = await import('../useSession')
   return { ApiError, session: useSession() }
@@ -21,7 +25,7 @@ async function freshSession() {
 
 describe('useSession', () => {
   beforeEach(() => {
-    for (const fn of [me, login, register, logout, push]) fn.mockReset()
+    for (const fn of [me, login, register, logout, push, stop, reiniciar]) fn.mockReset()
   })
 
   it('load con me 401 deja user en null y ready en true', async () => {
@@ -91,6 +95,16 @@ describe('useSession', () => {
     expect(push).toHaveBeenCalledWith('/acceso')
   })
 
+  it('logout detiene el reproductor y vacía los casetes del usuario', async () => {
+    const { session } = await freshSession()
+    me.mockResolvedValue(oyente)
+    await session.load()
+    logout.mockResolvedValue(undefined)
+    await session.logout()
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(reiniciar).toHaveBeenCalledTimes(1)
+  })
+
   it('un 401 en cualquier petición limpia user y navega a /acceso', async () => {
     const { session } = await freshSession()
     me.mockResolvedValue(oyente)
@@ -101,6 +115,8 @@ describe('useSession', () => {
     await request('/api/playlists').catch(() => undefined)
     expect(session.user.value).toBeNull()
     expect(push).toHaveBeenCalledWith('/acceso')
+    expect(stop).toHaveBeenCalledTimes(1)
+    expect(reiniciar).toHaveBeenCalledTimes(1)
     vi.unstubAllGlobals()
   })
 })
