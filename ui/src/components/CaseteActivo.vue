@@ -1,13 +1,14 @@
 <script setup lang="ts">
-defineProps<{ etiqueta: string; girando: boolean }>()
+// `compacto`: solo la etiqueta en una línea, sin ventanita (casetera de < 900 px, DESIGN.md §6.1).
+defineProps<{ etiqueta: string; girando: boolean; compacto?: boolean }>()
 </script>
 
 <template>
-  <div class="casete">
+  <div class="casete" :class="{ 'casete--compacto': compacto }">
     <div class="casete__etiqueta">
       <h2 class="casete__nombre">{{ etiqueta }}</h2>
     </div>
-    <div class="casete__ventana" role="img" aria-label="Carretes del casete">
+    <div v-if="!compacto" class="casete__ventana" role="img" aria-label="Carretes del casete">
       <svg
         v-for="lado in ['izquierdo', 'derecho']"
         :key="lado"
@@ -40,6 +41,10 @@ defineProps<{ etiqueta: string; girando: boolean }>()
   border-radius: var(--radius-m);
   background: var(--tape);
   box-shadow: inset 0 0 0 2px rgb(0 0 0 / 0.18);
+}
+
+.casete--compacto {
+  padding: var(--space-2);
 }
 
 .casete__etiqueta {

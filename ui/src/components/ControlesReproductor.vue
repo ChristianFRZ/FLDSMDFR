@@ -169,4 +169,12 @@ function onVolumen(event: Event): void {
   width: 96px;
   accent-color: var(--accent2);
 }
+
+/* En teléfonos el volumen lo controlan los botones del equipo; el deslizador provocaría
+   scroll horizontal a 375 px (DESIGN.md §2.2). */
+@media (max-width: 479px) {
+  .controles__volumen {
+    display: none;
+  }
+}
 </style>

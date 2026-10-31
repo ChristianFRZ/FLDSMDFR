@@ -14,7 +14,7 @@ export const router = createRouter({
       path: '/',
       name: 'casetera',
       component: () => import('./views/CaseteraView.vue'),
-      meta: { auth: true },
+      meta: { auth: true, encabezadoPropio: true },
     },
     {
       path: '/cabina',

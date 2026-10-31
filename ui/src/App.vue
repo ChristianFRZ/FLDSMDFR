@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
 import Aviso from './components/Aviso.vue'
 import InterruptorLado from './components/InterruptorLado.vue'
+
+// Las vistas con encabezado propio (la casetera) colocan ahí su InterruptorLado.
+const route = useRoute()
 </script>
 
 <template>
   <div class="app">
-    <header class="app__barra">
+    <header v-if="!route.meta.encabezadoPropio" class="app__barra">
       <InterruptorLado />
     </header>
     <main class="app__contenido">
