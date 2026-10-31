@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useSession } from './composables/useSession'
 
-// Las vistas se cargan bajo demanda. El guard de sesión/rol se completa en la Task 9.
+// Las vistas se cargan bajo demanda.
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -23,4 +24,18 @@ export const router = createRouter({
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
+})
+
+// useSession importa este router (para navegar tras un 401) y el guard usa useSession:
+// el ciclo es seguro porque ambos solo se usan dentro de funciones, nunca al evaluar el módulo.
+let sesionCargada: Promise<void> | null = null
+
+router.beforeEach(async (to) => {
+  const session = useSession()
+  sesionCargada ??= session.load()
+  await sesionCargada
+
+  if (to.meta.auth && !session.user.value) return { name: 'acceso' }
+  if (to.meta.admin && !session.isAdmin.value) return { name: 'casetera' }
+  if (to.name === 'acceso' && session.user.value) return { name: 'casetera' }
 })

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
+import Aviso from './components/Aviso.vue'
 import InterruptorLado from './components/InterruptorLado.vue'
 </script>
 
@@ -11,6 +12,7 @@ import InterruptorLado from './components/InterruptorLado.vue'
     <main class="app__contenido">
       <RouterView />
     </main>
+    <Aviso />
   </div>
 </template>
 
