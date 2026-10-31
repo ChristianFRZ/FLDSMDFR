@@ -8,7 +8,7 @@ os.environ.setdefault(
     "FLDSMDFR_DATABASE_URL",
     "postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/fldsmdfr_test",
 )
-os.environ.setdefault("FLDSMDFR_JWT_SECRET", "secreto-de-pruebas")
+os.environ.setdefault("FLDSMDFR_JWT_SECRET", "secreto-de-pruebas-con-longitud-suficiente-32b")
 os.environ.setdefault("FLDSMDFR_ADMIN_EMAIL", "admin@test.mx")
 os.environ.setdefault("FLDSMDFR_ADMIN_PASSWORD", "admin12345")
 os.environ.setdefault("FLDSMDFR_LISTENER_EMAIL", "oyente@test.mx")
