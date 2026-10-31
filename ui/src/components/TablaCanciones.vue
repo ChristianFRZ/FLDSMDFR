@@ -1,86 +1,58 @@
 <script setup lang="ts">
 // Catálogo para administradores: búsqueda, edición en línea y retiro (DELETE = baja lógica).
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { ApiError } from '../api/http'
 import * as songs from '../api/songs'
 import type { SongOut } from '../api/types'
 import { useAvisos } from '../composables/useAvisos'
+import { useBusqueda, useOcupados } from '../composables/useBusqueda'
 import AvisoEnLinea from './AvisoEnLinea.vue'
 
-const ESPERA_MS = 250
 const FILAS_ESQUELETO = 4
 
 const emit = defineEmits<{ cambio: [] }>()
 const { mostrar } = useAvisos()
 
-const busqueda = ref('')
-const buscado = ref('')
 const canciones = ref<SongOut[]>([])
 const total = ref(0)
-const cargando = ref(true)
 const cargandoMas = ref(false)
-const error = ref('')
 
 const editando = ref<string | null>(null)
 const borrador = reactive({ title: '', artist: '', album: '' })
 const errorEdicion = ref('')
-// Ids con una operación en curso (guardar o retirar), para no repetirla.
-const ocupadas = ref<ReadonlySet<string>>(new Set())
+const { ocupados: ocupadas, marcar } = useOcupados()
 
-let temporizador: ReturnType<typeof setTimeout> | undefined
-let peticion = 0
+const { busqueda, buscado, cargando, error, buscar, alEscribir, token, esVigente } = useBusqueda({
+  consultar: (q) => songs.list(q, 0),
+  aplicar: (pagina) => {
+    canciones.value = pagina.items
+    total.value = pagina.total
+  },
+  alFallar: () => {
+    canciones.value = []
+    total.value = 0
+  },
+  mensajeError: 'No pudimos cargar las canciones. Vuelve a intentarlo.',
+})
 
 function mensajeDe(e: unknown, respaldo: string): string {
   return e instanceof ApiError ? e.message : respaldo
 }
 
-function marcar(id: string, activa: boolean): void {
-  const nuevas = new Set(ocupadas.value)
-  if (activa) nuevas.add(id)
-  else nuevas.delete(id)
-  ocupadas.value = nuevas
-}
-
-async function buscar(): Promise<void> {
-  const q = busqueda.value.trim()
-  const mia = ++peticion
-  cargando.value = true
-  error.value = ''
-  try {
-    const pagina = await songs.list(q, 0)
-    if (mia !== peticion) return
-    canciones.value = pagina.items
-    total.value = pagina.total
-    buscado.value = q
-  } catch (e) {
-    if (mia !== peticion) return
-    canciones.value = []
-    total.value = 0
-    error.value = mensajeDe(e, 'No pudimos cargar las canciones. Vuelve a intentarlo.')
-  } finally {
-    if (mia === peticion) cargando.value = false
-  }
-}
-
 async function cargarMas(): Promise<void> {
-  const mia = peticion
+  const mia = token()
   cargandoMas.value = true
   error.value = ''
   try {
     const pagina = await songs.list(buscado.value, canciones.value.length)
-    if (mia !== peticion) return
+    if (!esVigente(mia)) return
     canciones.value = [...canciones.value, ...pagina.items]
     total.value = pagina.total
   } catch (e) {
-    if (mia === peticion) error.value = mensajeDe(e, 'No pudimos cargar más canciones.')
+    if (esVigente(mia)) error.value = mensajeDe(e, 'No pudimos cargar más canciones.')
   } finally {
     cargandoMas.value = false
   }
-}
-
-function onInput(): void {
-  clearTimeout(temporizador)
-  temporizador = setTimeout(() => void buscar(), ESPERA_MS)
 }
 
 /** Agrega una canción recién subida al principio, sin recargar la lista. */
@@ -147,7 +119,6 @@ async function retirar(cancion: SongOut): Promise<void> {
 }
 
 onMounted(() => void buscar())
-onBeforeUnmount(() => clearTimeout(temporizador))
 defineExpose({ agregar })
 </script>
 
@@ -155,19 +126,19 @@ defineExpose({ agregar })
   <section class="tabla" aria-labelledby="titulo-tabla">
     <h2 id="titulo-tabla">Canciones</h2>
 
-    <div class="tabla__buscador">
+    <div class="busqueda-pildora">
       <input
         v-model="busqueda"
         type="search"
         placeholder="Buscar canción, artista o álbum"
         aria-label="Buscar canción, artista o álbum"
         autocomplete="off"
-        @input="onInput"
+        @input="alEscribir"
       />
     </div>
 
     <ul v-if="cargando" class="tabla__lista" aria-label="Cargando canciones…">
-      <li v-for="n in FILAS_ESQUELETO" :key="n" class="tabla__esqueleto" aria-hidden="true"><span /><span /></li>
+      <li v-for="n in FILAS_ESQUELETO" :key="n" class="esqueleto-fila" aria-hidden="true"><span /><span /></li>
     </ul>
 
     <AvisoEnLinea v-else-if="error && canciones.length === 0" reintentar @reintentar="buscar">
@@ -259,15 +230,6 @@ defineExpose({ agregar })
   align-content: start;
 }
 
-.tabla__buscador input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 var(--space-4);
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: var(--paper);
-}
-
 .tabla__lista {
   margin: 0;
   padding: 0;
@@ -319,27 +281,6 @@ defineExpose({ agregar })
 
 .tabla__vacio {
   margin: 0;
-}
-
-.tabla__esqueleto {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--rule);
-}
-
-.tabla__esqueleto span {
-  height: 12px;
-  border-radius: var(--radius-s);
-  background: var(--rule);
-}
-
-.tabla__esqueleto span:first-child {
-  width: 55%;
-}
-
-.tabla__esqueleto span:last-child {
-  width: 35%;
 }
 
 .tabla__mas {

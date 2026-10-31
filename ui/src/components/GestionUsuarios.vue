@@ -1,60 +1,32 @@
 <script setup lang="ts">
 // Lista de usuarios con buscador por correo y cambio de rol (PATCH /api/users/{id}/role).
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ApiError } from '../api/http'
 import type { Role, UserOut } from '../api/types'
 import * as users from '../api/users'
 import { useAvisos } from '../composables/useAvisos'
+import { useBusqueda, useOcupados } from '../composables/useBusqueda'
 import { useSession } from '../composables/useSession'
 import AvisoEnLinea from './AvisoEnLinea.vue'
 
-const ESPERA_MS = 250
 const FILAS_ESQUELETO = 4
 
 const { user: yo } = useSession()
 const { mostrar } = useAvisos()
 
-const busqueda = ref('')
-const buscado = ref('')
 const lista = ref<UserOut[]>([])
-const cargando = ref(true)
-const error = ref('')
-const ocupados = ref<ReadonlySet<string>>(new Set())
+const { ocupados, marcar } = useOcupados()
 
-let temporizador: ReturnType<typeof setTimeout> | undefined
-let peticion = 0
-
-function marcar(id: string, activo: boolean): void {
-  const nuevos = new Set(ocupados.value)
-  if (activo) nuevos.add(id)
-  else nuevos.delete(id)
-  ocupados.value = nuevos
-}
-
-async function buscar(): Promise<void> {
-  const q = busqueda.value.trim()
-  const mia = ++peticion
-  cargando.value = true
-  error.value = ''
-  try {
-    const resultado = await users.list(q)
-    if (mia !== peticion) return
+const { busqueda, buscado, cargando, error, buscar, alEscribir } = useBusqueda({
+  consultar: (q) => users.list(q),
+  aplicar: (resultado) => {
     lista.value = resultado
-    buscado.value = q
-  } catch (e) {
-    if (mia !== peticion) return
+  },
+  alFallar: () => {
     lista.value = []
-    error.value =
-      e instanceof ApiError ? e.message : 'No pudimos cargar los usuarios. Vuelve a intentarlo.'
-  } finally {
-    if (mia === peticion) cargando.value = false
-  }
-}
-
-function onInput(): void {
-  clearTimeout(temporizador)
-  temporizador = setTimeout(() => void buscar(), ESPERA_MS)
-}
+  },
+  mensajeError: 'No pudimos cargar los usuarios. Vuelve a intentarlo.',
+})
 
 async function cambiarRol(usuario: UserOut): Promise<void> {
   if (ocupados.value.has(usuario.id)) return
@@ -79,26 +51,25 @@ async function cambiarRol(usuario: UserOut): Promise<void> {
 }
 
 onMounted(() => void buscar())
-onBeforeUnmount(() => clearTimeout(temporizador))
 </script>
 
 <template>
   <section class="usuarios" aria-labelledby="titulo-usuarios">
     <h2 id="titulo-usuarios">Usuarios</h2>
 
-    <div class="usuarios__buscador">
+    <div class="busqueda-pildora">
       <input
         v-model="busqueda"
         type="search"
         placeholder="Buscar por correo"
         aria-label="Buscar por correo"
         autocomplete="off"
-        @input="onInput"
+        @input="alEscribir"
       />
     </div>
 
     <ul v-if="cargando" class="usuarios__lista" aria-label="Cargando usuarios…">
-      <li v-for="n in FILAS_ESQUELETO" :key="n" class="usuarios__esqueleto" aria-hidden="true"><span /><span /></li>
+      <li v-for="n in FILAS_ESQUELETO" :key="n" class="esqueleto-fila" aria-hidden="true"><span /><span /></li>
     </ul>
 
     <AvisoEnLinea v-else-if="error" reintentar @reintentar="buscar">{{ error }}</AvisoEnLinea>
@@ -134,15 +105,6 @@ onBeforeUnmount(() => clearTimeout(temporizador))
   display: grid;
   gap: var(--space-4);
   align-content: start;
-}
-
-.usuarios__buscador input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 var(--space-4);
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: var(--paper);
 }
 
 .usuarios__lista {
@@ -188,27 +150,6 @@ onBeforeUnmount(() => clearTimeout(temporizador))
 
 .usuarios__vacio {
   margin: 0;
-}
-
-.usuarios__esqueleto {
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--rule);
-}
-
-.usuarios__esqueleto span {
-  height: 12px;
-  border-radius: var(--radius-s);
-  background: var(--rule);
-}
-
-.usuarios__esqueleto span:first-child {
-  width: 45%;
-}
-
-.usuarios__esqueleto span:last-child {
-  width: 30%;
 }
 
 @media (max-width: 599px) {

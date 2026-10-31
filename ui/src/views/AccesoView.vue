@@ -301,42 +301,13 @@ async function enviar(): Promise<void> {
   gap: var(--space-2);
 }
 
+/* Variantes de Acceso: botones algo más altos que los de base.css. */
 .boton-contorno {
   min-height: 44px;
-  padding: 0 var(--space-4);
-  border: 2px solid currentColor;
-  border-radius: 999px;
-  background: transparent;
   font-size: 15px;
-  font-weight: 500;
 }
 
-@media (hover: hover) {
-  .boton-contorno:hover {
-    background: color-mix(in srgb, currentColor 12%, transparent);
-  }
-}
-
-/* Texto sobre --accent: solo 19 px en 700 (DESIGN.md §3.2, restricción 1). */
-.boton-principal {
-  min-height: 44px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 19px;
-  font-weight: 700;
-}
-
-@media (hover: hover) {
-  .boton-principal:hover:not(:disabled) {
-    filter: brightness(1.08);
-  }
-}
-
-.boton-principal:active:not(:disabled),
-.acceso__pestana:active,
-.boton-contorno:active {
+.acceso__pestana:active {
   transform: scale(0.96);
   transition: transform 80ms;
 }
