@@ -40,6 +40,14 @@ async def get_song(session: AsyncSession, song_id: uuid.UUID) -> SongOut:
     return SongOut.model_validate(song)
 
 
+async def find_song_by_title_artist(
+    session: AsyncSession, title: str, artist: str
+) -> SongOut | None:
+    """Busca por título y artista (exacto, sin distinguir mayúsculas), incluso inactivas."""
+    song = await repository.find_by_title_artist(session, title.strip(), artist.strip())
+    return SongOut.model_validate(song) if song else None
+
+
 async def get_songs_by_ids(
     session: AsyncSession, ids: Sequence[uuid.UUID]
 ) -> dict[uuid.UUID, SongOut]:

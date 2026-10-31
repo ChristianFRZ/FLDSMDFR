@@ -15,15 +15,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.db.session import SessionLocal
 from app.modules.catalog import service as catalog_service
-from app.modules.catalog.schemas import SongOut
 from app.modules.playlists import service as playlists_service
 from app.modules.playlists.schemas import PlaylistIn
 from app.modules.users import service as users_service
 from app.shared.errors import DomainError
 
 logger = logging.getLogger(__name__)
-
-_SEARCH_LIMIT = 200
 
 
 @dataclass
@@ -48,9 +45,14 @@ async def _ensure_users(session: AsyncSession) -> tuple[int, uuid.UUID]:
     return await users_service.count_users(session) - before, listener_id
 
 
-async def _find_song(session: AsyncSession, title: str, artist: str) -> SongOut | None:
-    page = await catalog_service.list_songs(session, title, limit=_SEARCH_LIMIT)
-    return next((s for s in page.items if s.title == title and s.artist == artist), None)
+def _is_text(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _is_valid_entry(entry: object) -> bool:
+    return isinstance(entry, dict) and all(
+        _is_text(entry.get(k)) for k in ("file", "title", "artist")
+    )
 
 
 async def _import_songs(
@@ -58,11 +60,21 @@ async def _import_songs(
 ) -> dict[str, uuid.UUID]:
     """Devuelve archivo -> id de cancion para las que quedaron en el catalogo."""
     by_file: dict[str, uuid.UUID] = {}
-    for entry in entries:
+    for index, entry in enumerate(entries, start=1):
+        if not _is_valid_entry(entry):
+            label = (
+                entry["file"]
+                if isinstance(entry, dict) and _is_text(entry.get("file"))
+                else f"<entrada #{index}>"
+            )
+            logger.warning("Semilla: la entrada %s es inválida; se omite", label)
+            report.songs_skipped.append(label)
+            continue
         file_name, title, artist = entry["file"], entry["title"], entry["artist"]
-        existing = await _find_song(session, title, artist)
+        existing = await catalog_service.find_song_by_title_artist(session, title, artist)
         if existing is not None:
-            by_file[file_name] = existing.id
+            if existing.is_active:
+                by_file[file_name] = existing.id
             continue
         source = seed_dir / file_name
         if not source.is_file():
@@ -71,7 +83,11 @@ async def _import_songs(
             continue
         try:
             song = await catalog_service.import_song_file(
-                session, source, title, artist, entry.get("album", "Sencillo")
+                session,
+                source,
+                title,
+                artist,
+                entry.get("album") if isinstance(entry.get("album"), str) else "",
             )
         except DomainError as exc:
             logger.warning("Semilla: %s no es válido (%s); se omite", file_name, exc.message)
@@ -88,12 +104,14 @@ async def _ensure_demo_playlist(
     demo: dict,
     by_file: dict[str, uuid.UUID],
 ) -> None:
-    song_ids = [by_file[f] for f in demo.get("files", []) if f in by_file]
+    files, name = demo.get("files"), demo.get("name")
+    if not isinstance(files, list) or not _is_text(name):
+        logger.warning("Semilla: demo_playlist inválida; no se crea el casete")
+        return
+    song_ids = [by_file[f] for f in files if isinstance(f, str) and f in by_file]
     if not song_ids or await playlists_service.list_playlists(session, owner_id):
         return
-    playlist = await playlists_service.create_playlist(
-        session, owner_id, PlaylistIn(name=demo["name"])
-    )
+    playlist = await playlists_service.create_playlist(session, owner_id, PlaylistIn(name=name))
     for song_id in song_ids:
         await playlists_service.add_song(session, owner_id, playlist.id, song_id)
 
@@ -105,10 +123,23 @@ async def run_seed(session: AsyncSession, seed_dir: Path) -> SeedReport:
     if not manifest_path.is_file():
         logger.warning("Semilla: no existe %s; no se importan canciones", manifest_path)
         return report
-    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    by_file = await _import_songs(session, seed_dir, manifest.get("songs", []), report)
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        logger.warning(
+            "Semilla: no se pudo leer %s (%s); no se importan canciones", manifest_path, exc
+        )
+        return report
+    if not isinstance(manifest, dict):
+        logger.warning("Semilla: %s no es un objeto JSON; no se importan canciones", manifest_path)
+        return report
+    entries = manifest.get("songs", [])
+    if not isinstance(entries, list):
+        logger.warning("Semilla: 'songs' no es una lista; no se importan canciones")
+        entries = []
+    by_file = await _import_songs(session, seed_dir, entries, report)
     demo = manifest.get("demo_playlist")
-    if demo:
+    if isinstance(demo, dict):
         await _ensure_demo_playlist(session, listener_id, demo, by_file)
     return report
 

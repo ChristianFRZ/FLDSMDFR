@@ -58,3 +58,13 @@ async def count(session: AsyncSession) -> int:
 async def save(session: AsyncSession, song: Song) -> Song:
     await session.commit()
     return song
+
+
+async def find_by_title_artist(session: AsyncSession, title: str, artist: str) -> Song | None:
+    stmt = (
+        select(Song)
+        .where(func.lower(Song.title) == title.lower(), func.lower(Song.artist) == artist.lower())
+        .order_by(Song.created_at, Song.id)
+        .limit(1)
+    )
+    return await session.scalar(stmt)
