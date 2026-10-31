@@ -71,9 +71,26 @@ async def test_missing_asset_is_404_not_index(spa_client):
     assert response.json()["error"]["code"] == "not_found"
 
 
-async def test_files_outside_dist_are_not_served(spa_client):
-    response = await spa_client.get("/..%2Fsecreto.txt")
-    assert response.text != "no"
+def _assert_index(response):
+    assert response.status_code == 200
+    assert 'id="app"' in response.text
+
+
+async def test_relative_traversal_falls_back_to_index(spa_client):
+    _assert_index(await spa_client.get("/..%2Fsecreto.txt"))
+
+
+async def test_absolute_path_outside_dist_falls_back_to_index(spa_client, tmp_path):
+    # "%2F" se decodifica: full_path = "/<tmp>/secreto.txt"; root / ruta_absoluta = ruta_absoluta,
+    # el archivo existe, y solo el control is_relative_to impide servirlo.
+    secret = tmp_path / "secreto.txt"
+    assert secret.is_file()
+    _assert_index(await spa_client.get("/" + str(secret).replace("/", "%2F")))
+
+
+@pytest.mark.parametrize("path", ["/%00", "/x%00y", "/assets%00.js"])
+async def test_null_byte_falls_back_to_index(spa_client, path):
+    _assert_index(await spa_client.get(path))
 
 
 @pytest.mark.parametrize("path", ["/api/nada", "/api", "/docs/nada"])

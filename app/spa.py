@@ -29,10 +29,13 @@ def _file_inside(root: Path, full_path: str) -> Path | None:
     """Devuelve el archivo pedido solo si existe y no escapa de `root`."""
     if not full_path:
         return None
-    candidate = (root / full_path).resolve()
-    if candidate.is_file() and candidate.is_relative_to(root):
-        return candidate
-    return None
+    try:
+        candidate = (root / full_path).resolve()
+        found = candidate.is_file() and candidate.is_relative_to(root)
+    except (ValueError, OSError):
+        # Ruta imposible (byte nulo, nombre demasiado largo…): se trata como inexistente.
+        return None
+    return candidate if found else None
 
 
 def mount_spa(app: FastAPI, dist_dir: Path) -> None:
