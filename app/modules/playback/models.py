@@ -18,7 +18,9 @@ class PlaybackEvent(Base):
     user_id: Mapped[uuid.UUID]
     listened_seconds: Mapped[int] = mapped_column(Integer)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    received_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class SongPlayCount(Base):
