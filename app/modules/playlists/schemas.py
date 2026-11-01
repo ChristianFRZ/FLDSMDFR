@@ -52,3 +52,22 @@ class AddSongIn(BaseModel):
 
 class ReorderIn(BaseModel):
     song_ids: list[uuid.UUID]
+
+
+class InviteOut(BaseModel):
+    token: str
+    url: str
+
+
+class ClaimOut(BaseModel):
+    playlist_id: uuid.UUID
+    playlist_name: str
+    status: Literal["pending", "accepted", "ignored", "member"]
+
+
+class PendingInviteOut(BaseModel):
+    token: str
+    playlist_id: uuid.UUID
+    playlist_name: str
+    invited_by: uuid.UUID
+    claimed_at: datetime

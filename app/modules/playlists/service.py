@@ -1,5 +1,7 @@
 import logging
+import secrets
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import UploadFile
@@ -10,9 +12,18 @@ from app.config import get_settings
 from app.modules.catalog import service as catalog_service
 from app.modules.catalog.schemas import SongOut
 from app.modules.playlists import repository
-from app.modules.playlists.models import Playlist, PlaylistMember, PlaylistSong
+from app.modules.playlists.models import (
+    Playlist,
+    PlaylistInvite,
+    PlaylistInviteClaim,
+    PlaylistMember,
+    PlaylistSong,
+)
 from app.modules.playlists.schemas import (
+    ClaimOut,
+    InviteOut,
     MemberOut,
+    PendingInviteOut,
     PlaylistDetail,
     PlaylistIn,
     PlaylistSongOut,
@@ -260,3 +271,89 @@ async def remove_member(
         raise NotFound("Esa persona no colabora en este casete.", code="member_not_found")
     await session.delete(member)
     await session.commit()
+
+
+_INVITE_NOT_FOUND = "Este enlace de invitación ya no es válido."
+
+
+async def create_invite(
+    session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID
+) -> InviteOut:
+    """Un solo enlace activo por casete: crear otro revoca el anterior."""
+    playlist = await _get_owned(session, owner_id, playlist_id, for_update=True)
+    await repository.revoke_invites(session, playlist.id)
+    token = secrets.token_urlsafe(24)
+    session.add(PlaylistInvite(token=token, playlist_id=playlist.id, created_by=owner_id))
+    await session.commit()
+    return InviteOut(token=token, url=f"/invitacion/{token}")
+
+
+async def revoke_invite(session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID) -> None:
+    playlist = await _get_owned(session, owner_id, playlist_id, for_update=True)
+    await repository.revoke_invites(session, playlist.id)
+    await session.commit()
+
+
+async def _active_invite(session: AsyncSession, token: str) -> tuple[PlaylistInvite, Playlist]:
+    invite = await repository.get_active_invite(session, token)
+    playlist = await session.get(Playlist, invite.playlist_id) if invite else None
+    if invite is None or playlist is None:
+        raise NotFound(_INVITE_NOT_FOUND, code="invite_not_found")
+    return invite, playlist
+
+
+async def claim_invite(session: AsyncSession, user_id: uuid.UUID, token: str) -> ClaimOut:
+    """Idempotente. Dueño o colaboradora reciben `member` y no se crea invitación pendiente."""
+    invite, playlist = await _active_invite(session, token)
+    out = ClaimOut(playlist_id=playlist.id, playlist_name=playlist.name, status="member")
+    if playlist.owner_id == user_id or await repository.get_member(session, playlist.id, user_id):
+        return out
+    claim = await repository.get_claim(session, token, user_id)
+    if claim is None:
+        session.add(PlaylistInviteClaim(token=token, user_id=user_id, status="pending"))
+    else:
+        claim.status = "pending"
+        claim.claimed_at = datetime.now(UTC)
+    try:
+        await session.commit()
+    except IntegrityError:
+        await session.rollback()
+    return out.model_copy(update={"status": "pending"})
+
+
+async def _pending_claim(
+    session: AsyncSession, user_id: uuid.UUID, token: str
+) -> tuple[PlaylistInviteClaim, Playlist]:
+    _, playlist = await _active_invite(session, token)
+    claim = await repository.get_claim(session, token, user_id)
+    if claim is None or claim.status != "pending":
+        raise NotFound(_INVITE_NOT_FOUND, code="invite_not_found")
+    return claim, playlist
+
+
+async def accept_invite(session: AsyncSession, user_id: uuid.UUID, token: str) -> PlaylistSummary:
+    claim, playlist = await _pending_claim(session, user_id, token)
+    claim.status = "accepted"
+    if await repository.get_member(session, playlist.id, user_id) is None:
+        session.add(PlaylistMember(playlist_id=playlist.id, user_id=user_id))
+    await session.commit()
+    return _summary(playlist, await repository.count_songs(session, playlist.id), user_id)
+
+
+async def ignore_invite(session: AsyncSession, user_id: uuid.UUID, token: str) -> None:
+    claim, _ = await _pending_claim(session, user_id, token)
+    claim.status = "ignored"
+    await session.commit()
+
+
+async def pending_invites_for(session: AsyncSession, user_id: uuid.UUID) -> list[PendingInviteOut]:
+    return [
+        PendingInviteOut(
+            token=invite.token,
+            playlist_id=playlist.id,
+            playlist_name=playlist.name,
+            invited_by=invite.created_by,
+            claimed_at=claim.claimed_at,
+        )
+        for claim, invite, playlist in await repository.pending_claims(session, user_id)
+    ]

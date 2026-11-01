@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.playlists import service
 from app.modules.playlists.schemas import (
     AddSongIn,
+    ClaimOut,
+    InviteOut,
     PlaylistDetail,
     PlaylistIn,
     PlaylistSummary,
@@ -15,6 +17,7 @@ from app.shared.deps import CurrentUser, current_user, get_session
 from app.shared.images import image_response
 
 router = APIRouter(prefix="/api/playlists", tags=["playlists"])
+invites_router = APIRouter(prefix="/api/invites", tags=["playlists"])
 
 
 @router.get("", response_model=list[PlaylistSummary])
@@ -121,4 +124,51 @@ async def remove_member(
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     await service.remove_member(session, user.user_id, playlist_id, member_id)
+    return Response(status_code=204)
+
+
+@router.post("/{playlist_id}/invites", status_code=201, response_model=InviteOut)
+async def create_invite(
+    playlist_id: uuid.UUID,
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.create_invite(session, user.user_id, playlist_id)
+
+
+@router.delete("/{playlist_id}/invites", status_code=204)
+async def revoke_invite(
+    playlist_id: uuid.UUID,
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await service.revoke_invite(session, user.user_id, playlist_id)
+    return Response(status_code=204)
+
+
+@invites_router.post("/{token}/claim", response_model=ClaimOut)
+async def claim_invite(
+    token: str,
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.claim_invite(session, user.user_id, token)
+
+
+@invites_router.post("/{token}/accept", response_model=PlaylistSummary)
+async def accept_invite(
+    token: str,
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.accept_invite(session, user.user_id, token)
+
+
+@invites_router.post("/{token}/ignore", status_code=204)
+async def ignore_invite(
+    token: str,
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await service.ignore_invite(session, user.user_id, token)
     return Response(status_code=204)

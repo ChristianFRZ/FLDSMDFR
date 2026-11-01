@@ -1,10 +1,16 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, exists, func, or_, select
+from sqlalchemy import delete, exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.playlists.models import Playlist, PlaylistMember, PlaylistSong
+from app.modules.playlists.models import (
+    Playlist,
+    PlaylistInvite,
+    PlaylistInviteClaim,
+    PlaylistMember,
+    PlaylistSong,
+)
 
 
 async def get_owned(
@@ -118,3 +124,41 @@ async def delete_entry(session: AsyncSession, entry: PlaylistSong) -> None:
 
 def touch(playlist: Playlist) -> None:
     playlist.updated_at = datetime.now(UTC)
+
+
+async def revoke_invites(session: AsyncSession, playlist_id: uuid.UUID) -> None:
+    await session.execute(
+        update(PlaylistInvite)
+        .where(PlaylistInvite.playlist_id == playlist_id, PlaylistInvite.revoked_at.is_(None))
+        .values(revoked_at=datetime.now(UTC))
+    )
+
+
+async def get_active_invite(session: AsyncSession, token: str) -> PlaylistInvite | None:
+    stmt = select(PlaylistInvite).where(
+        PlaylistInvite.token == token, PlaylistInvite.revoked_at.is_(None)
+    )
+    return await session.scalar(stmt)
+
+
+async def get_claim(
+    session: AsyncSession, token: str, user_id: uuid.UUID
+) -> PlaylistInviteClaim | None:
+    return await session.get(PlaylistInviteClaim, (token, user_id))
+
+
+async def pending_claims(
+    session: AsyncSession, user_id: uuid.UUID
+) -> list[tuple[PlaylistInviteClaim, PlaylistInvite, Playlist]]:
+    stmt = (
+        select(PlaylistInviteClaim, PlaylistInvite, Playlist)
+        .join(PlaylistInvite, PlaylistInvite.token == PlaylistInviteClaim.token)
+        .join(Playlist, Playlist.id == PlaylistInvite.playlist_id)
+        .where(
+            PlaylistInviteClaim.user_id == user_id,
+            PlaylistInviteClaim.status == "pending",
+            PlaylistInvite.revoked_at.is_(None),
+        )
+        .order_by(PlaylistInviteClaim.claimed_at.desc())
+    )
+    return [tuple(row) for row in (await session.execute(stmt)).all()]

@@ -7,6 +7,7 @@ from app.config import get_settings
 from app.modules.catalog.router import router as catalog_router
 from app.modules.catalog.upload_guard import UploadSizeGuard
 from app.modules.playback.router import router as playback_router
+from app.modules.playlists.router import invites_router
 from app.modules.playlists.router import router as playlists_router
 from app.modules.users.router import router as users_router
 from app.shared.deps import get_session
@@ -21,6 +22,7 @@ def create_app() -> FastAPI:
     app.include_router(users_router)
     app.include_router(catalog_router)
     app.include_router(playlists_router)
+    app.include_router(invites_router)
     app.include_router(playback_router)
 
     @app.get("/api/health")
