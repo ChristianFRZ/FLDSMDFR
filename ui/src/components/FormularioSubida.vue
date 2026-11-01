@@ -9,6 +9,8 @@ import AvisoEnLinea from './AvisoEnLinea.vue'
 
 const EXTENSIONES = ['.mp3', '.ogg', '.wav']
 const MAX_BYTES = 20 * 1024 * 1024
+const PORTADA_MAX_BYTES = 2 * 1024 * 1024
+const TIPOS_PORTADA = ['image/png', 'image/jpeg', 'image/webp']
 
 const MENSAJES_API: Record<string, string> = {
   invalid_audio: 'El archivo no es un audio válido.',
@@ -24,10 +26,12 @@ const artista = ref('')
 const album = ref('')
 const archivo = ref<File | null>(null)
 const selector = ref<HTMLInputElement | null>(null)
+const portada = ref<File | null>(null)
+const selectorPortada = ref<HTMLInputElement | null>(null)
 const enviando = ref(false)
 const errorServidor = ref('')
 const arrastrando = ref(false)
-const errores = reactive({ titulo: '', artista: '', album: '', archivo: '' })
+const errores = reactive({ titulo: '', artista: '', album: '', archivo: '', portada: '' })
 
 function errorDeArchivo(file: File | null): string {
   if (!file) return 'Elige un archivo MP3, OGG o WAV.'
@@ -40,6 +44,18 @@ function errorDeArchivo(file: File | null): string {
 function elegir(file: File | null): void {
   archivo.value = file
   errores.archivo = file ? errorDeArchivo(file) : ''
+}
+
+function errorDePortada(file: File | null): string {
+  if (!file) return ''
+  if (file.type && !TIPOS_PORTADA.includes(file.type)) return 'La portada debe ser PNG, JPG o WebP.'
+  if (file.size > PORTADA_MAX_BYTES) return 'La portada debe pesar 2 MB o menos.'
+  return ''
+}
+
+function onPortada(): void {
+  portada.value = selectorPortada.value?.files?.[0] ?? null
+  errores.portada = errorDePortada(portada.value)
 }
 
 function onSelector(): void {
@@ -56,8 +72,9 @@ function validar(): boolean {
   errores.artista = artista.value.trim() ? '' : 'Escribe el artista.'
   errores.album = album.value.trim() ? '' : 'Escribe el álbum.'
   errores.archivo = errorDeArchivo(archivo.value)
+  errores.portada = errorDePortada(portada.value)
   errorServidor.value = ''
-  return !errores.titulo && !errores.artista && !errores.album && !errores.archivo
+  return !errores.titulo && !errores.artista && !errores.album && !errores.archivo && !errores.portada
 }
 
 function limpiar(): void {
@@ -65,7 +82,9 @@ function limpiar(): void {
   artista.value = ''
   album.value = ''
   archivo.value = null
+  portada.value = null
   if (selector.value) selector.value.value = ''
+  if (selectorPortada.value) selectorPortada.value.value = ''
 }
 
 async function enviar(): Promise<void> {
@@ -76,11 +95,22 @@ async function enviar(): Promise<void> {
   form.append('album', album.value.trim())
   form.append('file', archivo.value)
 
+  const imagen = portada.value
   enviando.value = true
   try {
-    const cancion = await songs.upload(form)
+    let cancion = await songs.upload(form)
     limpiar()
-    mostrar('Canción subida')
+    // La canción ya existe: si la portada falla no se deshace, se avisa para reintentar.
+    if (imagen) {
+      try {
+        cancion = await songs.uploadCover(cancion.id, imagen)
+        mostrar('Canción subida con portada')
+      } catch {
+        mostrar('La canción se subió, pero la portada no. Inténtalo desde la tabla.', 'error')
+      }
+    } else {
+      mostrar('Canción subida')
+    }
     emit('subida', cancion)
   } catch (e) {
     errorServidor.value =
@@ -167,6 +197,21 @@ async function enviar(): Promise<void> {
         <p v-if="errores.archivo" id="error-subida-archivo" class="campo__error">{{ errores.archivo }}</p>
       </div>
 
+      <div class="campo">
+        <label for="subida-portada">Portada <span class="subida__opcional">(opcional)</span></label>
+        <input
+          id="subida-portada"
+          ref="selectorPortada"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          :aria-invalid="!!errores.portada"
+          :aria-describedby="errores.portada ? 'error-subida-portada' : 'ayuda-subida-portada'"
+          @change="onPortada"
+        />
+        <p v-if="errores.portada" id="error-subida-portada" class="campo__error">{{ errores.portada }}</p>
+        <p v-else id="ayuda-subida-portada" class="campo__ayuda">PNG, JPG o WebP, hasta 2 MB.</p>
+      </div>
+
       <button type="submit" class="boton-principal" :disabled="enviando" :aria-busy="enviando || undefined">
         {{ enviando ? 'Subiendo…' : 'Subir canción' }}
       </button>
@@ -185,24 +230,24 @@ async function enviar(): Promise<void> {
   gap: var(--space-4);
 }
 
-/* Sobre --deck el texto de error va en una etiqueta de papel: --danger solo se mide sobre --paper y --bg. */
+/* El error va sobre --bg, donde --danger cumple contraste. */
 .subida .campo__error {
   justify-self: start;
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-s);
-  background: var(--paper);
+  background: var(--bg);
 }
 
 .subida__zona {
   display: grid;
   gap: var(--space-2);
   padding: var(--space-4);
-  border: 2px dashed var(--deck-ink);
+  border: 2px dashed var(--ink);
   border-radius: var(--radius-m);
 }
 
 .subida__zona--activa {
-  background: color-mix(in srgb, var(--deck-ink) 12%, transparent);
+  background: color-mix(in srgb, var(--ink) 12%, transparent);
 }
 
 .subida__zona input {

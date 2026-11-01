@@ -7,8 +7,11 @@ import type { SongOut } from '../api/types'
 import { useAvisos } from '../composables/useAvisos'
 import { useBusqueda, useOcupados } from '../composables/useBusqueda'
 import AvisoEnLinea from './AvisoEnLinea.vue'
+import Portada from './Portada.vue'
+import Icono from './icons/Icono.vue'
 
 const FILAS_ESQUELETO = 4
+const PORTADA_MAX_BYTES = 2 * 1024 * 1024
 
 const emit = defineEmits<{ cambio: [] }>()
 const { mostrar } = useAvisos()
@@ -21,6 +24,36 @@ const editando = ref<string | null>(null)
 const borrador = reactive({ title: '', artist: '', album: '' })
 const errorEdicion = ref('')
 const { ocupados: ocupadas, marcar } = useOcupados()
+// Las portadas se sirven con caché de un día: tras cambiarla se pide con ?v= nuevo.
+const versiones = reactive<Record<string, number>>({})
+
+function portadaDe(cancion: SongOut): string | null {
+  if (!cancion.has_cover) return null
+  const v = versiones[cancion.id]
+  return v ? `${songs.coverUrl(cancion.id)}?v=${v}` : songs.coverUrl(cancion.id)
+}
+
+async function cambiarPortada(cancion: SongOut, evento: Event): Promise<void> {
+  const input = evento.target as HTMLInputElement
+  const imagen = input.files?.[0]
+  input.value = ''
+  if (!imagen || ocupadas.value.has(cancion.id)) return
+  if (imagen.size > PORTADA_MAX_BYTES) {
+    mostrar('La portada debe pesar 2 MB o menos.', 'error')
+    return
+  }
+  marcar(cancion.id, true)
+  try {
+    const actualizada = await songs.uploadCover(cancion.id, imagen)
+    versiones[cancion.id] = Date.now()
+    canciones.value = canciones.value.map((c) => (c.id === actualizada.id ? actualizada : c))
+    mostrar(`Portada de «${cancion.title}» actualizada`)
+  } catch (e) {
+    mostrar(mensajeDe(e, 'No pudimos subir la portada. Vuelve a intentarlo.'), 'error')
+  } finally {
+    marcar(cancion.id, false)
+  }
+}
 
 const { busqueda, buscado, cargando, error, buscar, alEscribir, token, esVigente } = useBusqueda({
   consultar: (q) => songs.list(q, 0),
@@ -178,6 +211,7 @@ defineExpose({ agregar })
           </form>
 
           <template v-else>
+            <Portada :src="portadaDe(cancion)" :titulo="cancion.title" :tam="40" />
             <div class="tabla__textos">
               <span class="tabla__titulo" :title="cancion.title">{{ cancion.title }}</span>
               <span class="tabla__detalle" :title="`${cancion.artist} · ${cancion.album}`">
@@ -185,6 +219,17 @@ defineExpose({ agregar })
               </span>
             </div>
             <div class="tabla__acciones">
+              <label class="boton-contorno tabla__portada" :class="{ 'tabla__portada--ocupada': ocupadas.has(cancion.id) }">
+                <Icono nombre="image" :tam="14" /> Cambiar portada
+                <input
+                  class="visualmente-oculto"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  :aria-label="`Cambiar portada de «${cancion.title}»`"
+                  :disabled="ocupadas.has(cancion.id)"
+                  @change="cambiarPortada(cancion, $event)"
+                />
+              </label>
               <button
                 type="button"
                 class="boton-contorno"
@@ -224,6 +269,20 @@ defineExpose({ agregar })
 </template>
 
 <style scoped>
+.tabla__portada {
+  cursor: pointer;
+}
+
+.tabla__portada:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.tabla__portada--ocupada {
+  opacity: 0.45;
+  cursor: progress;
+}
+
 .tabla {
   display: grid;
   gap: var(--space-4);

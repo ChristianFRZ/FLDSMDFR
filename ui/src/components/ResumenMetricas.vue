@@ -90,8 +90,8 @@ defineExpose({ recargar: cargar })
   min-width: 0;
   padding: var(--space-3);
   border-radius: var(--radius-m);
-  background: var(--tape);
-  color: var(--deck-ink);
+  background: var(--surface);
+  color: var(--ink);
 }
 
 .resumen__tarjeta--esqueleto {

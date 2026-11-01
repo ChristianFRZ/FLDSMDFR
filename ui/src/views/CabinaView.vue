@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { RouterLink } from 'vue-router'
 import FormularioSubida from '../components/FormularioSubida.vue'
 import GestionUsuarios from '../components/GestionUsuarios.vue'
 import ResumenMetricas from '../components/ResumenMetricas.vue'
@@ -22,43 +21,31 @@ function alCambiar(): void {
 </script>
 
 <template>
-  <div class="cabina">
+  <section class="cabina" aria-labelledby="titulo-cabina">
+    <header class="cabina__encabezado">
+      <p class="antetitulo">SOLO ADMINISTRADORES</p>
+      <h1 id="titulo-cabina">Cabina de grabación</h1>
+    </header>
 
-    <aside class="cabina__deck" aria-label="Resumen y subida">
-      <header class="cabina__encabezado">
-        <h1>Cabina de grabación</h1>
-        <RouterLink to="/" class="cabina__volver">Volver a la casetera</RouterLink>
-      </header>
-      <ResumenMetricas ref="resumen" />
-      <FormularioSubida @subida="alSubir" />
-    </aside>
+    <div class="cabina__columnas">
+      <aside class="cabina__lateral" aria-label="Resumen y subida">
+        <div class="tarjeta"><ResumenMetricas ref="resumen" /></div>
+        <div class="tarjeta"><FormularioSubida @subida="alSubir" /></div>
+      </aside>
 
-    <div class="cabina__tienda">
-      <TablaCanciones ref="tabla" @cambio="alCambiar" />
-      <GestionUsuarios />
+      <div class="cabina__principal">
+        <div class="tarjeta"><TablaCanciones ref="tabla" @cambio="alCambiar" /></div>
+        <div class="tarjeta"><GestionUsuarios /></div>
+      </div>
     </div>
-  </div>
+  </section>
 </template>
 
 <style scoped>
 .cabina {
   display: grid;
   gap: var(--space-5);
-}
-
-.cabina__barra {
-  display: flex;
-  justify-content: flex-end;
-  padding: var(--space-3) var(--space-4);
-}
-
-.cabina__deck {
-  display: grid;
-  gap: var(--space-5);
-  align-content: start;
-  padding: var(--space-5) var(--space-4);
-  background: var(--deck);
-  color: var(--deck-ink);
+  padding: var(--space-5);
 }
 
 .cabina__encabezado {
@@ -66,46 +53,32 @@ function alCambiar(): void {
   gap: var(--space-2);
 }
 
-.cabina__volver {
-  display: inline-flex;
-  align-items: center;
-  justify-self: start;
-  min-height: 40px;
-  color: inherit;
-  font-weight: 500;
-  text-underline-offset: 3px;
-}
-
-.cabina__tienda {
+.cabina__columnas {
   display: grid;
-  gap: var(--space-5);
-  align-content: start;
-  min-width: 0;
-  padding: 0 var(--space-4) var(--space-5);
+  gap: var(--space-4);
+  align-items: start;
 }
 
-@media (min-width: 900px) {
+.cabina__lateral,
+.cabina__principal {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.cabina .tarjeta {
+  padding: var(--space-4);
+}
+
+@media (min-width: 1100px) {
+  .cabina__columnas {
+    grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 700px) {
   .cabina {
-    grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
-    grid-template-rows: auto 1fr;
-    gap: 0;
-    min-height: 100dvh;
-  }
-
-  .cabina__barra {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .cabina__deck {
-    grid-column: 1;
-    grid-row: 1 / span 2;
-  }
-
-  .cabina__tienda {
-    grid-column: 2;
-    grid-row: 2;
-    padding: 0 var(--space-5) var(--space-5);
+    padding: var(--space-4);
   }
 }
 </style>

@@ -39,12 +39,12 @@ defineEmits<{ reintentar: [] }>()
   padding: var(--space-3) var(--space-4);
   border-left: 4px solid var(--danger);
   border-radius: var(--radius-m);
-  background: var(--paper);
+  background: var(--bg);
   color: var(--ink);
 }
 
 .aviso-linea--aviso {
-  border-left-color: var(--accent2);
+  border-left-color: var(--accent);
 }
 
 .aviso-linea__icono {

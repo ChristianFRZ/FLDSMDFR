@@ -54,7 +54,7 @@ const { avisos } = useAvisos()
   padding: var(--space-3) var(--space-4);
   border-left: 4px solid var(--ink);
   border-radius: var(--radius-m);
-  background: var(--paper);
+  background: var(--bg);
   color: var(--ink);
   pointer-events: auto;
 }

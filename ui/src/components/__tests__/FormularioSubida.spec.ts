@@ -3,9 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../api/http'
 import type { SongOut } from '../../api/types'
 
-const { upload, mostrar } = vi.hoisted(() => ({ upload: vi.fn(), mostrar: vi.fn() }))
+const { upload, uploadCover, mostrar } = vi.hoisted(() => ({
+  upload: vi.fn(),
+  uploadCover: vi.fn(),
+  mostrar: vi.fn(),
+}))
 
-vi.mock('../../api/songs', () => ({ upload }))
+vi.mock('../../api/songs', () => ({ upload, uploadCover }))
 vi.mock('../../composables/useAvisos', () => ({ useAvisos: () => ({ mostrar }) }))
 
 import FormularioSubida from '../FormularioSubida.vue'
@@ -30,7 +34,7 @@ async function llenar(wrapper: ReturnType<typeof mount>, file: File | null) {
   await wrapper.get('#subida-artista').setValue('Los Meteoros')
   await wrapper.get('#subida-album').setValue('Pronóstico')
   if (file) {
-    const input = wrapper.get('input[type="file"]')
+    const input = wrapper.get('#subida-archivo')
     Object.defineProperty(input.element, 'files', { value: [file], configurable: true })
     await input.trigger('change')
   }
@@ -39,12 +43,13 @@ async function llenar(wrapper: ReturnType<typeof mount>, file: File | null) {
 describe('FormularioSubida', () => {
   beforeEach(() => {
     upload.mockReset()
+    uploadCover.mockReset()
     mostrar.mockReset()
   })
 
   it('el selector acepta solo mp3, ogg y wav', () => {
     const wrapper = mount(FormularioSubida)
-    expect(wrapper.get('input[type="file"]').attributes('accept')).toBe('.mp3,.ogg,.wav')
+    expect(wrapper.get('#subida-archivo').attributes('accept')).toBe('.mp3,.ogg,.wav')
   })
 
   it('rechaza un .flac sin llamar al API', async () => {
@@ -102,5 +107,57 @@ describe('FormularioSubida', () => {
 
     expect(wrapper.text()).toContain('El archivo no es un audio válido.')
     expect(wrapper.emitted('subida')).toBeUndefined()
+  })
+
+  it('uploads cover after song', async () => {
+    upload.mockResolvedValue(cancion)
+    uploadCover.mockResolvedValue({ ...cancion, has_cover: true })
+    const wrapper = mount(FormularioSubida)
+    await llenar(wrapper, archivo('tema.mp3'))
+    const portada = new File([new Uint8Array(10)], 'portada.png', { type: 'image/png' })
+    const campo = wrapper.get('#subida-portada')
+    Object.defineProperty(campo.element, 'files', { value: [portada], configurable: true })
+    await campo.trigger('change')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(uploadCover).toHaveBeenCalledWith('s1', portada)
+    expect(wrapper.emitted('subida')).toEqual([[{ ...cancion, has_cover: true }]])
+  })
+
+  it('cover failure keeps song and warns', async () => {
+    upload.mockResolvedValue(cancion)
+    uploadCover.mockRejectedValue(new ApiError(415, 'unsupported_image', 'x'))
+    const wrapper = mount(FormularioSubida)
+    await llenar(wrapper, archivo('tema.mp3'))
+    const campo = wrapper.get('#subida-portada')
+    Object.defineProperty(campo.element, 'files', {
+      value: [new File([new Uint8Array(10)], 'p.png', { type: 'image/png' })],
+      configurable: true,
+    })
+    await campo.trigger('change')
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.emitted('subida')).toEqual([[cancion]])
+    expect(mostrar).toHaveBeenCalledWith(
+      'La canción se subió, pero la portada no. Inténtalo desde la tabla.',
+      'error',
+    )
+  })
+
+  it('rechaza una portada de más de 2 MB sin llamar al API', async () => {
+    const wrapper = mount(FormularioSubida)
+    await llenar(wrapper, archivo('tema.mp3'))
+    const campo = wrapper.get('#subida-portada')
+    Object.defineProperty(campo.element, 'files', {
+      value: [new File([new Uint8Array(2 * MB + 1)], 'p.png', { type: 'image/png' })],
+      configurable: true,
+    })
+    await campo.trigger('change')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.text()).toContain('La portada debe pesar 2 MB o menos.')
+    expect(upload).not.toHaveBeenCalled()
   })
 })
