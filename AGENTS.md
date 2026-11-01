@@ -11,7 +11,7 @@ FLDSMDFR es un **monolito modular**: una sola aplicación FastAPI, un solo proce
 ### 1.1. Estructura general
 
 ```text
-app/modules/   # Lógica de negocio: users, catalog, playlists, playback
+app/modules/   # Lógica de negocio: users, catalog, playlists, playback, social
 app/db/        # Acceso y gestión de datos: sesión, base declarativa, migraciones Alembic
 app/shared/    # Transversal: errores uniformes, seguridad (JWT, hashing), dependencias
 app/main.py    # Ensamblado de la aplicación; app/spa.py sirve el SPA compilado

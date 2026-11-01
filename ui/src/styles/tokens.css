@@ -44,16 +44,4 @@
   --sidebar-width: 232px;
   --header-height: 80px;
   --player-height: 96px;
-
-  /*
-   * Alias temporales para los componentes de la casetera anterior mientras se migran
-   * (plan, Tareas 12–20). Se eliminan en la Tarea 21.
-   */
-  --paper: var(--bg);
-  --deck: var(--bg);
-  --deck-ink: var(--ink);
-  --tape: var(--surface);
-  --accent2: var(--accent);
-  --rule-deck: var(--rule);
-  --font-hand: var(--font-display);
 }
