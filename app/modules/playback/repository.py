@@ -68,3 +68,24 @@ async def top_counts(
 
 async def count_events(session: AsyncSession) -> int:
     return await session.scalar(select(func.count()).select_from(PlaybackEvent)) or 0
+
+
+async def user_history(
+    session: AsyncSession, user_id: uuid.UUID, limit: int, offset: int
+) -> tuple[list[tuple[uuid.UUID, datetime]], int]:
+    """Una fila por canción con su escucha más reciente, la más reciente primero."""
+    last = func.max(PlaybackEvent.occurred_at).label("last")
+    stmt = (
+        select(PlaybackEvent.song_id, last)
+        .where(PlaybackEvent.user_id == user_id)
+        .group_by(PlaybackEvent.song_id)
+        .order_by(last.desc(), PlaybackEvent.song_id)
+        .limit(limit)
+        .offset(offset)
+    )
+    total = await session.scalar(
+        select(func.count(func.distinct(PlaybackEvent.song_id))).where(
+            PlaybackEvent.user_id == user_id
+        )
+    )
+    return [(sid, at) for sid, at in (await session.execute(stmt)).all()], total or 0

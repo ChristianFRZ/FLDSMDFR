@@ -194,3 +194,13 @@ async def get_cover_file(session: AsyncSession, song_id: uuid.UUID) -> Path:
     if not path.is_file():
         raise NotFound("Esta canción no tiene portada.", code="cover_not_found")
     return path
+
+
+def normalize_artist(name: str) -> str:
+    """Clave de artista común a todos los módulos: sin espacios extremos y en minúsculas."""
+    return name.strip().lower()
+
+
+async def count_active_by_artists(session: AsyncSession, artists: Sequence[str]) -> dict[str, int]:
+    keys = {normalize_artist(a) for a in artists}
+    return await repository.count_active_by_artists(session, sorted(keys))

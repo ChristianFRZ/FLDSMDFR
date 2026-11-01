@@ -68,3 +68,17 @@ async def find_by_title_artist(session: AsyncSession, title: str, artist: str) -
         .limit(1)
     )
     return await session.scalar(stmt)
+
+
+async def count_active_by_artists(
+    session: AsyncSession, artist_keys: Sequence[str]
+) -> dict[str, int]:
+    if not artist_keys:
+        return {}
+    key = func.lower(Song.artist)
+    stmt = (
+        select(key, func.count())
+        .where(Song.is_active.is_(True), key.in_(list(artist_keys)))
+        .group_by(key)
+    )
+    return {k: n for k, n in (await session.execute(stmt)).all()}

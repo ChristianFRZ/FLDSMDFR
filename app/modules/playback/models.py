@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Integer, func
+from sqlalchemy import BigInteger, DateTime, Index, Integer, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -21,6 +21,13 @@ class PlaybackEvent(Base):
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+Index(
+    "ix_playback_events_user_occurred",
+    PlaybackEvent.user_id,
+    PlaybackEvent.occurred_at.desc(),
+)
 
 
 class SongPlayCount(Base):
