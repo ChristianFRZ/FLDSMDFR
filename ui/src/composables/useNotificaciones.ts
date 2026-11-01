@@ -11,6 +11,9 @@ export const INTERVALO_AVISOS_MS = 30_000
 // Estado singleton: la campana y el panel comparten la misma lista.
 const items = ref<NotificationOut[]>([])
 const noLeidos = computed(() => items.value.filter((aviso) => !aviso.read).length)
+// Si el panel de la campana está abierto; la vista de invitación lo abre al reclamar.
+const panelAbierto = ref(false)
+const abrirPanel = () => (panelAbierto.value = true)
 
 let temporizador: ReturnType<typeof setInterval> | null = null
 let consultando = false
@@ -52,6 +55,7 @@ function detener(): void {
 function reiniciar(): void {
   detener()
   items.value = []
+  panelAbierto.value = false
 }
 
 /** Optimista: si el servidor falla, el siguiente sondeo restaura el estado real. */
@@ -95,5 +99,5 @@ const aceptar = (token: string) => responder(token, true)
 const ignorar = (token: string) => responder(token, false)
 
 export function useNotificaciones() {
-  return { items, noLeidos, refrescar, iniciar, detener, reiniciar, marcarLeidos, aceptar, ignorar }
+  return { items, noLeidos, panelAbierto, abrirPanel, refrescar, iniciar, detener, reiniciar, marcarLeidos, aceptar, ignorar }
 }

@@ -5,8 +5,7 @@ import PanelAvisos from './PanelAvisos.vue'
 import Icono from './icons/Icono.vue'
 
 // Campana del encabezado: contador de no leídos y popover con los avisos.
-const { items, noLeidos, marcarLeidos } = useNotificaciones()
-const abierta = ref(false)
+const { items, noLeidos, panelAbierto: abierta, marcarLeidos } = useNotificaciones()
 const raiz = ref<HTMLElement | null>(null)
 const boton = ref<HTMLButtonElement | null>(null)
 
@@ -19,18 +18,21 @@ function cerrar(devolverFoco = true): void {
   if (devolverFoco) boton.value?.focus()
 }
 
-// Abrir la campana marca como leídos los avisos que quedan a la vista.
-async function alternar(): Promise<void> {
+function alternar(): void {
   abierta.value = !abierta.value
-  if (!abierta.value) return
-  await nextTick()
-  void marcarLeidos(items.value.filter((a) => !a.read).map((a) => a.id))
 }
 
-// Avisos nuevos que lleguen con el panel abierto también se ven: se marcan al llegar.
-watch(items, (lista) => {
-  if (abierta.value) void marcarLeidos(lista.filter((a) => !a.read).map((a) => a.id))
-})
+// Lo que queda a la vista con el panel abierto se marca como leído: al abrirlo (también desde
+// la vista de invitación) y cuando llegan avisos nuevos con el panel abierto.
+watch(
+  [abierta, items],
+  async ([abierto, lista]) => {
+    if (!abierto) return
+    await nextTick()
+    void marcarLeidos(lista.filter((a) => !a.read).map((a) => a.id))
+  },
+  { immediate: true },
+)
 
 function onDocumento(evento: Event): void {
   if (!abierta.value) return
