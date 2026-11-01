@@ -1,9 +1,12 @@
 import logging
 import uuid
+from pathlib import Path
 
+from fastapi import UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.modules.catalog import service as catalog_service
 from app.modules.catalog.schemas import SongOut
 from app.modules.playlists import repository
@@ -16,6 +19,7 @@ from app.modules.playlists.schemas import (
     ReorderIn,
 )
 from app.shared.errors import Conflict, InvalidInput, NotFound
+from app.shared.images import delete_image, save_image
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +28,11 @@ _NOT_FOUND = "No encontramos ese casete."
 
 def _summary(playlist: Playlist, song_count: int) -> PlaylistSummary:
     return PlaylistSummary(
-        id=playlist.id, name=playlist.name, song_count=song_count, updated_at=playlist.updated_at
+        id=playlist.id,
+        name=playlist.name,
+        song_count=song_count,
+        updated_at=playlist.updated_at,
+        has_cover=playlist.cover_path is not None,
     )
 
 
@@ -74,6 +82,7 @@ async def _detail(session: AsyncSession, playlist: Playlist) -> PlaylistDetail:
         name=playlist.name,
         songs=songs,
         total_seconds=sum(s.duration_seconds for s in songs),
+        has_cover=playlist.cover_path is not None,
     )
 
 
@@ -108,9 +117,10 @@ async def rename_playlist(
 async def delete_playlist(
     session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID
 ) -> None:
-    await repository.delete_playlist(
-        session, await _get_owned(session, owner_id, playlist_id, for_update=True)
-    )
+    playlist = await _get_owned(session, owner_id, playlist_id, for_update=True)
+    cover = playlist.cover_path
+    await repository.delete_playlist(session, playlist)
+    delete_image(_covers_dir(), cover)
 
 
 async def add_song(
@@ -176,3 +186,25 @@ async def reorder(
     repository.touch(playlist)
     await session.commit()
     return await _detail(session, playlist)
+
+
+def _covers_dir() -> Path:
+    return get_settings().media_dir / "covers" / "playlists"
+
+
+async def set_cover(
+    session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID, upload: UploadFile
+) -> PlaylistSummary:
+    playlist = await _get_owned(session, owner_id, playlist_id, for_update=True)
+    playlist.cover_path = await save_image(upload, _covers_dir(), str(playlist.id))
+    repository.touch(playlist)
+    await session.commit()
+    return _summary(playlist, await repository.count_songs(session, playlist.id))
+
+
+async def get_cover_file(session: AsyncSession, user_id: uuid.UUID, playlist_id: uuid.UUID) -> Path:
+    playlist = await _get_owned(session, user_id, playlist_id)
+    path = _covers_dir() / playlist.cover_path if playlist.cover_path else None
+    if path is None or not path.is_file():
+        raise NotFound("Este casete no tiene portada.", code="cover_not_found")
+    return path

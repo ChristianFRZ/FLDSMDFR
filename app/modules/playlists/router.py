@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Header, Response, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.playlists import service
@@ -12,6 +12,7 @@ from app.modules.playlists.schemas import (
     ReorderIn,
 )
 from app.shared.deps import CurrentUser, current_user, get_session
+from app.shared.images import image_response
 
 router = APIRouter(prefix="/api/playlists", tags=["playlists"])
 
@@ -89,3 +90,24 @@ async def reorder(
     session: AsyncSession = Depends(get_session),
 ):
     return await service.reorder(session, user.user_id, playlist_id, data)
+
+
+@router.put("/{playlist_id}/cover", response_model=PlaylistSummary)
+async def set_cover(
+    playlist_id: uuid.UUID,
+    file: UploadFile,
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    return await service.set_cover(session, user.user_id, playlist_id, file)
+
+
+@router.get("/{playlist_id}/cover")
+async def get_cover(
+    playlist_id: uuid.UUID,
+    if_none_match: str | None = Header(None, alias="If-None-Match"),
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    path = await service.get_cover_file(session, user.user_id, playlist_id)
+    return image_response(path, if_none_match)

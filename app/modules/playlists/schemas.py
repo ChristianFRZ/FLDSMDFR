@@ -14,6 +14,7 @@ class PlaylistSummary(BaseModel):
     name: str
     song_count: int
     updated_at: datetime
+    has_cover: bool = False
 
 
 class PlaylistSongOut(BaseModel):
@@ -31,6 +32,7 @@ class PlaylistDetail(BaseModel):
     name: str
     songs: list[PlaylistSongOut]
     total_seconds: int
+    has_cover: bool = False
 
 
 class AddSongIn(BaseModel):
