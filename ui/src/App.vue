@@ -2,10 +2,8 @@
 import { onMounted, ref } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import Aviso from './components/Aviso.vue'
-import InterruptorLado from './components/InterruptorLado.vue'
 import { usePlayer } from './composables/usePlayer'
 
-// Las vistas con encabezado propio (la casetera) colocan ahí su InterruptorLado.
 const route = useRoute()
 
 // El único <audio> vive aquí para que la música siga al pasar de la casetera a la cabina.
@@ -18,7 +16,6 @@ onMounted(() => {
 <template>
   <div class="app">
     <header v-if="!route.meta.encabezadoPropio" class="app__barra">
-      <InterruptorLado />
     </header>
     <main class="app__contenido">
       <RouterView />

@@ -4,7 +4,6 @@ import { RouterLink } from 'vue-router'
 import CaseteActivo from '../components/CaseteActivo.vue'
 import ControlesReproductor from '../components/ControlesReproductor.vue'
 import EstanteCasetes from '../components/EstanteCasetes.vue'
-import InterruptorLado from '../components/InterruptorLado.vue'
 import ListaCasete from '../components/ListaCasete.vue'
 import PanelCatalogo from '../components/PanelCatalogo.vue'
 import PanelTop from '../components/PanelTop.vue'
@@ -82,7 +81,6 @@ onBeforeUnmount(() => {
     <section class="casetera__deck" aria-label="Casetera">
       <div v-if="!ancho" class="casetera__compacta">
         <CaseteActivo class="casetera__casete-compacto" :etiqueta="etiqueta" :girando="player.isPlaying.value" compacto />
-        <InterruptorLado />
       </div>
       <CaseteActivo v-else :etiqueta="etiqueta" :girando="player.isPlaying.value" />
 
@@ -100,7 +98,6 @@ onBeforeUnmount(() => {
         <nav class="tienda__acciones" aria-label="Cuenta">
           <RouterLink v-if="isAdmin" to="/cabina" class="tienda__enlace">Cabina de grabación</RouterLink>
           <button type="button" class="boton-contorno" @click="logout">Salir</button>
-          <InterruptorLado v-if="ancho" />
         </nav>
       </header>
 

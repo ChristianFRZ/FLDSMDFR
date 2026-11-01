@@ -1,54 +1,59 @@
 /*
- * Tokens del sistema visual. Fuente de verdad: DESIGN.md (sección 3).
- * Los dos temas usan los mismos nombres; el activo lo fija <html data-lado="A|B">.
+ * Tokens del sistema visual MELOXO. Fuente de verdad: DESIGN.md §3.
+ * Un solo tema oscuro (oliva y mostaza), tomado del Figma "MELOXO · Tu casetera".
  * Los componentes solo leen var(--…): nunca colores escritos a mano.
  */
 :root {
+  color-scheme: dark;
+
+  /* Color */
+  --bg: #3b3932; /* fondo de toda la app */
+  --surface: #6e6547; /* bordes, separadores, pistas de barras */
+  --surface-active: #6e6547; /* fila/destino activo, tarjeta de la Cabina */
+  --accent: #d4ae35; /* mostaza: texto principal, iconos, barras de progreso */
+  --accent-strong: #e2c050; /* hover del botón principal */
+  --on-accent: #3b3932; /* texto sobre --accent (5.45:1) */
+  --ink: #d4ae35; /* texto principal sobre --bg (5.45:1) */
+  --ink-muted: #b8a35e; /* texto secundario sobre --bg (4.64:1); el Figma usa #a18c48 */
+  --ink-on-active: #f8e9b5; /* texto sobre --surface-active (4.79:1) */
+  --chip-ink: #f5e8f1; /* texto de las pastillas de la biblioteca */
+  --rule: #6e6547;
+  --danger: #ff8a6b;
+  --focus: #f8e9b5;
+  --overlay: rgb(20 19 15 / 72%);
+
+  /* Espaciado */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
+  --space-6: 32px;
 
-  --radius-s: 6px;
-  --radius-m: 12px;
+  /* Radios */
+  --radius-s: 4px;
+  --radius-m: 6px;
+  --radius-l: 12px;
+  --radius-pill: 100px;
 
-  --font-display: 'Fraunces Variable', Georgia, serif;
-  --font-body: 'Figtree Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-hand: 'Caveat Variable', 'Segoe Print', cursive;
-}
+  /* Tipografía */
+  --font-display: 'Lora Variable', Georgia, serif;
+  --font-body: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
-/* Lado A · Mostaza y oliva (claro). También es el valor por omisión. */
-:root,
-:root[data-lado='A'] {
-  color-scheme: light;
-  --bg: #f5d7a1;
-  --ink: #33210f;
-  --paper: #fff3dc;
-  --deck: #5b5a24;
-  --deck-ink: #fff3dc;
-  --tape: #8a3a16;
-  --accent: #c4501e;
-  --on-accent: #fff3dc;
-  --accent2: #f2b33d;
-  --rule: #e3bc7e;
-  --rule-deck: #76753a;
-  --danger: #9e2a1c;
-}
+  /* Distribución */
+  --sidebar-width: 232px;
+  --header-height: 80px;
+  --player-height: 96px;
 
-/* Lado B · Ámbar nocturno (oscuro). */
-:root[data-lado='B'] {
-  color-scheme: dark;
-  --bg: #2a1b1d;
-  --ink: #fce9d8;
-  --paper: #3a2629;
-  --deck: #1d1213;
-  --deck-ink: #fce9d8;
-  --tape: #b4452f;
-  --accent: #f2a541;
-  --on-accent: #2a1b1d;
-  --accent2: #f2a541;
-  --rule: #4a3236;
-  --rule-deck: #3a2629;
-  --danger: #ff8a6b;
+  /*
+   * Alias temporales para los componentes de la casetera anterior mientras se migran
+   * (plan, Tareas 12–20). Se eliminan en la Tarea 21.
+   */
+  --paper: var(--bg);
+  --deck: var(--bg);
+  --deck-ink: var(--ink);
+  --tape: var(--surface);
+  --accent2: var(--accent);
+  --rule-deck: var(--rule);
+  --font-hand: var(--font-display);
 }

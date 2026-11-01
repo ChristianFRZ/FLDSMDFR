@@ -1,604 +1,301 @@
-# DESIGN.md · FLDSMDFR
+# DESIGN.md · MELOXO
 
-Fuente única de verdad del sistema visual de FLDSMDFR: concepto, distribución, temas,
-tipografía, espaciado, componentes, accesibilidad y tono de los textos. Si un componente
+Fuente única de verdad del sistema visual de **MELOXO**: concepto, distribución, color,
+tipografía, iconos, logo, componentes, accesibilidad y tono de los textos. Si un componente
 de `ui/` contradice este documento, se corrige el componente o se actualiza este documento
 en el mismo cambio; nunca se deja la contradicción.
 
-Implementación de referencia:
+MELOXO es el nombre visible del producto. El repositorio, los paquetes y los servicios de
+Docker conservan el nombre técnico FLDSMDFR.
 
 | Qué | Dónde |
 |---|---|
-| Tokens de ambos temas | `ui/src/styles/tokens.css` |
-| Estilos base (reset, tipografía, foco, movimiento) | `ui/src/styles/base.css` |
-| Estado del tema (`useTheme`) | `ui/src/composables/useTheme.ts` |
-| Interruptor Lado A / Lado B | `ui/src/components/InterruptorLado.vue` |
-| Prototipo aprobado por el equipo | `.superpowers/brainstorm/43577-1793410204/content/casete-paletas-v3.html` |
+| Diseño de referencia (Figma) | `cVr6xEoHkTZJyeDrngHxIL`, nodo `39:2` ("MELOXO · Tu casetera") |
+| Tokens | `ui/src/styles/tokens.css` |
+| Estilos base y piezas compartidas | `ui/src/styles/base.css` |
+| Logo | `ui/src/assets/logo-meloxo.svg`, `logo-meloxo-pequeno.svg`, `ui/src/components/LogoMeloxo.vue`, `ui/public/favicon.*` |
+| Iconos | `ui/src/components/icons/` (Lucide, licencia ISC) |
+| Diseño y plan del rediseño | `docs/superpowers/specs/2026-10-31-meloxo-rediseno-design.md` |
 
 ---
 
-## 1. Concepto: casete mixtape
+## 1. Concepto: tu casetera
 
-La aplicación se presenta como **una casetera con su estante de casetes**. Cada playlist es
-un casete que grabaste tú: tiene una etiqueta escrita a mano con su nombre, una ventanita
-donde se ven los carretes y una lista de canciones. Del lado derecho está la tienda de
-discos: el catálogo y lo más escuchado, desde donde "grabas" canciones en el casete activo.
+MELOXO es **una casetera de música en streaming** con identidad mexicana. Cada playlist es
+un **casete**; agregar una canción es **grabarla**. La interfaz es oscura, cálida y sobria:
+fondo oliva, texto y acentos en mostaza, una serif con carácter para los títulos y una sans
+neutra para todo lo demás.
 
-Por qué este concepto:
+Por qué así:
 
-- **Hace visible el modelo de datos.** Playlist = casete, agregar canción = grabar en el
-  casete, playlist activa = el casete que está en la casetera. El usuario entiende qué
-  pasa sin leer instrucciones.
-- **Da identidad.** El equipo pidió alejarse del "clon de Spotify". Un objeto físico,
-  cálido y setentero distingue al proyecto y conecta con el nombre (una máquina absurda
-  de los 70).
-- **Muestra el streaming.** La ventanita del casete y la barra de progreso enseñan lo que
-  el backend hace: los carretes giran mientras suena y la barra dibuja los fragmentos ya
-  descargados (`audio.buffered`) gracias a las peticiones HTTP Range.
-- **Una sola pantalla.** Todo lo importante (qué suena, qué sigue, qué puedo agregar) cabe
-  en dos columnas, sin navegar entre secciones.
+- **Hace visible el modelo de datos.** Casete = playlist, grabar = agregar, colaborativo =
+  casete compartido por enlace. La metáfora se mantiene en los textos.
+- **Identidad propia.** El logo Sol‑carrete une la Piedra del Sol con un carrete de casete;
+  la paleta mostaza/oliva evita el "clon de Spotify" aunque la distribución sea familiar.
+- **Muestra el streaming.** La vista Streaming enseña los fragmentos descargados por HTTP
+  Range, el bitrate y las métricas del sistema; los carretes giran mientras suena.
 
 ### 1.1. Anti‑patrones (no hacer)
 
-- **Barra lateral de navegación + reproductor fijo abajo.** Es la distribución que el
-  equipo rechazó: fragmenta la pantalla en tres zonas y esconde el casete activo.
-- **Paleta naranja/café plana del diseño anterior** (`#F4EFE6`, `#D36135`, `#5C3D2E`…).
-  Se sustituye por los temas Lado A y Lado B de la sección 3.
-- **Letra manuscrita fuera de la etiqueta del casete.** Caveat es un adorno; en títulos,
-  botones o listas baja la legibilidad.
-- **Emojis como iconos de interfaz.** Los glifos ⏮ ▶ ⏭ del prototipo son marcadores de
-  posición; en la app se usan iconos SVG en línea con `aria-label`.
 - **Colores escritos a mano en componentes.** Todo color sale de un token `var(--…)`.
-- **Modales para todo.** Crear casete, renombrar o confirmar se resuelven en línea, junto
-  al elemento afectado. Solo "Borrar casete" pide confirmación.
-- **Texto en mayúsculas sostenidas o en voz pasiva** ("CANCIÓN AGREGADA", "La canción fue
-  agregada"). Ver sección 9.
-- **Spinners de pantalla completa.** La carga se muestra en el lugar donde aparecerá el
-  contenido (sección 6.0).
+- **Emojis o glifos como iconos.** Solo iconos SVG de `Icono.vue` dentro de un botón o
+  enlace con nombre accesible.
+- **Botones que parecen activos y no hacen nada.** Lo único visible sin función son
+  Letras, Dispositivos y Plus, siempre con `aria-disabled="true"` y "Próximamente".
+- **Modales para todo.** Crear casete, renombrar, grabar en casete y compartir se
+  resuelven en línea o en un popover junto al elemento. Solo "Borrar casete" pide
+  confirmación.
+- **Texto mostaza sobre `--surface-active`.** No llega a AA; ahí se usa `--ink-on-active`.
+- **Mayúsculas sostenidas en frases.** Las versalitas solo en antetítulos cortos
+  (`.antetitulo`); los mensajes van en *sentence case*.
+- **Spinners de pantalla completa.** La carga se muestra con esqueletos en su lugar.
+- **Tema claro o interruptor de tema.** MELOXO tiene un solo tema oscuro.
 
 ---
 
 ## 2. Distribución
 
-### 2.1. Escritorio (≥ 900 px): dos columnas
-
-La columna izquierda ("casetera", fondo `--deck`) mide `minmax(360px, 1fr)`; la derecha
-("tienda", fondo `--bg`) `1.15fr`. Ambas ocupan el alto de la ventana y cada lista hace
-scroll por dentro de su columna; la página no hace scroll.
+### 2.1. Escritorio (≥ 900 px)
 
 ```text
-┌─────────────────────────────────┬──────────────────────────────────────────┐
-│ CASETERA (--deck)               │ TIENDA (--bg)            [Lado A|Lado B] │
-│ ┌─────────────────────────────┐ │                                          │
-│ │▔▔▔▔▔▔▔ franja --accent ▔▔▔▔▔│ │ Catálogo                  (Fraunces 28)  │
-│ │ Para la tarde lluviosa      │ │                                          │
-│ │               (Caveat 22)   │ │ ( Catálogo ) ( Lo más escuchado )        │
-│ │   ( ✺ )━━━━━━━────( ✺ )     │ │                                          │
-│ └─────────────────────────────┘ │ ╭──────────────────────────────────╮     │
-│ CaseteActivo (--tape)           │ │ Buscar canción, artista o álbum  │     │
-│                                 │ ╰──────────────────────────────────╯     │
-│ (|<) ( > ) (>|) Nubes de… (vol) │ Ana        Cabina de grabación  (Salir)  │
-│                Los Meteoros     │ Granizo                     3:12  (+)    │
-│ ━━━━━━━━░░░░──────── 1:12/3:41  │ Los Meteoros · Pronóstico                │
-│ BarraProgreso                   │ ──────────────────────────────────────── │
-│                                 │ Monzón                      4:20  (+)    │
-│ ▶ Nubes de agosto        3:41   │ Tormenta Norte · Isobaras                │
-│   Lluvia ligera          4:05   │ ──────────────────────────────────────── │
-│   Frente frío            2:58   │ Neblina                     2:44  (+)    │
-│ ListaCasete (scroll)            │ Calma Chicha · Barlovento                │
-│                                 │                                          │
-│ [Tarde lluv.][+ Nuevo casete]   │ PanelCatalogo / PanelTop (scroll)        │
-│ EstanteCasetes (al pie)         │                                          │
-└─────────────────────────────────┴──────────────────────────────────────────┘
+┌──────────────┬─────────────────────────────────────────────────────┐
+│ Logo MELOXO  │ ‹ ›  [ ¿Qué te apetece escuchar?   Ctrl K ]  Rol 🔔 AL │  80 px
+│              ├─────────────────────────────────────────────────────┤
+│ Inicio       │                                                     │
+│ Catálogo     │                Vista activa (RouterView)            │
+│ Streaming    │                                                     │
+│ ──────────   │                                                     │
+│ TUS CASETES +│                                                     │
+│ (Casetes|Art)│                                                     │
+│ lista…       │                                                     │
+│              │                                                     │
+│ [Cabina]     │                                                     │
+├──────────────┴─────────────────────────────────────────────────────┤
+│ Portada Título ♡ │ ⤨ ⏮ ⏯ ⏭ ⟲  ──●──────── │ 🎤 ☰ 🖥 🔊 ── ⤢       │  96 px
+└────────────────────────────────────────────────────────────────────┘
 ```
 
-Orden de lectura y de tabulación: casete activo → controles → barra de progreso → lista
-del casete → estante → encabezado de la tienda (cabina, "Salir", interruptor de lado) →
-pestañas → buscador → resultados. El interruptor queda en el encabezado de la tienda (columna
-derecha), por eso llega después de la casetera.
+- Barra lateral de 232 px (`--sidebar-width`) con borde derecho `--rule`.
+- Encabezado de 80 px con borde inferior; contenido con 32 px de margen lateral.
+- Reproductor fijo de 96 px con borde superior.
+- La tarjeta "Cabina de grabación · Administrador" solo aparece a administradores.
 
-### 2.2. Pantallas angostas (< 900 px): se apila
+### 2.2. Pantallas angostas (< 900 px)
 
-La casetera se compacta arriba (etiqueta del casete en una línea, sin ventanita de
-carretes, controles y barra de progreso) y queda **fija** mientras el resto hace scroll.
-Debajo, tres pestañas reparten el contenido:
-
-```text
-┌──────────────────────────────────────┐
-│ CASETERA COMPACTA (--deck, sticky)   │
-│ Para la tarde lluviosa   [Lado A|B]  │
-│ (|<) ( > ) (>|) Nubes de agosto (vol)│
-│ ━━━━━━━░░░────────────── 1:12 / 3:41 │
-├──────────────────────────────────────┤
-│ (Catálogo)(Mi casete)(Lo más escuch.)│
-├──────────────────────────────────────┤
-│ ╭──────────────────────────────────╮ │
-│ │ Buscar canción, artista o álbum  │ │
-│ ╰──────────────────────────────────╯ │
-│ Granizo                   3:12  (+)  │
-│ Los Meteoros · Pronóstico            │
-│ ──────────────────────────────────── │
-│ Monzón                    4:20  (+)  │
-│ …                                    │
-└──────────────────────────────────────┘
-```
-
-- **Catálogo:** `PanelCatalogo`.
-- **Mi casete:** `ListaCasete` seguida de `EstanteCasetes` (el estante pasa a una rejilla
-  de 2 columnas). El panel conserva el fondo `--deck` para mantener los contrastes de la
-  casetera.
-- **Lo más escuchado:** `PanelTop`.
-
-Entre la casetera compacta y las pestañas va una fila con el nombre del usuario, "Cabina de
-grabación" (solo admin) y "Salir"; esa fila no es fija. Las pestañas pasan a otra línea si no
-caben. En < 480 px el control de volumen de `ControlesReproductor` se oculta: en teléfonos el
-volumen lo controlan los botones del equipo y el deslizador provocaría scroll horizontal.
-
-Margen lateral 16 px (`--space-4`). Ningún elemento provoca scroll horizontal; los
-títulos largos se cortan con elipsis y el texto completo va en `title`.
+La barra lateral desaparece. Abajo, encima del reproductor compacto (portada, título,
+play/pausa, corazón y barra de progreso fina), aparece una barra de navegación con
+Inicio, Catálogo, Biblioteca y Streaming. La biblioteca vive en `/biblioteca`. El
+encabezado conserva búsqueda, campana y avatar. Sin scroll horizontal a 320 px.
 
 ---
 
-## 3. Temas: Lado A y Lado B
+## 3. Color
 
-Dos temas con **los mismos nombres de token**. El tema activo se fija en
-`<html data-lado="A">` o `<html data-lado="B">`; los componentes solo leen `var(--…)`.
+Un solo tema oscuro, tomado del Figma y ajustado para cumplir WCAG 2.2 AA.
 
-- **Lado A · Mostaza y oliva** (claro): una sala setentera, mostaza, oliva y naranja quemado.
-- **Lado B · Ámbar nocturno** (oscuro): cacao, ladrillo y luz ámbar de bulbo, para escuchar
-  de noche.
+| Token | Valor | Uso |
+|---|---|---|
+| `--bg` | `#3b3932` | Fondo general, tarjetas |
+| `--surface` | `#6e6547` | Bordes, separadores, pistas de barras |
+| `--surface-active` | `#6e6547` | Destino/fila activa, tarjeta de la Cabina, botón play |
+| `--accent` | `#d4ae35` | Mostaza: iconos, progreso, badge, botón principal |
+| `--accent-strong` | `#e2c050` | Hover del botón principal |
+| `--on-accent` | `#3b3932` | Texto sobre `--accent` |
+| `--ink` | `#d4ae35` | Texto principal sobre `--bg` |
+| `--ink-muted` | `#b8a35e` | Texto secundario (artista, detalles, tiempos) |
+| `--ink-on-active` | `#f8e9b5` | Texto e iconos sobre `--surface-active` |
+| `--chip-ink` | `#f5e8f1` | Texto de las pastillas Casetes / Artistas |
+| `--danger` | `#ff8a6b` | Errores y "Borrar" |
+| `--focus` | `#f8e9b5` | Anillo de foco |
 
-### 3.1. Tokens de color
+### 3.1. Contraste medido
 
-| Token | Uso | Lado A | Lado B |
-|---|---|---|---|
-| `--bg` | Fondo de la tienda (columna derecha) y de la página | `#F5D7A1` | `#2A1B1D` |
-| `--ink` | Texto principal sobre `--bg` y `--paper` | `#33210F` | `#FCE9D8` |
-| `--paper` | Etiqueta del casete, buscador, tarjetas, campos | `#FFF3DC` | `#3A2629` |
-| `--deck` | Fondo de la casetera (columna izquierda) | `#5B5A24` | `#1D1213` |
-| `--deck-ink` | Texto e iconos sobre `--deck` y `--tape` | `#FFF3DC` | `#FCE9D8` |
-| `--tape` | Cuerpo del casete y casetes del estante | `#8A3A16` | `#B4452F` |
-| `--accent` | Relleno de botón principal (play, +), franja de la etiqueta | `#C4501E` | `#F2A541` |
-| `--on-accent` | Texto e iconos sobre `--accent` | `#FFF3DC` | `#2A1B1D` |
-| `--accent2` | Foco, canción que suena, casete activo, progreso | `#F2B33D` | `#F2A541` |
-| `--rule` | Separadores sobre `--bg` / `--paper` | `#E3BC7E` | `#4A3236` |
-| `--rule-deck` | Separadores sobre `--deck` | `#76753A` | `#3A2629` |
-| `--danger` | Errores y acciones destructivas | `#9E2A1C` | `#FF8A6B` |
-
-Estos valores son los aprobados por el equipo. **No se cambian** para arreglar un
-contraste: se restringe el uso (sección 3.2).
-
-### 3.2. Contraste medido (WCAG 2.2)
-
-Razones calculadas con la fórmula de luminancia relativa de WCAG. Umbrales: texto normal
-4.5:1, texto grande (≥ 24 px, o ≥ 18.66 px en negrita) 3:1, componentes no textuales
-(bordes, iconos, indicadores de foco, barras) 3:1.
-
-| Par | Lado A | Lado B | Resultado |
-|---|---|---|---|
-| `--ink` sobre `--bg` | 11.07 | 13.97 | AA texto normal en ambos |
-| `--ink` sobre `--paper` | 13.99 | 11.94 | AA texto normal en ambos |
-| `--bg` sobre `--ink` (pestaña activa) | 11.07 | 13.97 | AA texto normal en ambos |
-| `--deck-ink` sobre `--deck` | 6.51 | 15.49 | AA texto normal en ambos |
-| `--deck-ink` sobre `--tape` | 7.08 | 4.64 | AA texto normal en ambos |
-| `--on-accent` sobre `--accent` | **4.23** | 8.04 | **Lado A: falla AA texto normal**; pasa texto grande y no textual |
-| `--accent2` sobre `--deck` | **3.85** | 8.91 | **Lado A: falla AA texto normal**; pasa texto grande y no textual |
-| `--accent` sobre `--bg` | **3.35** | 8.04 | **Lado A: falla AA texto normal**; pasa no textual |
-| `--accent` sobre `--deck` | **1.54** | 8.91 | **Lado A: falla incluso no textual** |
-| `--accent2` sobre `--bg` | **1.34** | 8.04 | **Lado A: falla incluso no textual** |
-| `--danger` sobre `--bg` | 5.40 | 7.15 | AA texto normal en ambos |
-| `--danger` sobre `--paper` | 6.82 | 6.11 | AA texto normal en ambos |
-| `--ink` al 75 % de opacidad sobre `--bg` | 5.64 | 8.42 | AA texto normal |
-| `--deck-ink` al 80 % de opacidad sobre `--deck` | 4.84 | 10.15 | AA texto normal (al 75 % el Lado A queda en 4.50, al límite) |
-
-Restricciones que se derivan (aplican a los dos lados para no tener reglas por tema):
-
-1. **Texto sobre `--accent`** (botón play, botón +, botón principal de formularios): solo
-   iconos o texto **grande** — 18.66 px en negrita (peso ≥ 700) o 24 px. Los botones
-   principales con texto usan Figtree 700 a 19 px. Nunca texto de 15 o 13 px sobre `--accent`.
-2. **`--accent2` no es color de texto pequeño sobre `--deck`.** En la canción que suena
-   (`ListaCasete`) el icono ▶ y la barra lateral de 3 px van en `--accent2` (elementos no
-   textuales, 3.85:1) y el título va en `--deck-ink` 700. Como texto, `--accent2` sobre
-   `--deck` solo se permite en tamaño grande (≥ 18.66 px negrita).
-3. **`--accent` nunca es color de texto** sobre `--bg`, `--paper` ni `--deck`. Los enlaces
-   y textos destacados usan `--ink` subrayado.
-4. **Barra de progreso:** el tramo reproducido usa `--accent2`, no `--accent` (Lado A:
-   3.85:1 sobre `--deck`; `--accent` tendría 1.54:1).
-5. **Indicador de foco sobre fondos claros:** `--accent2` sobre `--bg` tiene 1.34:1 en el
-   Lado A. Por eso el foco es un anillo doble: 3 px de `--accent2` por fuera y 2 px de
-   `--ink` por dentro (sección 8.2). El anillo interior da ≥ 11:1 sobre `--bg`/`--paper`
-   y el exterior ≥ 3.85:1 sobre `--deck`.
-6. **Texto secundario** (artista, álbum, duración): opacidad mínima 0.8 sobre `--deck` y
-   0.75 sobre `--bg`/`--paper`. En código se usa `opacity: .8` en ambos casos.
-7. `--tape` es superficie, no texto. Sobre `--tape` solo va `--deck-ink`.
-
-### 3.3. Cambio de tema
-
-- Inicial: `localStorage['fldsmdfr-lado']` si vale `"A"` o `"B"`; si no,
-  `prefers-color-scheme: dark` → Lado B, si no → Lado A.
-- El interruptor `InterruptorLado` alterna y guarda la elección en `localStorage`.
-- Si `localStorage` no está disponible (navegación privada, bloqueado) la app no falla:
-  usa la preferencia del sistema y no recuerda la elección.
-- El cambio es instantáneo, sin transición de colores (evita parpadeos en listas largas).
+| Par | Contraste | Uso permitido |
+|---|---|---|
+| `--ink` / `--bg` | 5.45:1 | Todo texto |
+| `--ink-muted` / `--bg` | 4.64:1 | Todo texto (el `#a18c48` del Figma daba 3.5:1 y se aclaró) |
+| `--on-accent` / `--accent` | 5.45:1 | Texto de botones principales y badges |
+| `--ink-on-active` / `--surface-active` | 4.79:1 | Texto sobre filas y destinos activos |
+| `--chip-ink` / `--surface-active` | 4.89:1 | Pastilla seleccionada |
+| `--accent` / `--surface-active` | 2.74:1 | **Solo** iconos y elementos no textuales grandes |
 
 ---
 
 ## 4. Tipografía
 
-Tres familias, servidas localmente con `@fontsource-variable` (sin peticiones a Google):
+- **Display:** Lora Variable (`--font-display`), peso 400. Marca, saludo, títulos de
+  sección y de la tarjeta de la Cabina.
+- **Texto:** Inter Variable (`--font-body`). Todo lo demás.
 
-| Token | Familia | Uso |
-|---|---|---|
-| `--font-display` | Fraunces (variable, eje `SOFT` = 100) | Títulos de vista y de panel |
-| `--font-body` | Figtree (variable) | Todo el texto de interfaz |
-| `--font-hand` | Caveat (variable) | **Solo** la etiqueta del casete (activo y del estante en escritorio) |
-
-### 4.1. Escala
-
-| Rol | Familia | Tamaño | Peso | Interlineado |
+| Elemento | Fuente | Tamaño | Peso | Otros |
 |---|---|---|---|---|
-| Título de vista (h1) | Fraunces SOFT 100 | 28 px | 800 | 1.15, `letter-spacing: -0.01em` |
-| Título de panel (h2) | Fraunces SOFT 100 | 22 px | 800 | 1.2 |
-| Subtítulo (h3) | Fraunces SOFT 100 | 18 px | 800 | 1.25 |
-| Texto | Figtree | 15 px | 400 (500 en botones, 700 en títulos de canción) | 1.5 |
-| Texto pequeño (metadatos, tiempos) | Figtree | 13 px | 400 | 1.5 |
-| Botón principal con texto (sobre `--accent`) | Figtree | 19 px | 700 | 1.2 |
-| Etiqueta de casete | Caveat | 22 px | 700 | 1.1 |
-
-- Los tiempos (`1:12 / 3:41`, duraciones) usan `font-variant-numeric: tabular-nums` para
-  que no "bailen" al avanzar.
-- Nada por debajo de 13 px.
-- Sentence case en todo: "Lo más escuchado", no "Lo Más Escuchado".
+| Marca MELOXO | Lora | 24 px | 400 | `letter-spacing: -1.5px` |
+| Saludo (`h1`) | Lora | 30 px | 400 | |
+| Título de sección (`h2`) | Lora | 28 px | 400 | "Vuelve a lo que te gusta" |
+| Tarjeta Cabina (`h3`) | Lora | 20 px | 400 | `line-height: 1.2` |
+| Antetítulo | Inter | 10–12 px | 600 | Versalitas, `letter-spacing: 1.2–1.6px` |
+| Navegación | Inter | 14 px | 400 (600 activo) | |
+| Título de canción | Inter | 13 px | 500–600 | |
+| Artista, detalles | Inter | 11 px | 400 | `--ink-muted` |
+| Tiempos del reproductor | Inter | 9 px | 400 | `--ink-muted`, cifras tabulares |
 
 ---
 
-## 5. Espaciado, tamaños y forma
+## 5. Logo: Sol‑carrete
 
-| Token | Valor | Uso típico |
-|---|---|---|
-| `--space-1` | 4 px | Separación icono‑texto, ajustes finos |
-| `--space-2` | 8 px | Entre botones del estante, entre pestañas |
-| `--space-3` | 12 px | Entre controles del reproductor, columnas de una fila |
-| `--space-4` | 16 px | Relleno de paneles en móvil, entre bloques pequeños |
-| `--space-5` | 24 px | Relleno de columnas en escritorio, entre bloques grandes |
-| `--radius-s` | 6 px | Etiqueta, casetes del estante, campos pequeños |
-| `--radius-m` | 12 px | Casete activo, tarjetas, paneles |
+El sol de la Piedra del Sol (disco con ocho rayos triangulares) cuya ventana central es el
+carrete de un casete (anillo con seis dientes). Une la cultura mexicana con la música en
+una sola forma de una tinta.
 
-- Solo se usan estos cinco espacios. Nada de 10, 14 o 18 px.
-- **Área táctil mínima 40 × 40 px** para todo botón o control; el botón play mide 52 px.
-- Píldoras (pestañas, buscador, botones de icono) con `border-radius: 999px`.
-- Separación mínima de 8 px entre dos objetivos táctiles contiguos.
-- Bordes de 2 px para controles en reposo (botones de icono, buscador); 1 px para
-  separadores de lista.
+- **Construcción:** lienzo 256 × 256; disco r = 65 con ventana r = 38; ocho rayos de base
+  26° a r = 73 y punta a r = 118 (ligero rebase óptico); carrete: anillo r = 26/17 con seis
+  dientes hacia dentro.
+- **Corte pequeño** (`logo-meloxo-pequeno.svg`): bajo 24 px se quitan los dientes y se
+  engrosan los anillos para que no se empasten. `LogoMeloxo.vue` lo elige solo.
+- **Color:** mostaza `--accent` sobre `--bg`. A una tinta en negro o blanco cuando el
+  fondo lo pida. Nunca con degradados, sombras ni contorno.
+- **Bloque de marca:** símbolo 29 px + "MELOXO" en Lora 24 px + punto de 6 px, dentro de una
+  píldora con borde `--rule` y radio 12 px (barra lateral). En Acceso, símbolo 56 px.
+- **Zona de respeto:** la altura de un rayo alrededor del símbolo.
+- **Tamaño mínimo:** 16 px (favicon) con el corte pequeño.
+- **Favicon:** `favicon.svg` y `favicon.ico` (16/32/48) con el corte pequeño sobre un
+  cuadrado `--bg` de esquinas redondeadas.
+- **Usos indebidos:** deformarlo, rotarlo, cambiar el número de rayos, ponerlo sobre
+  fotografías sin fondo, recolorearlo fuera de la paleta.
 
 ---
 
-## 6. Componentes
+## 6. Espaciado, tamaños y forma
 
-### 6.0. Estados comunes
+- Escala: 4, 8, 12, 16, 24, 32 px (`--space-1` … `--space-6`).
+- Radios: 4 px portadas pequeñas, 6 px filas y portadas de la biblioteca, 12 px tarjetas,
+  100 px píldoras y avatares.
+- Portadas: 42 px biblioteca, 40 px tarjetas de Inicio, 44 px "Vuelve a lo que te gusta",
+  58 px reproductor. Sin portada: marcador con iniciales sobre `--surface-active`.
+- Objetivos táctiles de al menos 32 × 32 px (44 px en móvil).
 
-Todos los componentes interactivos cumplen estas reglas, salvo que su ficha diga otra cosa:
+---
+
+## 7. Componentes
+
+### 7.0. Estados comunes
 
 | Estado | Tratamiento |
 |---|---|
-| Hover | Fondo o borde se oscurece/aclara con `filter: brightness(1.08)` en rellenos de `--accent`; en botones de contorno el fondo pasa a `color-mix(in srgb, currentColor 12%, transparent)`. Cursor `pointer`. Solo en dispositivos con `hover: hover`. |
-| Foco | Anillo doble visible (sección 8.2) con `:focus-visible`. Nunca `outline: none` sin reemplazo. |
-| Activo (pulsado) | `transform: scale(.96)` 80 ms (sin animación con reduced motion). |
-| Deshabilitado | Opacidad 0.45, `cursor: not-allowed`, atributo `disabled` (o `aria-disabled="true"` si debe seguir siendo enfocable para explicar por qué). Sin hover. |
-| Cargando | Esqueleto en el lugar del contenido: barras de `--rule` (o `--rule-deck`) con la forma de las filas, 3 filas. En botones, el texto cambia ("Grabando…") y el botón queda `aria-busy="true"` y deshabilitado. |
-| Vacío | Mensaje de una o dos frases que dice qué hacer a continuación (sección 9) y, si aplica, el botón para hacerlo. |
-| Error | `Aviso` tipo error en el lugar del contenido, con el mensaje del backend (`error.message`) y un botón "Reintentar". |
-| Degradado | El servidor respondió con datos de respaldo (p. ej. `status: "degraded"` en canciones de un casete o `/api/health` con `degraded`). Se muestra el contenido con un `Aviso` tipo aviso arriba: "Mostramos la última versión guardada; algunos datos pueden estar desactualizados." |
-| No disponible | Elemento que existe pero no se puede usar (canción desactivada: `status: "unavailable"`). Se ve atenuado (opacidad 0.6, sin tachar), con la etiqueta "No disponible" en texto pequeño y sin botón de reproducir. Se puede quitar del casete. |
+| Hover | Fondo `color-mix(--surface 45%)` en botones de icono, texto y contorno; `--accent-strong` en el principal. Solo con `hover: hover`. |
+| Foco | Anillo de 2 px `--focus` separado 2 px (`:focus-visible`), definido en `base.css`. |
+| Activo | Filas y destinos con fondo `--surface-active` y texto `--ink-on-active`, más un indicador no cromático (punto, icono `audio-lines` o `aria-current`). |
+| Deshabilitado | Opacidad 0.45, `cursor: not-allowed`, `disabled` o `aria-disabled="true"`. |
+| Próximamente | Igual que deshabilitado, enfocable, con `title`/tooltip "Próximamente". |
+| Cargando | Esqueletos (`.esqueleto-fila`) con la forma del contenido; botones con texto en gerundio y `aria-busy`. |
+| Vacío | Una o dos frases que dicen qué hacer y, si aplica, el botón para hacerlo. |
+| Error | `AvisoEnLinea` en el lugar del contenido con el mensaje del backend y "Reintentar". |
+| No disponible | Canción desactivada: opacidad 0.6, etiqueta "No disponible", sin reproducir. |
 
-### 6.1. `CaseteActivo`
+### 7.1. Barra lateral (`BarraLateral`)
 
-El casete en la casetera: el elemento que da identidad a la app.
+Bloque de marca, navegación (icono 20 px + texto 14 px, alto 44 px, radio 6 px; el
+destino activo lleva fondo `--surface-active`, texto `--ink-on-active`, peso 600 y un
+punto de 5 px), separador, biblioteca y, para administradores, la tarjeta de la Cabina
+(fondo `--surface-active`, icono `disc-3`, título en Lora 20 px, enlace "Abrir Cabina ↗").
 
-- Cuerpo `--tape`, `--radius-m`, relleno 12/16 px, sombra interior `inset 0 0 0 2px rgb(0 0 0 / .18)`.
-- **Etiqueta:** fondo `--paper`, texto `--ink`, Caveat 22 px 700, `--radius-s`, franja
-  superior de 6 px en `--accent`. Muestra el nombre del casete (playlist); corta con
-  elipsis en una línea.
-- **Ventanita:** píldora `rgb(0 0 0 / .35)` al 78 % del ancho, alto 46 px, con dos carretes
-  (círculos de 32 px con rayos de `--paper`) y la cinta entre ellos (4 px, tramo
-  reproducido en `--accent2`).
-- **Estados:**
-  - Sonando: los carretes giran (1 vuelta cada 2 s, `linear`, infinito). Con
-    `prefers-reduced-motion: reduce` no giran.
-  - En pausa / detenido: carretes quietos.
-  - Cargando el casete: etiqueta con esqueleto.
-  - Sin casete seleccionado: etiqueta en blanco con el texto "Elige un casete del estante"
-    en Figtree 15 px (no Caveat), carretes quietos.
-  - Degradado: icono de aviso pequeño junto a la etiqueta con `title` explicativo.
-- Accesible: `role="img"` en la ventanita con `aria-label="Carretes del casete"`; el nombre
-  del casete es un `h2` real.
-- En < 900 px: solo la etiqueta en una línea, sin ventanita.
+### 7.2. Biblioteca (`Biblioteca`)
 
-### 6.2. `ControlesReproductor`
+Cabecera "TUS CASETES" con botón `+` (crear en línea). Pastillas "Casetes" / "Artistas"
+(patrón ARIA `tablist`). Filas de 42 px de portada, nombre 12 px y detalle 10 px
+("Casete · 12 canciones", "Casete · Colaborativo"). "Tus favoritas" va primero.
 
-Fila con ⏮ anterior, ▶/⏸ reproducir‑pausar, ⏭ siguiente, título/artista/tiempo y volumen.
+### 7.3. Encabezado (`EncabezadoSuperior`)
 
-- Botones de icono: círculo de 40 px, borde 2 px `currentColor`, fondo transparente,
-  icono 18 px en `--deck-ink`. Separación `--space-3`.
-- Play/pausa: círculo de 52 px, fondo `--accent`, icono `--on-accent` 22 px, sin borde.
-- Metadatos: título Figtree 15 px 700 en `--deck-ink`; debajo "Artista · 1:12 / 3:41" en
-  13 px, opacidad 0.8, `tabular-nums`. Una línea cada uno, con elipsis.
-- Volumen: botón de icono que abre un deslizador horizontal (`input type="range"`,
-  0–100) junto al botón; con flechas de teclado cambia de 5 en 5. Clic largo o tecla M
-  silencia. `aria-label="Volumen"` en el deslizador y "Silenciar"/"Activar sonido" en el botón.
-- `aria-label` obligatorios: "Anterior", "Reproducir"/"Pausar" (cambia con el estado),
-  "Siguiente".
-- En < 480 px el volumen se oculta (sección 2.2).
-- **Estados:**
-  - Sin canción: play deshabilitado; metadatos "Nada suena todavía".
-  - Primera / última canción: ⏮ / ⏭ deshabilitados.
-  - Cargando audio (antes de `canplay`): el icono de play se sustituye por un anillo
-    girando (estático con reduced motion) y `aria-busy="true"`.
-  - Error de audio (404, red): `Aviso` en línea bajo los controles: "No pudimos reproducir
-    esta canción." y se salta a la siguiente disponible tras 3 s.
+Flechas atrás/adelante, buscador en píldora de 480 px con atajo "Ctrl K" (⌘K en macOS),
+etiqueta de rol ("Administrador" u "Oyente"), etiqueta "Plus" deshabilitada, campana con
+contador y avatar de 34 px con iniciales y menú "Cerrar sesión".
 
-### 6.3. `BarraProgreso`
+### 7.4. Reproductor (`Reproductor`)
 
-- Pista de 6 px de alto (área de clic de 40 px de alto, centrada), color `rgb(255 255 255 / .2)`
-  sobre `--deck`.
-- Tramos descargados (`audio.buffered`) en `--deck-ink` al 35 %: varios segmentos si hay
-  saltos. Muestra el streaming por fragmentos.
-- Tramo reproducido en `--accent2` (ver restricción 4 de la sección 3.2) y tirador
-  circular de 16 px en `--accent2` con borde 2 px `--deck`.
-- Clic o arrastre salta a esa posición. Teclado: `role="slider"`, flechas ±5 s,
-  Re Pág/Av Pág ±30 s, Inicio/Fin. `aria-valuetext="1:12 de 3:41"`.
-- **Estados:** deshabilitada sin canción (pista vacía, sin tirador); cargando (pista
-  con esqueleto); foco con anillo doble alrededor de toda la barra.
+Izquierda: portada 58 px, título, artista y corazón. Centro: aleatorio, anterior, botón
+play/pausa redondo de 34 px en `--surface-active`, siguiente y repetir (icono `repeat-1`
+en modo "una"); debajo la barra de progreso con tiempos. Derecha: Letras y Dispositivos
+(Próximamente), Cola (`list-music`), volumen y pantalla completa (`maximize-2`). La barra
+de progreso dibuja los fragmentos descargados (`audio.buffered`).
 
-### 6.4. `ListaCasete`
+### 7.5. Fila de canción (`FilaCancion`)
 
-Canciones del casete activo, sobre `--deck`.
+Portada, título, artista, `audio-lines` si suena, duración `m:ss` y menú `…` (Grabar en
+casete…, Añadir a favoritas/Quitar, Añadir a la cola, Reproducir a continuación). La fila
+que suena usa el estado activo.
 
-- Fila: posición implícita, título 15 px, duración 13 px a la derecha (`tabular-nums`),
-  separador 1 px `--rule-deck`, alto mínimo 44 px. Acciones "Subir", "Bajar" y "Quitar del
-  casete" (botones de icono de 40 px con `aria-label` que nombra la canción, p. ej.
-  "Subir «Monzón»") visibles al hover/foco de la fila y siempre en pantallas táctiles.
-  "Subir" se deshabilita en la primera fila y "Bajar" en la última.
-- Canción que suena: icono ▶ y barra izquierda de 3 px en `--accent2`, título en
-  `--deck-ink` 700 (restricción 2) y `aria-current="true"`.
-- Clic (o Enter / Espacio: la fila es un botón) reproduce desde esa canción; la cola son
-  las canciones del casete que no están "No disponible".
-- Reordenar: con los botones "Subir"/"Bajar" de la fila (no se depende de arrastrar).
-- Canción con datos de respaldo (`status: "degraded"`): marca discreta "Datos guardados" en
-  13 px con `title` que lo explica.
-- Pie: "3 canciones · 10:44" en 13 px.
-- **Estados:** cargando (esqueleto de 3 filas); vacío ("Este casete está vacío. Busca una
-  canción y pulsa + para grabarla."); error (`Aviso` + "Reintentar"); degradado (`Aviso`
-  arriba, filas normales); fila no disponible (sección 6.0).
+### 7.6. Avisos (`Campana`, `PanelAvisos`, `TarjetaAviso`)
 
-### 6.5. `EstanteCasetes`
+Tarjetas de 12 px de radio con cabecera (icono o iniciales en círculo de 28 px, tipo en
+versalitas y tiempo relativo), título, texto y acciones. Lanzamiento: "Escuchar ahora →".
+Invitación: botón principal "Aceptar" y texto "Ignorar". Badge mostaza con el número de
+no leídos.
 
-Los casetes del usuario al pie de la casetera.
+### 7.7. Otros
 
-- Casete: rectángulo de 40 px de alto mínimo, `--tape`, `--radius-s`, sombra inferior
-  `inset 0 -4px 0 rgb(0 0 0 / .2)`, nombre en Figtree 13 px 500 `--deck-ink` con elipsis.
-  Separación `--space-2`. En escritorio fila con scroll horizontal interno; en < 900 px
-  rejilla de 2 columnas.
-- Casete activo: contorno 2 px `--accent2` con 2 px de separación, `aria-pressed="true"`.
-- "Nuevo casete" (con icono +): mismo tamaño, fondo transparente, borde 2 px discontinuo `--deck-ink`. Al
-  pulsarlo se convierte en un campo en línea ("Nombre del casete") con botones "Crear
-  casete" y "Cancelar"; Enter crea, Escape cancela. Nombre de 1 a 60 caracteres.
-- Renombrar / borrar: menú del casete activo ("Renombrar", "Borrar casete"). Borrar pide
-  confirmación en línea: "¿Borrar «Correr»? Esta acción no se puede deshacer." con
-  "Borrar casete" (`--danger`) y "Cancelar".
-- **Estados:** cargando (3 casetes esqueleto); vacío ("Aún no tienes casetes. Crea el
-  primero con «Nuevo casete»."); error al crear (mensaje bajo el campo, en `--danger` sobre
-  `--paper`); creando ("Creando…", botón deshabilitado).
-
-### 6.6. `PanelCatalogo`
-
-Columna derecha, pestaña "Catálogo".
-
-- Título h2 "Catálogo".
-- Buscador: píldora `--paper`, borde 2 px `--ink`, alto 44 px, icono de lupa,
-  placeholder "Buscar canción, artista o álbum" (placeholder con opacidad 0.75, cumple
-  AA). Busca al escribir con 250 ms de espera; `aria-label="Buscar canción, artista o álbum"`.
-- Clic en una fila (es un botón) reproduce esa canción; la cola son los resultados cargados.
-- Fila: rejilla `1fr auto 40px`, separación `--space-3`, título 15 px 700, debajo
-  "Artista · Álbum" 13 px opacidad 0.8, duración 13 px, y botón **+** (40 px, círculo
-  `--accent`, icono `--on-accent`) con `aria-label="Grabar «Granizo» en el casete"`.
-  Separador 1 px `--rule`.
-- Paginación: botón "Cargar más" al final (no scroll infinito).
-- **Estados:**
-  - Cargando: esqueleto de 5 filas.
-  - Vacío por búsqueda: "No encontramos canciones con «xyz»."
-  - Catálogo vacío: "Todavía no hay canciones en el catálogo."
-  - Error: `Aviso` + "Reintentar". Si falla una búsqueda se quitan los resultados
-    anteriores y "Reintentar" repite esa búsqueda.
-  - **+** sin casete activo: atenuado con `aria-disabled="true"` y `title` "Elige o crea un
-    casete para grabar"; sigue enfocable y al pulsarlo avisa "Crea un casete primero."
-  - **+** grabando: icono de carga, `aria-busy`. Al terminar, el icono pasa a ✓ durante
-    1.5 s y se anuncia "Grabada en «Tarde lluviosa»" por la región viva.
-  - **+** si la canción ya está en el casete: icono ✓, deshabilitado, `aria-label`
-    "Ya está en el casete".
-
-### 6.7. `PanelTop`
-
-Pestaña "Lo más escuchado" (`GET /api/metrics/top`).
-
-- Lista numerada (`<ol>`): número en Fraunces 22 px 800, título, artista, y "128
-  reproducciones" en 13 px. Mismo botón **+** que el catálogo.
-- **Estados:** cargando (esqueleto); vacío ("Nadie ha escuchado nada todavía. Pon play y
-  estrena el ranking."); error (`Aviso` + "Reintentar").
-
-### 6.8. `InterruptorLado`
-
-Botón que alterna entre Lado A y Lado B.
-
-- `<button role="switch">` con `aria-checked="true"` cuando está el Lado B.
-- Texto visible "Lado A" o "Lado B" (el lado actual), Figtree 13 px 500, con un pequeño
-  casete que se voltea. Alto 40 px, píldora con borde 2 px `currentColor`.
-- Nombre accesible: el texto visible ("Lado A" / "Lado B"); no lleva `aria-label` que lo
-  contradiga. El `title` dice "Cambiar a Lado B" / "Cambiar a Lado A".
-- Ubicación: esquina superior derecha de la tienda en escritorio; en la casetera
-  compacta en < 900 px. También en Acceso y Cabina.
-
-### 6.9. `Aviso`
-
-Mensaje en línea para información, éxito, degradado o error.
-
-- Caja `--paper`, `--radius-m`, relleno `--space-3 --space-4`, borde izquierdo de 4 px
-  según tipo: info `--ink`, éxito `--accent2` (con icono ✓), aviso/degradado `--accent2`
-  (icono ⚠), error `--danger` (icono ✕). El texto siempre es `--ink`; el color nunca es
-  el único indicador (hay icono y texto).
-- Error y degradado usan `role="alert"`; info y éxito `role="status"`.
-- Puede llevar una acción ("Reintentar") como botón de contorno.
-- Los avisos de éxito desaparecen solos a los 4 s; los de error se quedan hasta que se
-  resuelven o se cierran ("Cerrar", botón de icono de 40 px).
-
-### 6.10. Botones y campos (genéricos)
-
-| Variante | Aspecto |
-|---|---|
-| Principal | Fondo `--accent`, texto `--on-accent` Figtree 19 px 700, alto 44 px, píldora. Uno por vista o formulario. |
-| Contorno | Transparente, borde 2 px `currentColor`, Figtree 15 px 500, alto 40 px. |
-| Destructivo | Contorno en `--danger` con texto `--danger`. |
-| Icono | Círculo de 40 px, `aria-label` obligatorio. |
-| Campo de texto | `--paper`, borde 2 px `--ink` (o `--rule` en reposo dentro de tarjetas), alto 44 px, `--radius-s`, etiqueta visible arriba en 13 px 500. Error: borde `--danger` y mensaje debajo enlazado con `aria-describedby`. |
+- `SelectorGrabar`: popover con los casetes donde puedes grabar, el último usado primero.
+- `PanelCola`: panel lateral derecho con lo que sigue; reordenar y quitar.
+- `SonandoAhora`: vista de pantalla completa con portada grande y controles.
+- `VentanaCarretes`: ventanita de casete con dos carretes que giran mientras suena.
+- `Aviso` (toast) y `AvisoEnLinea`: mensajes efímeros y en el lugar del contenido.
 
 ---
 
-## 7. Vistas
+## 8. Vistas
 
-### 7.1. Acceso (`/acceso`)
-
-- Fondo `--bg`. Un casete grande centrado (máx. 420 px) cuya etiqueta dice "FLDSMDFR"
-  en Caveat, y debajo una tarjeta `--paper` con pestañas "Entrar" / "Crear cuenta".
-- Campos: Correo, Contraseña (mínimo 8 caracteres, con botón "Mostrar"), y en registro
-  Nombre. Botón principal "Entrar" / "Crear cuenta".
-- Errores del backend en `Aviso` arriba del formulario; errores de campo bajo cada campo.
-- `InterruptorLado` arriba a la derecha.
-
-### 7.2. Casetera (`/`)
-
-La distribución de la sección 2. Requiere sesión. Una región viva `aria-live="polite"`
-(oculta visualmente) anuncia "Grabada en …", "Casete creado", cambios de canción.
-
-El único `<audio>` de la app vive en `App.vue`, fuera de las vistas: la música sigue al ir a
-la cabina y volver. Al cerrar sesión (o si expira) el reproductor se detiene y se vacían los
-casetes en memoria, para que el siguiente usuario no vea los del anterior.
-
-### 7.3. Cabina de grabación (`/cabina`, solo admin)
-
-El estudio donde se graban los masters del catálogo. Misma paleta, distribución de
-dos columnas en escritorio:
-
-```text
-┌──────────────────────────────┬───────────────────────────────────────────┐
-│ CABINA (--deck)              │ (--bg)                     [Lado A|Lado B]│
-│ Cabina de grabación   (h1)   │ Canciones                                 │
-│ ← Volver a la casetera       │ ╭ Buscar canción ╮                        │
-│                              │ Granizo · Los Meteoros  [Editar][Retirar…]│
-│ Resumen                      │ Monzón · Tormenta Norte [Editar][Retirar…]│
-│ ┌──────┐┌──────┐┌──────┐     │                                           │
-│ │ 1 284││  37  ││  12  │     │ Usuarios                                  │
-│ │reprod.││canc. ││usuar.│     │ ╭ Buscar por correo ╮                     │
-│ └──────┘└──────┘└──────┘     │ Ana  ana@…  Oyente        [Hacer admin]   │
-│ Lo más escuchado (top 10)    │ Luis luis@… Admin         [Quitar admin]  │
-│                              │                                           │
-│ Subir canción                │                                           │
-│ ╭ Arrastra o elige archivo ╮ │                                           │
-│ Título / Artista / Álbum     │                                           │
-│ [ Subir canción ]            │                                           │
-└──────────────────────────────┴───────────────────────────────────────────┘
-```
-
-- **Resumen** (`GET /api/metrics/summary`): tarjetas `--tape` con número en Fraunces
-  28 px 800 y rótulo en 13 px, y debajo el top 10 con su cuenta. Estados: cargando
-  (esqueleto), error (`AvisoEnLinea` + "Reintentar"). Se vuelve a pedir tras subir o retirar
-  una canción.
-- **Subir canción:** zona de soltar con borde 2 px discontinuo `--deck-ink`, acepta
-  `.mp3`, `.ogg`, `.wav` hasta 20 MB (20 × 1024 × 1024 bytes; se valida en el cliente antes
-  de enviar y se muestra el error del servidor por `code`: `invalid_audio`, `unsupported_format`,
-  `file_too_large`). Campos Título, Artista, Álbum y Archivo, todos requeridos; los errores de
-  campo sobre `--deck` van en una etiqueta `--paper` porque `--danger` solo está medido sobre
-  `--paper` y `--bg`. Durante la subida el botón dice "Subiendo…" y queda deshabilitado (la
-  API `fetch` no informa progreso, así que no hay barra de porcentaje). Éxito: `Aviso`
-  "Canción subida"; la canción aparece al inicio de la tabla sin recargar.
-- **Canciones:** lista con título, artista y álbum (el catálogo solo trae canciones activas,
-  por eso no hay columna de estado) y acciones "Editar" (edición en línea de
-  título/artista/álbum con "Guardar" y "Cancelar") y "Retirar del catálogo" (confirmación
-  con `window.confirm` que cita el título; es una baja lógica: la canción queda "No
-  disponible" en los casetes que ya la tenían).
-- **Usuarios:** buscador por correo y lista con rol ("Admin" / "Oyente"); botón "Hacer
-  admin" / "Quitar admin". El admin actual no ve el botón en su propia fila (el servidor
-  también lo rechaza con 403).
-- Usuarios no admin que entran a `/cabina` se redirigen a `/` con un `Aviso` de error: "La
-  cabina de grabación es solo para administradores."
-- En < 900 px se apila: primero el interruptor de lado, luego la columna `--deck` (resumen y
-  subida) y después Canciones y Usuarios. No hay pestañas en la cabina.
+| Ruta | Vista | Contenido |
+|---|---|---|
+| `/` | Inicio | "TU CASETERA DIARIA", saludo, más escuchadas, artistas más escuchados, Crear casete, Avisos, "Vuelve a lo que te gusta" |
+| `/catalogo` | Catálogo | Búsqueda, grabar, seguir artistas |
+| `/streaming` | Streaming | Carretes, fragmentos, bitrate, métricas |
+| `/casete/:id` | Casete | Lista, reordenar, portada, compartir, miembros |
+| `/favoritas` | Tus favoritas | Canciones con corazón |
+| `/historial` | Historial | Todo lo escuchado, paginado |
+| `/biblioteca` | Biblioteca | Solo en móvil |
+| `/invitacion/:token` | Invitación | Reclama el enlace y lleva a Avisos |
+| `/cabina` | Cabina (admin) | Subir canciones y portadas, retirar temas, roles |
+| `/acceso` | Acceso | Entrar o crear cuenta, con el logo |
 
 ---
 
-## 8. Accesibilidad
+## 9. Accesibilidad
 
-### 8.1. Objetivo
-
-WCAG 2.2 nivel AA. Contrastes medidos y restricciones en la sección 3.2.
-
-### 8.2. Foco visible
-
-```css
-:focus-visible {
-  outline: 3px solid var(--accent2);
-  outline-offset: 2px;
-  box-shadow: 0 0 0 2px var(--ink);
-}
-```
-
-Anillo de 3 px en `--accent2` separado 2 px del elemento, con un anillo interior de 2 px
-en `--ink` que rellena esa separación. El doble anillo es necesario porque `--accent2`
-sobre `--bg` en el Lado A no llega a 3:1. Implementado en `base.css`; los componentes no
-lo redefinen.
-
-### 8.3. Otras reglas
-
-- **Botones de icono:** `aria-label` obligatorio, en español y con el objeto cuando
-  aporta ("Grabar «Granizo» en el casete", "Quitar «Monzón» del casete").
-- **Teclado:** todo se puede hacer sin ratón. Orden de tabulación de la sección 2.1.
-  Pestañas con el patrón ARIA `tablist` (flechas para moverse, Tab para entrar al panel).
-- **Semántica:** un `h1` por vista; listas como `<ul>`/`<ol>`; regiones `<main>`,
-  `<section aria-labelledby>`.
-- **Movimiento reducido:** con `prefers-reduced-motion: reduce` los carretes no giran,
-  no hay `transform` al pulsar ni transiciones de más de 0 ms. Implementado de forma
-  global en `base.css`.
-- **El color nunca es el único indicador:** estado de canción, activo/inactivo, errores
-  y casete activo llevan además texto, icono o contorno.
-- **Zoom:** usable al 200 % y a 320 px de ancho sin scroll horizontal.
-- **Idioma:** `<html lang="es">`.
+- **Objetivo:** WCAG 2.2 AA (contrastes en §3.1).
+- **Foco visible** siempre; nunca `outline: none` sin reemplazo.
+- **Botones de icono** con `aria-label` en español y el objeto cuando aporta
+  ("Grabar «Cariño» en un casete").
+- **Teclado:** todo se puede hacer sin ratón. Pestañas con `tablist` y flechas. Ctrl K
+  enfoca la búsqueda; la barra espaciadora reproduce o pausa si no estás escribiendo.
+- **Semántica:** un `h1` por vista, listas como `<ul>`/`<ol>`, regiones `<nav>`, `<main>`,
+  `<aside>` y `<section aria-labelledby>`; `aria-current="page"` en la navegación.
+- **Movimiento reducido:** sin giro de carretes, sin transiciones (global en `base.css`).
+- **El color nunca es el único indicador.**
+- **Zoom:** usable al 200 % y a 320 px sin scroll horizontal. **Idioma:** `lang="es"`.
 
 ---
 
-## 9. Tono de los textos
+## 10. Tono de los textos
 
-Español de México, cercano y breve. **Voz activa**, segunda persona (tú), **sentence
-case**, sin signos de exclamación salvo celebraciones reales. Los verbos de la metáfora
-del casete se usan en las acciones principales.
+Español de México, cercano y breve. Voz activa, segunda persona (tú), *sentence case*, sin
+signos de exclamación salvo celebraciones reales. Verbos del casete en las acciones.
 
 | Situación | Sí | No |
 |---|---|---|
-| Agregar canción | "Grabar en el casete" | "Agregar a playlist", "Añadir" |
-| Crear playlist | "Crear casete" | "Nueva playlist", "Guardar" |
-| Casete vacío | "Este casete está vacío. Busca una canción y pulsa + para grabarla." | "No hay elementos." |
-| Sin casetes | "Aún no tienes casetes. Crea el primero con «Nuevo casete»." | "Lista vacía" |
+| Agregar canción | "Grabar en casete" | "Agregar a playlist" |
+| Crear playlist | "Crear casete" | "Nueva playlist" |
+| Casete vacío | "Este casete está vacío. Busca una canción en el Catálogo y grábala." | "No hay elementos." |
+| Sin historial | "Aún no escuchas nada. Empieza en el Catálogo." | "Lista vacía" |
 | Búsqueda sin resultados | "No encontramos canciones con «xyz»." | "0 resultados" |
 | Error de red | "No pudimos cargar el catálogo. Revisa tu conexión y vuelve a intentarlo." | "Error 500" |
-| Canción no disponible | "No disponible" | "ERROR: canción inactiva" |
-| Modo degradado | "Mostramos la última versión guardada; algunos datos pueden estar desactualizados." | "Servicio degradado" |
-| Éxito al grabar | "Grabada en «Tarde lluviosa»" | "¡La canción fue agregada exitosamente!" |
-| Cargando | "Cargando canciones…", "Grabando…" | "Por favor espere" |
+| Éxito al grabar | "Grabada en «Tardes de verano»" | "¡Agregada exitosamente!" |
+| Invitación ya aceptada | "Ya formas parte de este casete." | "409 Conflict" |
+| Enlace inválido | "Este enlace ya no es válido." | "Token not found" |
+| Sin acceso | "Ya no tienes acceso a este casete." | "Forbidden" |
+| Próximamente | "Próximamente" | "No implementado" |
 | Borrar | "¿Borrar «Correr»? Esta acción no se puede deshacer." | "¿Está seguro?" |
-| Sesión expirada | "Tu sesión terminó. Entra de nuevo para seguir escuchando." | "401 Unauthorized" |
 
-Reglas:
-
-- Los errores dicen qué pasó y qué puede hacer el usuario; nunca muestran códigos
-  HTTP ni trazas. Si el backend devuelve `error.message` (ya en español), se usa tal cual.
-- Comillas latinas «» para nombres de casetes y canciones.
-- Puntos suspensivos tipográficos (…) en estados de carga.
-- Números con separador de miles en métricas ("1 284 reproducciones").
+Reglas: los errores dicen qué pasó y qué hacer, sin códigos HTTP; se usa `error.message`
+del backend tal cual. Comillas latinas «» para casetes y canciones. Puntos suspensivos
+tipográficos (…) en cargas. Cifras compactas en métricas (1.2k) y tiempos relativos
+("hace 2 h") con `Intl`.

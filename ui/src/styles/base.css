@@ -1,4 +1,5 @@
-/* Estilos base: reset mínimo, tipografía, foco visible y movimiento reducido (DESIGN.md §4, §8). */
+/* Estilos base MELOXO: reset, tipografía, foco visible, movimiento reducido y piezas
+ * compartidas (botones, campos, pastillas, esqueletos). DESIGN.md §4–§8. */
 *,
 *::before,
 *::after {
@@ -15,8 +16,8 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--font-body);
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.4;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -25,28 +26,31 @@ h2,
 h3 {
   margin: 0;
   font-family: var(--font-display);
-  font-variation-settings: 'SOFT' 100;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+  font-weight: 400;
+  color: var(--ink);
 }
 
 h1 {
-  font-size: 28px;
-  line-height: 1.15;
+  font-size: 30px;
+  line-height: 1.2;
 }
 
 h2 {
-  font-size: 22px;
+  font-size: 28px;
   line-height: 1.2;
 }
 
 h3 {
-  font-size: 18px;
-  line-height: 1.25;
+  font-size: 20px;
+  line-height: 1.2;
 }
 
-small {
-  font-size: 13px;
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
 }
 
 button,
@@ -61,16 +65,17 @@ button {
   cursor: pointer;
 }
 
-button:disabled {
+button:disabled,
+[aria-disabled='true'] {
   cursor: not-allowed;
   opacity: 0.45;
 }
 
-/* Foco doble: 3 px --accent2 por fuera y 2 px --ink por dentro (DESIGN.md §8.2). */
+/* Foco doble: 2 px --focus por fuera y 2 px --bg por dentro (DESIGN.md §8.2). */
 :focus-visible {
-  outline: 3px solid var(--accent2);
+  outline: 2px solid var(--focus);
   outline-offset: 2px;
-  box-shadow: 0 0 0 2px var(--ink);
+  box-shadow: 0 0 0 2px var(--bg);
 }
 
 .visualmente-oculto {
@@ -82,74 +87,146 @@ button:disabled {
   white-space: nowrap;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0ms !important;
-    scroll-behavior: auto !important;
-  }
+/* Antetítulos en versalitas espaciadas (TU CASETERA DIARIA, AVISOS…). */
+.antetitulo {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--ink);
 }
 
-/* Botones compartidos (DESIGN.md §6): contorno y principal. */
-.boton-contorno {
-  min-height: 40px;
-  padding: 0 var(--space-4);
-  border: 2px solid currentColor;
-  border-radius: 999px;
-  background: transparent;
-  font-weight: 500;
+.texto-secundario {
+  color: var(--ink-muted);
 }
 
-/* Texto sobre --accent: solo 19 px en 700 (DESIGN.md §3.2, restricción 1). */
-.boton-principal {
-  min-height: 44px;
-  padding: 0 var(--space-5);
+/* Botón sin relleno: iconos y acciones de texto. */
+.boton-icono,
+.boton-texto {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  min-width: 32px;
+  padding: 0 var(--space-1);
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.boton-icono {
+  justify-content: center;
+}
+
+.boton-texto--secundario {
+  color: var(--ink-muted);
+}
+
+/* Botón principal mostaza en píldora (Aceptar, Guardar…). */
+.boton-principal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 19px;
+  font-size: 12px;
   font-weight: 700;
 }
 
+/* Botón de contorno en píldora. */
+.boton-contorno {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--surface);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.boton-peligro {
+  color: var(--danger);
+}
+
 @media (hover: hover) {
+  .boton-icono:not(:disabled):hover,
+  .boton-texto:not(:disabled):hover,
   .boton-contorno:not(:disabled):hover {
-    background: color-mix(in srgb, currentColor 12%, transparent);
+    background: color-mix(in srgb, var(--surface) 45%, transparent);
   }
 
   .boton-principal:not(:disabled):hover {
-    filter: brightness(1.08);
+    background: var(--accent-strong);
   }
 }
 
-.boton-contorno:active:not(:disabled),
-.boton-principal:active:not(:disabled) {
-  transform: scale(0.96);
+.boton-principal:active:not(:disabled),
+.boton-contorno:active:not(:disabled) {
+  transform: scale(0.97);
   transition: transform 80ms;
 }
 
-/* Campos de formulario compartidos (Acceso y Cabina). */
+/* Pastillas (Casetes / Artistas). */
+.pastilla {
+  padding: 7px 12px;
+  border: 1px solid var(--surface);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--chip-ink);
+  font-size: 11px;
+}
+
+.pastilla[aria-selected='true'],
+.pastilla[aria-pressed='true'] {
+  background: var(--surface-active);
+}
+
+/* Tarjetas con borde (secciones de Inicio, avisos). */
+.tarjeta {
+  border: 1px solid var(--surface);
+  border-radius: var(--radius-l);
+  background: var(--bg);
+  padding: var(--space-3);
+}
+
+/* Campos de formulario. */
 .campo {
   display: grid;
   gap: var(--space-1);
 }
 
 .campo label {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 600;
 }
 
-.campo input {
+.campo input,
+.campo select {
   width: 100%;
   min-width: 0;
-  min-height: 44px;
+  min-height: 42px;
   padding: 0 var(--space-3);
-  border: 2px solid var(--ink);
-  border-radius: var(--radius-s);
-  background: var(--paper);
+  border: 1px solid var(--surface);
+  border-radius: var(--radius-m);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.campo input::placeholder {
+  color: var(--ink-muted);
 }
 
 .campo input.campo--error {
@@ -159,7 +236,7 @@ button:disabled {
 .campo__error,
 .campo__ayuda {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .campo__error {
@@ -167,31 +244,57 @@ button:disabled {
 }
 
 .campo__ayuda {
-  opacity: 0.8;
+  color: var(--ink-muted);
 }
 
+/* Buscador en píldora (encabezado, catálogo, cabina). */
+.busqueda-pildora {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 42px;
+  padding: 0 15px;
+  border: 1px solid var(--surface);
+  border-radius: var(--radius-pill);
+  background: var(--bg);
+}
 
-/* Buscador en píldora y filas de esqueleto compartidos por las listas de la cabina. */
 .busqueda-pildora input {
-  width: 100%;
-  min-height: 44px;
-  padding: 0 var(--space-4);
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: var(--paper);
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
 }
 
+.busqueda-pildora input::placeholder {
+  color: var(--ink);
+}
+
+.busqueda-pildora input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.busqueda-pildora:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Esqueleto de carga. */
 .esqueleto-fila {
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3) 0;
-  border-bottom: 1px solid var(--rule);
 }
 
 .esqueleto-fila span {
   height: 12px;
   border-radius: var(--radius-s);
-  background: var(--rule);
+  background: var(--surface);
+  opacity: 0.6;
 }
 
 .esqueleto-fila span:first-child {
@@ -200,4 +303,15 @@ button:disabled {
 
 .esqueleto-fila span:last-child {
   width: 35%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
 }

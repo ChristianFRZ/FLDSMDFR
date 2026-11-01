@@ -2,7 +2,6 @@
 import { ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import FormularioSubida from '../components/FormularioSubida.vue'
-import InterruptorLado from '../components/InterruptorLado.vue'
 import GestionUsuarios from '../components/GestionUsuarios.vue'
 import ResumenMetricas from '../components/ResumenMetricas.vue'
 import TablaCanciones from '../components/TablaCanciones.vue'
@@ -24,7 +23,6 @@ function alCambiar(): void {
 
 <template>
   <div class="cabina">
-    <div class="cabina__barra"><InterruptorLado /></div>
 
     <aside class="cabina__deck" aria-label="Resumen y subida">
       <header class="cabina__encabezado">
