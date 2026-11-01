@@ -5,7 +5,7 @@ import * as songs from '../api/songs'
 import type { SongOut } from '../api/types'
 import { formatTime } from '../composables/formatTime'
 import { usePlayer } from '../composables/usePlayer'
-import BotonGrabar from './BotonGrabar.vue'
+import SelectorGrabar from './SelectorGrabar.vue'
 import AvisoEnLinea from './AvisoEnLinea.vue'
 
 const ESPERA_MS = 250
@@ -137,7 +137,7 @@ onBeforeUnmount(() => clearTimeout(temporizador))
             </span>
             <span class="catalogo__duracion">{{ formatTime(cancion.duration_seconds) }}</span>
           </button>
-          <BotonGrabar :song-id="cancion.id" :titulo="cancion.title" />
+          <SelectorGrabar :song-id="cancion.id" :titulo="cancion.title" />
         </li>
       </ul>
 

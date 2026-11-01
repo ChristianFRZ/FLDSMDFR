@@ -2,12 +2,15 @@
 import { onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import Aviso from './components/Aviso.vue'
+import Biblioteca from './components/Biblioteca.vue'
 import Campana from './components/Campana.vue'
 import Reproductor from './components/Reproductor.vue'
 import LayoutPrincipal from './layouts/LayoutPrincipal.vue'
+import { useCasetes } from './composables/useCasetes'
 import { useFavoritos } from './composables/useFavoritos'
 import { useNotificaciones } from './composables/useNotificaciones'
 import { usePlayer } from './composables/usePlayer'
+import { useSeguidos } from './composables/useSeguidos'
 import { useSession } from './composables/useSession'
 
 const route = useRoute()
@@ -18,19 +21,24 @@ onMounted(() => {
   if (audio.value) usePlayer().attach(audio.value)
 })
 
-// Corazones y avisos dependen de la cuenta: se cargan al entrar y se vacían al salir.
+// Corazones, casetes, seguidos y avisos dependen de la cuenta: se cargan al entrar y se vacían al salir.
 const session = useSession()
 const favoritos = useFavoritos()
 const notificaciones = useNotificaciones()
+const casetes = useCasetes()
+const seguidos = useSeguidos()
 watch(
   () => session.user.value?.id,
   (id) => {
     notificaciones.reiniciar()
     if (id) {
       void favoritos.cargar()
+      void casetes.cargar()
+      void seguidos.cargar()
       notificaciones.iniciar()
     } else {
       favoritos.reiniciar()
+      seguidos.reiniciar()
     }
   },
   { immediate: true },
@@ -43,6 +51,7 @@ watch(
   <RouterView v-else-if="route.meta.sinLayout" />
   <LayoutPrincipal v-else>
     <RouterView />
+    <template #biblioteca><Biblioteca /></template>
     <template #campana><Campana /></template>
     <template #reproductor><Reproductor /></template>
   </LayoutPrincipal>

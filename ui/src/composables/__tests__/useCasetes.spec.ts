@@ -1,40 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PlaylistDetail, PlaylistSongOut, PlaylistSummary } from '../../api/types'
+import type { PlaylistDetail, PlaylistSummary } from '../../api/types'
 
 const list = vi.fn()
 const create = vi.fn()
-const get = vi.fn()
-const rename = vi.fn()
-const remove = vi.fn()
 const addSong = vi.fn()
-const removeSong = vi.fn()
-const reorder = vi.fn()
 const mostrar = vi.fn()
 
-const resumen = (id: string, name: string): PlaylistSummary => ({
+const resumen = (id: string, name: string, extra: Partial<PlaylistSummary> = {}): PlaylistSummary => ({
   id,
   name,
   song_count: 0,
   updated_at: '2026-10-30T00:00:00Z',
   has_cover: false,
   role: 'owner',
+  ...extra,
 })
 
-const fila = (songId: string, position: number): PlaylistSongOut => ({
-  song_id: songId,
-  title: `Canción ${songId}`,
-  artist: 'Artista',
-  album: 'Álbum',
-  duration_seconds: 60,
-  position,
-  status: 'ok',
-})
-
-const detalle = (id: string, name: string, songIds: string[] = []): PlaylistDetail => ({
+const detalle = (id: string, name: string, n: number): PlaylistDetail => ({
   id,
   name,
-  songs: songIds.map((s, i) => fila(s, i)),
-  total_seconds: songIds.length * 60,
+  songs: Array.from({ length: n }, (_, i) => ({
+    song_id: `s${i}`,
+    title: `Canción ${i}`,
+    artist: 'Artista',
+    album: 'Álbum',
+    duration_seconds: 60,
+    position: i,
+    status: 'ok',
+  })),
+  total_seconds: n * 60,
   has_cover: false,
   role: 'owner',
   members: [],
@@ -43,16 +37,7 @@ const detalle = (id: string, name: string, songIds: string[] = []): PlaylistDeta
 // useCasetes es un singleton de módulo: cada prueba importa una copia nueva.
 async function freshCasetes() {
   vi.resetModules()
-  vi.doMock('../../api/playlists', () => ({
-    list,
-    create,
-    get,
-    rename,
-    remove,
-    addSong,
-    removeSong,
-    reorder,
-  }))
+  vi.doMock('../../api/playlists', () => ({ list, create, addSong }))
   vi.doMock('../useAvisos', () => ({ useAvisos: () => ({ mostrar }) }))
   const { ApiError } = await import('../../api/http')
   const { useCasetes } = await import('../useCasetes')
@@ -61,196 +46,67 @@ async function freshCasetes() {
 
 describe('useCasetes', () => {
   beforeEach(() => {
-    for (const fn of [list, create, get, rename, remove, addSong, removeSong, reorder, mostrar]) {
-      fn.mockReset()
-    }
+    for (const fn of [list, create, addSong, mostrar]) fn.mockReset()
+    localStorage.clear()
   })
 
-  it('cargar trae los casetes y selecciona el primero si no hay activo', async () => {
+  it('cargar trae los casetes', async () => {
     const { casetes } = await freshCasetes()
-    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa'), resumen('p2', 'Correr')])
-    get.mockResolvedValue(detalle('p1', 'Tarde lluviosa'))
-
+    list.mockResolvedValue([resumen('a', 'Viaje'), resumen('b', 'Lluvia')])
     await casetes.cargar()
-
-    expect(casetes.casetes.value.map((c) => c.id)).toEqual(['p1', 'p2'])
-    expect(get).toHaveBeenCalledWith('p1')
-    expect(casetes.activo.value?.id).toBe('p1')
+    expect(casetes.casetes.value.map((c) => c.id)).toEqual(['a', 'b'])
+    expect(casetes.error.value).toBe('')
   })
 
-  it('cargar sin casetes deja el activo en null', async () => {
+  it('crear agrega el casete al principio y lo devuelve', async () => {
     const { casetes } = await freshCasetes()
-    list.mockResolvedValue([])
-
+    list.mockResolvedValue([resumen('a', 'Viaje')])
     await casetes.cargar()
-
-    expect(get).not.toHaveBeenCalled()
-    expect(casetes.activo.value).toBeNull()
+    create.mockResolvedValue(resumen('n', 'Nuevo'))
+    const nuevo = await casetes.crear('Nuevo')
+    expect(nuevo.id).toBe('n')
+    expect(casetes.casetes.value.map((c) => c.id)).toEqual(['n', 'a'])
   })
 
-  it('grabar sin casete activo avisa y no llama al API', async () => {
+  it('grabar actualiza el conteo, avisa y recuerda el destino', async () => {
     const { casetes } = await freshCasetes()
-
-    await casetes.grabar('s1')
-
-    expect(mostrar).toHaveBeenCalledWith('Crea un casete primero.', expect.anything())
-    expect(addSong).not.toHaveBeenCalled()
-  })
-
-  it('grabar una canción repetida avisa que ya está en el casete', async () => {
-    const { ApiError, casetes } = await freshCasetes()
-    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa')])
-    get.mockResolvedValue(detalle('p1', 'Tarde lluviosa', ['s1']))
+    list.mockResolvedValue([resumen('a', 'Viaje')])
     await casetes.cargar()
-    addSong.mockRejectedValue(
-      new ApiError(409, 'song_already_in_playlist', 'Esa canción ya está en el casete.'),
-    )
-
-    await casetes.grabar('s1')
-
-    expect(addSong).toHaveBeenCalledWith('p1', 's1')
-    expect(mostrar).toHaveBeenCalledWith('Esa canción ya está en este casete.', expect.anything())
+    addSong.mockResolvedValue(detalle('a', 'Viaje', 3))
+    expect(await casetes.grabar('a', 's9')).toBe(true)
+    expect(addSong).toHaveBeenCalledWith('a', 's9')
+    expect(casetes.casetes.value[0].song_count).toBe(3)
+    expect(mostrar).toHaveBeenCalledWith('Grabada en «Viaje»', 'info')
+    expect(casetes.ultimoDestino.value).toBe('a')
+    expect(localStorage.getItem('meloxo.ultimoCasete')).toBe('a')
   })
 
-  it('grabar con éxito actualiza el casete activo y avisa con su nombre', async () => {
-    const { casetes } = await freshCasetes()
-    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa')])
-    get.mockResolvedValue(detalle('p1', 'Tarde lluviosa'))
+  it('grabar una canción repetida avisa con el nombre del casete', async () => {
+    const { casetes, ApiError } = await freshCasetes()
+    list.mockResolvedValue([resumen('a', 'Viaje')])
     await casetes.cargar()
-    addSong.mockResolvedValue(detalle('p1', 'Tarde lluviosa', ['s1']))
-
-    await casetes.grabar('s1')
-
-    expect(casetes.activo.value?.songs.map((s) => s.song_id)).toEqual(['s1'])
-    expect(casetes.casetes.value[0].song_count).toBe(1)
-    expect(mostrar).toHaveBeenCalledWith('Grabada en «Tarde lluviosa»', 'info')
+    addSong.mockRejectedValue(new ApiError(409, 'song_already_in_playlist', 'ya está'))
+    expect(await casetes.grabar('a', 's1')).toBe(false)
+    expect(mostrar).toHaveBeenCalledWith('Esa canción ya está en «Viaje».', 'info')
   })
 
-  it('mover(id, -1) pide reordenar con la canción intercambiada con la anterior', async () => {
+  it('el último destino sobrevive a recargar el módulo', async () => {
+    localStorage.setItem('meloxo.ultimoCasete', 'b')
     const { casetes } = await freshCasetes()
-    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa')])
-    get.mockResolvedValue(detalle('p1', 'Tarde lluviosa', ['a', 'b', 'c']))
-    await casetes.cargar()
-    reorder.mockResolvedValue(detalle('p1', 'Tarde lluviosa', ['a', 'c', 'b']))
-
-    await casetes.mover('c', -1)
-
-    expect(reorder).toHaveBeenCalledWith('p1', ['a', 'c', 'b'])
-    expect(casetes.activo.value?.songs.map((s) => s.song_id)).toEqual(['a', 'c', 'b'])
+    expect(casetes.ultimoDestino.value).toBe('b')
   })
 
-  it('mover fuera de los extremos no llama al API', async () => {
+  it('reiniciar vacía el estado, olvida el destino y descarta una carga en curso', async () => {
     const { casetes } = await freshCasetes()
-    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa')])
-    get.mockResolvedValue(detalle('p1', 'Tarde lluviosa', ['a', 'b']))
-    await casetes.cargar()
-
-    await casetes.mover('a', -1)
-    await casetes.mover('b', 1)
-
-    expect(reorder).not.toHaveBeenCalled()
-  })
-
-  it('crear agrega el casete y lo vuelve activo', async () => {
-    const { casetes } = await freshCasetes()
-    create.mockResolvedValue(resumen('p9', 'Correr'))
-    get.mockResolvedValue(detalle('p9', 'Correr'))
-
-    await casetes.crear('Correr')
-
-    expect(create).toHaveBeenCalledWith('Correr')
-    expect(casetes.casetes.value.map((c) => c.id)).toEqual(['p9'])
-    expect(casetes.activo.value?.id).toBe('p9')
-  })
-
-  it('eliminar quita el casete activo y selecciona el siguiente disponible', async () => {
-    const { casetes } = await freshCasetes()
-    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa'), resumen('p2', 'Correr')])
-    get.mockResolvedValueOnce(detalle('p1', 'Tarde lluviosa'))
-    await casetes.cargar()
-    remove.mockResolvedValue(undefined)
-    get.mockResolvedValueOnce(detalle('p2', 'Correr'))
-
-    await casetes.eliminar()
-
-    expect(remove).toHaveBeenCalledWith('p1')
-    expect(casetes.casetes.value.map((c) => c.id)).toEqual(['p2'])
-    expect(casetes.activo.value?.id).toBe('p2')
-  })
-
-  it('una mutación que responde tras cambiar de casete no reemplaza al activo', async () => {
-    const { casetes } = await freshCasetes()
-    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa'), resumen('p2', 'Correr')])
-    get.mockResolvedValueOnce(detalle('p1', 'Tarde lluviosa'))
-    await casetes.cargar()
-
-    let responder!: (d: PlaylistDetail) => void
-    addSong.mockReturnValue(new Promise<PlaylistDetail>((r) => (responder = r)))
-    const grabando = casetes.grabar('s1')
-    get.mockResolvedValueOnce(detalle('p2', 'Correr'))
-    await casetes.seleccionar('p2')
-    responder(detalle('p1', 'Tarde lluviosa', ['s1']))
-    await grabando
-
-    expect(casetes.activo.value?.id).toBe('p2')
-    expect(casetes.casetes.value.find((c) => c.id === 'p1')?.song_count).toBe(1)
-  })
-
-  it('quitar y mover tardíos tampoco reemplazan al casete activo', async () => {
-    const { casetes } = await freshCasetes()
-    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa'), resumen('p2', 'Correr')])
-    get.mockResolvedValueOnce(detalle('p1', 'Tarde lluviosa', ['a', 'b']))
-    await casetes.cargar()
-
-    let responderQuitar!: (d: PlaylistDetail) => void
-    let responderMover!: (d: PlaylistDetail) => void
-    removeSong.mockReturnValue(new Promise<PlaylistDetail>((r) => (responderQuitar = r)))
-    reorder.mockReturnValue(new Promise<PlaylistDetail>((r) => (responderMover = r)))
-    const quitando = casetes.quitar('a')
-    const moviendo = casetes.mover('b', -1)
-    get.mockResolvedValueOnce(detalle('p2', 'Correr', ['z']))
-    await casetes.seleccionar('p2')
-    responderQuitar(detalle('p1', 'Tarde lluviosa', ['b']))
-    responderMover(detalle('p1', 'Tarde lluviosa', ['b', 'a']))
-    await Promise.all([quitando, moviendo])
-
-    expect(casetes.activo.value?.id).toBe('p2')
-    expect(casetes.activo.value?.songs.map((s) => s.song_id)).toEqual(['z'])
-  })
-
-  it('una selección en curso no repone un casete recién borrado', async () => {
-    const { casetes } = await freshCasetes()
-    list.mockResolvedValue([resumen('p1', 'Tarde lluviosa')])
-    get.mockResolvedValueOnce(detalle('p1', 'Tarde lluviosa'))
-    await casetes.cargar()
-
-    let responderGet!: (d: PlaylistDetail) => void
-    get.mockReturnValueOnce(new Promise<PlaylistDetail>((r) => (responderGet = r)))
-    const seleccionando = casetes.seleccionar('p1')
-    remove.mockResolvedValue(undefined)
-    await casetes.eliminar()
-    responderGet(detalle('p1', 'Tarde lluviosa'))
-    await seleccionando
-
-    expect(casetes.activo.value).toBeNull()
-    expect(casetes.casetes.value).toEqual([])
-  })
-
-  it('reiniciar vacía el estado y descarta una carga en curso', async () => {
-    const { casetes } = await freshCasetes()
-    list.mockResolvedValueOnce([resumen('p1', 'Tarde lluviosa')])
-    get.mockResolvedValueOnce(detalle('p1', 'Tarde lluviosa'))
-    await casetes.cargar()
-
-    let responderLista!: (l: PlaylistSummary[]) => void
-    list.mockReturnValueOnce(new Promise<PlaylistSummary[]>((r) => (responderLista = r)))
-    const cargando = casetes.cargar()
+    let resolver: (v: PlaylistSummary[]) => void = () => {}
+    list.mockReturnValue(new Promise((r) => (resolver = r)))
+    localStorage.setItem('meloxo.ultimoCasete', 'a')
+    const carga = casetes.cargar()
     casetes.reiniciar()
-    responderLista([resumen('p1', 'Tarde lluviosa')])
-    await cargando
-
+    resolver([resumen('a', 'Viaje')])
+    await carga
     expect(casetes.casetes.value).toEqual([])
-    expect(casetes.activo.value).toBeNull()
-    expect(casetes.cargando.value).toBe(false)
+    expect(casetes.ultimoDestino.value).toBeNull()
+    expect(localStorage.getItem('meloxo.ultimoCasete')).toBeNull()
   })
 })

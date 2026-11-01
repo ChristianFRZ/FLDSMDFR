@@ -1,23 +1,17 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
-import type { PlaylistDetail, SongOut } from '../../api/types'
+import type { PlaylistSummary, SongOut } from '../../api/types'
 
 // vi.mock se eleva al inicio del archivo: los dobles se crean con vi.hoisted.
 const { list, grabar, play } = vi.hoisted(() => ({ list: vi.fn(), grabar: vi.fn(), play: vi.fn() }))
-const activo = ref<PlaylistDetail | null>({
-  id: 'p1',
-  name: 'Tarde lluviosa',
-  songs: [],
-  total_seconds: 0,
-  has_cover: false,
-  role: 'owner',
-  members: [],
-})
+const casetes = ref<PlaylistSummary[]>([
+  { id: 'p1', name: 'Tarde lluviosa', song_count: 0, updated_at: '', has_cover: false, role: 'owner' },
+])
 const current = ref(null)
 
 vi.mock('../../api/songs', () => ({ list }))
-vi.mock('../../composables/useCasetes', () => ({ useCasetes: () => ({ activo, grabar }) }))
+vi.mock('../../composables/useCasetes', () => ({ useCasetes: () => ({ casetes, ultimoDestino: ref(null), cargar: vi.fn(), grabar }) }))
 vi.mock('../../composables/usePlayer', () => ({ usePlayer: () => ({ play, current }) }))
 
 import PanelCatalogo from '../PanelCatalogo.vue'
@@ -38,7 +32,7 @@ describe('PanelCatalogo', () => {
     list.mockReset()
     grabar.mockReset()
     play.mockReset()
-    grabar.mockResolvedValue(undefined)
+    grabar.mockResolvedValue(true)
   })
 
   afterEach(() => {
@@ -61,14 +55,15 @@ describe('PanelCatalogo', () => {
     expect(list).toHaveBeenCalledWith('lluvia', 0)
   })
 
-  it('el botón + graba la canción en el casete activo', async () => {
+  it('el botón + abre el selector y graba en el casete elegido', async () => {
     list.mockResolvedValue({ items: [cancion('s1', 'Granizo')], total: 1 })
     const wrapper = mount(PanelCatalogo)
     await flushPromises()
 
-    await wrapper.get('button[aria-label="Grabar «Granizo» en el casete"]').trigger('click')
+    await wrapper.get('button[aria-label="Grabar «Granizo» en un casete"]').trigger('click')
+    await wrapper.get('[data-prueba="destino"]').trigger('click')
 
-    expect(grabar).toHaveBeenCalledWith('s1')
+    expect(grabar).toHaveBeenCalledWith('p1', 's1')
     expect(play).not.toHaveBeenCalled()
   })
 
