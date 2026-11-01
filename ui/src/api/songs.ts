@@ -19,3 +19,11 @@ export const update = (id: string, data: SongUpdate) =>
   request<SongOut>(`/api/songs/${id}`, { method: 'PATCH', json: data })
 
 export const deactivate = (id: string) => request<void>(`/api/songs/${id}`, { method: 'DELETE' })
+
+export const coverUrl = (id: string): string => `/api/songs/${id}/cover`
+
+export function uploadCover(id: string, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return request<SongOut>(`/api/songs/${id}/cover`, { method: 'PUT', body: form })
+}

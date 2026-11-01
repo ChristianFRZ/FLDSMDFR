@@ -13,6 +13,7 @@ const cancion = (id: string): SongOut => ({
   album: 'Álbum',
   duration_seconds: 100,
   is_active: true,
+  has_cover: false,
 })
 
 function audioFalso() {

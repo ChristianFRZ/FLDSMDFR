@@ -1,5 +1,5 @@
 import { request } from './http'
-import type { PlaylistDetail, PlaylistSummary } from './types'
+import type { InviteOut, PlaylistDetail, PlaylistSummary } from './types'
 
 export const list = () => request<PlaylistSummary[]>('/api/playlists')
 
@@ -27,3 +27,20 @@ export const reorder = (id: string, songIds: string[]) =>
     method: 'PUT',
     json: { song_ids: songIds },
   })
+
+export const coverUrl = (id: string): string => `/api/playlists/${id}/cover`
+
+export function uploadCover(id: string, file: File) {
+  const form = new FormData()
+  form.append('file', file)
+  return request<PlaylistSummary>(`/api/playlists/${id}/cover`, { method: 'PUT', body: form })
+}
+
+export const createInvite = (id: string) =>
+  request<InviteOut>(`/api/playlists/${id}/invites`, { method: 'POST' })
+
+export const revokeInvite = (id: string) =>
+  request<void>(`/api/playlists/${id}/invites`, { method: 'DELETE' })
+
+export const removeMember = (id: string, userId: string) =>
+  request<void>(`/api/playlists/${id}/members/${userId}`, { method: 'DELETE' })

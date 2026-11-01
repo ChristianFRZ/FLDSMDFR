@@ -25,6 +25,7 @@ function aCancion(s: PlaylistSongOut): SongOut {
     album: s.album,
     duration_seconds: s.duration_seconds,
     is_active: true,
+    has_cover: false,
   }
 }
 

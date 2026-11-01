@@ -16,6 +16,8 @@ const resumen = (id: string, name: string): PlaylistSummary => ({
   name,
   song_count: 0,
   updated_at: '2026-10-30T00:00:00Z',
+  has_cover: false,
+  role: 'owner',
 })
 
 const fila = (songId: string, position: number): PlaylistSongOut => ({
@@ -33,6 +35,9 @@ const detalle = (id: string, name: string, songIds: string[] = []): PlaylistDeta
   name,
   songs: songIds.map((s, i) => fila(s, i)),
   total_seconds: songIds.length * 60,
+  has_cover: false,
+  role: 'owner',
+  members: [],
 })
 
 // useCasetes es un singleton de módulo: cada prueba importa una copia nueva.

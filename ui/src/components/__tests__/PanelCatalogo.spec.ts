@@ -5,7 +5,15 @@ import type { PlaylistDetail, SongOut } from '../../api/types'
 
 // vi.mock se eleva al inicio del archivo: los dobles se crean con vi.hoisted.
 const { list, grabar, play } = vi.hoisted(() => ({ list: vi.fn(), grabar: vi.fn(), play: vi.fn() }))
-const activo = ref<PlaylistDetail | null>({ id: 'p1', name: 'Tarde lluviosa', songs: [], total_seconds: 0 })
+const activo = ref<PlaylistDetail | null>({
+  id: 'p1',
+  name: 'Tarde lluviosa',
+  songs: [],
+  total_seconds: 0,
+  has_cover: false,
+  role: 'owner',
+  members: [],
+})
 const current = ref(null)
 
 vi.mock('../../api/songs', () => ({ list }))
@@ -21,6 +29,7 @@ const cancion = (id: string, title: string): SongOut => ({
   album: 'Pronóstico',
   duration_seconds: 192,
   is_active: true,
+  has_cover: false,
 })
 
 describe('PanelCatalogo', () => {

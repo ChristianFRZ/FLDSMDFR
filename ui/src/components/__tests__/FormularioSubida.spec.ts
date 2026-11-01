@@ -18,6 +18,7 @@ const cancion: SongOut = {
   album: 'Pronóstico',
   duration_seconds: 12,
   is_active: true,
+  has_cover: false,
 }
 
 function archivo(nombre: string, bytes = 10): File {
