@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '../api/http'
+import LogoMeloxo from '../components/LogoMeloxo.vue'
+import { destinoSeguro } from '../composables/destino'
 import { useSession } from '../composables/useSession'
 
 type Pestana = 'entrar' | 'crear'
@@ -14,6 +16,7 @@ const MIN_PASSWORD = 8
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 const router = useRouter()
+const route = useRoute()
 const session = useSession()
 
 const pestana = ref<Pestana>('entrar')
@@ -77,7 +80,7 @@ async function enviar(): Promise<void> {
   try {
     if (esRegistro.value) await session.register(nombre.value.trim(), correo.value.trim(), password.value)
     else await session.login(correo.value.trim(), password.value)
-    await router.push('/')
+    await router.push(destinoSeguro(route.query.siguiente))
   } catch (error) {
     errorServidor.value =
       error instanceof ApiError ? error.message : 'Algo salió mal. Vuelve a intentarlo.'
@@ -89,14 +92,14 @@ async function enviar(): Promise<void> {
 
 <template>
   <section class="acceso" aria-labelledby="titulo-acceso">
-    <div class="acceso__casete" aria-hidden="true">
-      <span class="acceso__carrete"></span>
-      <span class="acceso__etiqueta">FLDSMDFR</span>
-      <span class="acceso__carrete"></span>
+    <div class="acceso__marca">
+      <LogoMeloxo :size="56" :con-texto="false" />
+      <p class="acceso__nombre">MELOXO</p>
+      <p class="acceso__lema">Tu casetera de música en streaming.</p>
     </div>
 
     <div class="acceso__tarjeta">
-      <h1 id="titulo-acceso" class="visualmente-oculto">Acceso a FLDSMDFR</h1>
+      <h1 id="titulo-acceso" class="visualmente-oculto">Acceso a MELOXO</h1>
 
       <div class="acceso__pestanas" role="tablist" aria-label="Acceso" @keydown="moverPestana">
         <button
@@ -203,46 +206,34 @@ async function enviar(): Promise<void> {
   padding: var(--space-4) var(--space-4) var(--space-5);
 }
 
-/* Casete grande: cuerpo --deck, etiqueta de papel con el nombre a mano y dos carretes. */
-.acceso__casete {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  width: 100%;
-  padding: var(--space-5) var(--space-4);
-  border-radius: var(--radius-m);
-  background: var(--deck);
-}
-
-.acceso__etiqueta {
-  flex: 1;
-  padding: var(--space-3) var(--space-2);
-  border-radius: var(--radius-s);
-  background: var(--paper);
-  color: var(--ink);
-  font-family: var(--font-hand);
-  font-size: 36px;
-  line-height: 1;
+.acceso__marca {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-6);
   text-align: center;
 }
 
-.acceso__carrete {
-  flex: none;
-  width: 36px;
-  height: 36px;
-  border: 6px solid var(--deck-ink);
-  border-radius: 50%;
-  opacity: 0.8;
+.acceso__nombre {
+  font-family: var(--font-display);
+  font-size: 40px;
+  letter-spacing: -2px;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.acceso__lema {
+  color: var(--ink-muted);
 }
 
 .acceso__tarjeta {
   display: grid;
   gap: var(--space-4);
   width: 100%;
-  padding: var(--space-4);
-  border-radius: var(--radius-m);
-  background: var(--paper);
+  padding: var(--space-5);
+  border: 1px solid var(--surface);
+  border-radius: var(--radius-l);
+  background: var(--bg);
   color: var(--ink);
 }
 
@@ -253,17 +244,18 @@ async function enviar(): Promise<void> {
 }
 
 .acceso__pestana {
-  min-height: 44px;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
+  min-height: 40px;
+  border: 1px solid var(--surface);
+  border-radius: var(--radius-pill);
   background: transparent;
+  color: var(--ink);
   font-weight: 500;
 }
 
 .acceso__pestana[aria-selected='true'] {
-  background: var(--ink);
-  color: var(--bg);
-  font-weight: 700;
+  background: var(--surface-active);
+  color: var(--ink-on-active);
+  font-weight: 600;
 }
 
 @media (hover: hover) {
@@ -302,9 +294,10 @@ async function enviar(): Promise<void> {
 }
 
 /* Variantes de Acceso: botones algo más altos que los de base.css. */
-.boton-contorno {
+.boton-contorno,
+.boton-principal {
   min-height: 44px;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .acceso__pestana:active {

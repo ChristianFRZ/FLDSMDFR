@@ -10,18 +10,61 @@ export const router = createRouter({
       path: '/acceso',
       name: 'acceso',
       component: () => import('./views/AccesoView.vue'),
+      meta: { sinLayout: true },
     },
     {
       path: '/',
-      name: 'casetera',
-      component: () => import('./views/CaseteraView.vue'),
-      meta: { auth: true, encabezadoPropio: true },
+      name: 'inicio',
+      component: () => import('./views/InicioView.vue'),
+      meta: { auth: true },
+    },
+    {
+      path: '/catalogo',
+      name: 'catalogo',
+      component: () => import('./views/CatalogoView.vue'),
+      meta: { auth: true },
+    },
+    {
+      path: '/streaming',
+      name: 'streaming',
+      component: () => import('./views/StreamingView.vue'),
+      meta: { auth: true },
+    },
+    {
+      path: '/casete/:id',
+      name: 'casete',
+      component: () => import('./views/CaseteView.vue'),
+      meta: { auth: true },
+    },
+    {
+      path: '/favoritas',
+      name: 'favoritas',
+      component: () => import('./views/FavoritasView.vue'),
+      meta: { auth: true },
+    },
+    {
+      path: '/historial',
+      name: 'historial',
+      component: () => import('./views/HistorialView.vue'),
+      meta: { auth: true },
+    },
+    {
+      path: '/biblioteca',
+      name: 'biblioteca',
+      component: () => import('./views/BibliotecaView.vue'),
+      meta: { auth: true },
+    },
+    {
+      path: '/invitacion/:token',
+      name: 'invitacion',
+      component: () => import('./views/InvitacionView.vue'),
+      meta: { auth: true },
     },
     {
       path: '/cabina',
       name: 'cabina',
       component: () => import('./views/CabinaView.vue'),
-      meta: { auth: true, admin: true, encabezadoPropio: true },
+      meta: { auth: true, admin: true },
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
@@ -36,10 +79,12 @@ router.beforeEach(async (to) => {
   sesionCargada ??= session.load()
   await sesionCargada
 
-  if (to.meta.auth && !session.user.value) return { name: 'acceso' }
+  if (to.meta.auth && !session.user.value) {
+    return { name: 'acceso', query: to.fullPath === '/' ? {} : { siguiente: to.fullPath } }
+  }
   if (to.meta.admin && !session.isAdmin.value) {
     useAvisos().mostrar('La cabina de grabación es solo para administradores.', 'error')
-    return { name: 'casetera' }
+    return { name: 'inicio' }
   }
-  if (to.name === 'acceso' && session.user.value) return { name: 'casetera' }
+  if (to.name === 'acceso' && session.user.value) return { name: 'inicio' }
 })

@@ -2,11 +2,13 @@
 import { onMounted, ref } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import Aviso from './components/Aviso.vue'
+import ControlesReproductor from './components/ControlesReproductor.vue'
+import LayoutPrincipal from './layouts/LayoutPrincipal.vue'
 import { usePlayer } from './composables/usePlayer'
 
 const route = useRoute()
 
-// El único <audio> vive aquí para que la música siga al pasar de la casetera a la cabina.
+// El único <audio> vive aquí para que la música siga al cambiar de vista.
 const audio = ref<HTMLAudioElement | null>(null)
 onMounted(() => {
   if (audio.value) usePlayer().attach(audio.value)
@@ -14,33 +16,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="app">
-    <header v-if="!route.meta.encabezadoPropio" class="app__barra">
-    </header>
-    <main class="app__contenido">
-      <RouterView />
-    </main>
-    <Aviso />
-    <audio ref="audio" preload="metadata" />
-  </div>
+  <!-- Hasta resolver la primera ruta no se sabe si lleva layout: no se pinta nada. -->
+  <template v-if="route.matched.length === 0" />
+  <RouterView v-else-if="route.meta.sinLayout" />
+  <LayoutPrincipal v-else>
+    <RouterView />
+    <template #reproductor><ControlesReproductor /></template>
+  </LayoutPrincipal>
+  <Aviso />
+  <audio ref="audio" preload="metadata" />
 </template>
-
-<style scoped>
-.app {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  min-height: 100dvh;
-}
-
-.app__barra {
-  display: flex;
-  justify-content: flex-end;
-  padding: var(--space-3) var(--space-4);
-}
-
-.app__contenido {
-  flex: 1;
-  min-width: 0;
-}
-</style>

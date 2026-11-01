@@ -8,6 +8,8 @@ declare module 'vue-router' {
     auth?: boolean
     /** La ruta requiere rol admin. */
     admin?: boolean
+    /** La vista ocupa toda la pantalla, sin barra lateral ni reproductor (acceso). */
+    sinLayout?: boolean
   }
 }
 
