@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -13,6 +14,7 @@ class SongOut(BaseModel):
     duration_seconds: int
     is_active: bool
     has_cover: bool = False
+    created_at: datetime | None = None
 
 
 class SongPage(BaseModel):

@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.social import service
-from app.modules.social.schemas import FavoritesOut
+from app.modules.social.schemas import FavoritesOut, FollowOut
 from app.shared.deps import CurrentUser, current_user, get_session
 
 router = APIRouter(prefix="/api/me", tags=["social"])
@@ -41,4 +41,31 @@ async def unlike(
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     await service.unlike(session, user.user_id, song_id)
+    return Response(status_code=204)
+
+
+@router.get("/follows", response_model=list[FollowOut])
+async def list_follows(
+    user: CurrentUser = Depends(current_user), session: AsyncSession = Depends(get_session)
+):
+    return await service.followed_artists(session, user.user_id)
+
+
+@router.put("/follows/{artist:path}", status_code=204)
+async def follow(
+    artist: str,
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await service.follow(session, user.user_id, artist)
+    return Response(status_code=204)
+
+
+@router.delete("/follows/{artist:path}", status_code=204)
+async def unfollow(
+    artist: str,
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await service.unfollow(session, user.user_id, artist)
     return Response(status_code=204)

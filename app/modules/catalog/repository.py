@@ -1,7 +1,9 @@
 import uuid
 from collections.abc import Sequence
+from datetime import datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.dialects.postgresql import distinct_on
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.catalog.models import Song
@@ -82,3 +84,34 @@ async def count_active_by_artists(
         .group_by(key)
     )
     return {k: n for k, n in (await session.execute(stmt)).all()}
+
+
+async def songs_by_artists_since(
+    session: AsyncSession, follows: Sequence[tuple[str, datetime]], limit: int
+) -> list[Song]:
+    """Canciones activas de cada artista (clave normalizada) creadas después de su fecha."""
+    if not follows:
+        return []
+    key = func.lower(Song.artist)
+    conditions = [and_(key == k, Song.created_at > since) for k, since in follows]
+    stmt = (
+        select(Song)
+        .where(Song.is_active.is_(True), or_(*conditions))
+        .order_by(Song.created_at.desc(), Song.id)
+        .limit(limit)
+    )
+    return list((await session.scalars(stmt)).all())
+
+
+async def latest_by_artists(session: AsyncSession, artist_keys: Sequence[str]) -> list[Song]:
+    """La canción activa más reciente de cada artista."""
+    if not artist_keys:
+        return []
+    key = func.lower(Song.artist)
+    stmt = (
+        select(Song)
+        .ext(distinct_on(key))
+        .where(Song.is_active.is_(True), key.in_(list(artist_keys)))
+        .order_by(key, Song.created_at.desc(), Song.id)
+    )
+    return list((await session.scalars(stmt)).all())

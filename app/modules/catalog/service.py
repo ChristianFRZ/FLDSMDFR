@@ -1,6 +1,7 @@
 import uuid
 from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import anyio
@@ -204,3 +205,23 @@ def normalize_artist(name: str) -> str:
 async def count_active_by_artists(session: AsyncSession, artists: Sequence[str]) -> dict[str, int]:
     keys = {normalize_artist(a) for a in artists}
     return await repository.count_active_by_artists(session, sorted(keys))
+
+
+_RELEASES_LIMIT = 50
+
+
+async def songs_by_artists_since(
+    session: AsyncSession, follows: Sequence[tuple[str, datetime]], not_before: datetime
+) -> list[SongOut]:
+    """Lanzamientos: canciones activas creadas después de max(fecha de seguimiento, not_before)."""
+    windows = [(normalize_artist(a), max(since, not_before)) for a, since in follows]
+    songs = await repository.songs_by_artists_since(session, windows, _RELEASES_LIMIT)
+    return [SongOut.model_validate(s) for s in songs]
+
+
+async def latest_song_by_artists(
+    session: AsyncSession, artists: Sequence[str]
+) -> dict[str, SongOut]:
+    keys = sorted({normalize_artist(a) for a in artists})
+    songs = await repository.latest_by_artists(session, keys)
+    return {normalize_artist(s.artist): SongOut.model_validate(s) for s in songs}
