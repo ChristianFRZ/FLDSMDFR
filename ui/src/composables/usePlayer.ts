@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import * as playbacks from '../api/playbacks'
 import * as songs from '../api/songs'
 import type { SongOut } from '../api/types'
@@ -16,6 +16,34 @@ const currentTime = ref(0)
 const duration = ref(0)
 const buffered = ref<Array<[number, number]>>([])
 const volume = ref(1)
+
+export type ModoRepetir = 'off' | 'all' | 'one'
+const CLAVE_ALEATORIO = 'meloxo.shuffle'
+const CLAVE_REPETIR = 'meloxo.repeat'
+
+function leer(clave: string): string | null {
+  try {
+    return localStorage.getItem(clave)
+  } catch {
+    return null
+  }
+}
+
+function guardar(clave: string, valor: string): void {
+  try {
+    localStorage.setItem(clave, valor)
+  } catch {
+    // Almacenamiento bloqueado (modo privado): la preferencia dura solo esta sesión.
+  }
+}
+
+const repetirGuardado = leer(CLAVE_REPETIR)
+const shuffle = ref(leer(CLAVE_ALEATORIO) === '1')
+const repeat = ref<ModoRepetir>(
+  repetirGuardado === 'all' || repetirGuardado === 'one' ? repetirGuardado : 'off',
+)
+// Orden real de reproducción: igual a `queue` o una permutación de ella si hay aleatorio.
+const orden = ref<SongOut[]>([])
 
 const telemetry = createPlaybackTelemetry({ send: playbacks.send })
 const { mostrar } = useAvisos()
@@ -72,7 +100,7 @@ function attach(el: HTMLAudioElement): void {
     ['loadedmetadata', onDuration],
     ['play', onPlay],
     ['pause', onPause],
-    ['ended', next],
+    ['ended', alTerminar],
     ['error', fallarReproduccion],
   ]
   for (const [name, handler] of handlers) el.addEventListener(name, handler)
@@ -91,10 +119,28 @@ function iniciarSesionDeEscucha(songId: string): void {
   }
 }
 
+/** Fisher–Yates: la canción elegida va primero y el resto se baraja una sola vez. */
+function barajar(primera: SongOut | null, canciones: SongOut[]): SongOut[] {
+  const resto = canciones.filter((s) => s.id !== primera?.id)
+  for (let i = resto.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[resto[i], resto[j]] = [resto[j], resto[i]]
+  }
+  return primera ? [primera, ...resto] : resto
+}
+
+function rehacerOrden(): void {
+  orden.value = shuffle.value ? barajar(current.value, queue.value) : [...queue.value]
+}
+
 async function play(song: SongOut, newQueue?: SongOut[]): Promise<void> {
   if (!audio) return
+  const cambiaCola = newQueue !== undefined || !queue.value.some((s) => s.id === song.id)
   current.value = song
-  queue.value = newQueue ?? [song]
+  if (cambiaCola) {
+    queue.value = newQueue ?? [song]
+    rehacerOrden()
+  }
   currentTime.value = 0
   duration.value = song.duration_seconds
   buffered.value = []
@@ -128,21 +174,89 @@ function toggle(): void {
 
 function indexOfCurrent(): number {
   const id = current.value?.id
-  return queue.value.findIndex((song) => song.id === id)
+  return orden.value.findIndex((song) => song.id === id)
 }
 
 function next(): void {
   const index = indexOfCurrent()
-  const following = index >= 0 ? queue.value[index + 1] : undefined
-  if (following) void play(following, queue.value)
+  let following = index >= 0 ? orden.value[index + 1] : undefined
+  if (!following && repeat.value === 'all' && orden.value.length > 1) following = orden.value[0]
+  if (following) void play(following)
   else isPlaying.value = false
 }
 
 function prev(): void {
   const index = indexOfCurrent()
-  const previous = index > 0 ? queue.value[index - 1] : undefined
+  const previous = index > 0 ? orden.value[index - 1] : undefined
   if (currentTime.value > REINICIO_SEGUNDOS || !previous) seek(0)
-  else void play(previous, queue.value)
+  else void play(previous)
+}
+
+/** Fin de la canción: con "repetir una" vuelve a empezar como escucha nueva. */
+function alTerminar(): void {
+  if (repeat.value === 'one' && audio && current.value) {
+    seek(0)
+    iniciarSesionDeEscucha(current.value.id)
+    audio.play().catch(() => fallarReproduccion())
+    return
+  }
+  next()
+}
+
+function toggleShuffle(): void {
+  shuffle.value = !shuffle.value
+  guardar(CLAVE_ALEATORIO, shuffle.value ? '1' : '0')
+  rehacerOrden()
+}
+
+function cycleRepeat(): void {
+  const siguiente: Record<ModoRepetir, ModoRepetir> = { off: 'all', all: 'one', one: 'off' }
+  repeat.value = siguiente[repeat.value]
+  guardar(CLAVE_REPETIR, repeat.value)
+}
+
+/** Lo que sigue tras la canción actual, en el orden real de reproducción. */
+const upcoming = computed(() => orden.value.slice(indexOfCurrent() + 1))
+
+function editarLoQueSigue(editar: (siguientes: SongOut[]) => SongOut[]): void {
+  const corte = indexOfCurrent() + 1
+  orden.value = [...orden.value.slice(0, corte), ...editar(orden.value.slice(corte))]
+  if (!shuffle.value) queue.value = [...orden.value]
+}
+
+function enqueue(song: SongOut): void {
+  if (!current.value) {
+    void play(song, [song])
+    return
+  }
+  if (shuffle.value) queue.value = [...queue.value, song]
+  editarLoQueSigue((siguientes) => [...siguientes.filter((s) => s.id !== song.id), song])
+}
+
+function playNext(song: SongOut): void {
+  if (!current.value) {
+    void play(song, [song])
+    return
+  }
+  if (shuffle.value) queue.value = [...queue.value, song]
+  editarLoQueSigue((siguientes) => [song, ...siguientes.filter((s) => s.id !== song.id)])
+}
+
+function removeFromQueue(index: number): void {
+  const quitada = upcoming.value[index]
+  if (!quitada) return
+  queue.value = queue.value.filter((s) => s.id !== quitada.id)
+  editarLoQueSigue((siguientes) => siguientes.filter((_, i) => i !== index))
+}
+
+function moveInQueue(from: number, to: number): void {
+  editarLoQueSigue((siguientes) => {
+    if (from < 0 || from >= siguientes.length || to < 0 || to >= siguientes.length) return siguientes
+    const copia = [...siguientes]
+    const [movida] = copia.splice(from, 1)
+    copia.splice(to, 0, movida)
+    return copia
+  })
 }
 
 function seek(seconds: number): void {
@@ -163,6 +277,7 @@ function stop(): void {
   }
   current.value = null
   queue.value = []
+  orden.value = []
   isPlaying.value = false
   currentTime.value = 0
   duration.value = 0
@@ -184,6 +299,9 @@ export function usePlayer() {
     duration,
     buffered,
     volume,
+    shuffle,
+    repeat,
+    upcoming,
     attach,
     play,
     toggle,
@@ -192,5 +310,11 @@ export function usePlayer() {
     seek,
     stop,
     setVolume,
+    toggleShuffle,
+    cycleRepeat,
+    enqueue,
+    playNext,
+    removeFromQueue,
+    moveInQueue,
   }
 }
