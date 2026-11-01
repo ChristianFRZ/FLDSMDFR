@@ -111,3 +111,14 @@ async def get_cover(
 ) -> Response:
     path = await service.get_cover_file(session, user.user_id, playlist_id)
     return image_response(path, if_none_match)
+
+
+@router.delete("/{playlist_id}/members/{member_id}", status_code=204)
+async def remove_member(
+    playlist_id: uuid.UUID,
+    member_id: uuid.UUID,
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await service.remove_member(session, user.user_id, playlist_id, member_id)
+    return Response(status_code=204)

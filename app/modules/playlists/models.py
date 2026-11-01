@@ -43,3 +43,14 @@ class PlaylistSong(Base):
     album_snapshot: Mapped[str] = mapped_column(String(200))
     duration_snapshot: Mapped[int] = mapped_column(Integer)
     added_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PlaylistMember(Base):
+    __tablename__ = "playlist_members"
+
+    playlist_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("playlists.id", ondelete="CASCADE"), primary_key=True
+    )
+    # Sin FK: users es de otro modulo.
+    user_id: Mapped[uuid.UUID] = mapped_column(primary_key=True, index=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

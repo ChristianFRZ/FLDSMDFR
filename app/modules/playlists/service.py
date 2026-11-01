@@ -10,15 +10,17 @@ from app.config import get_settings
 from app.modules.catalog import service as catalog_service
 from app.modules.catalog.schemas import SongOut
 from app.modules.playlists import repository
-from app.modules.playlists.models import Playlist, PlaylistSong
+from app.modules.playlists.models import Playlist, PlaylistMember, PlaylistSong
 from app.modules.playlists.schemas import (
+    MemberOut,
     PlaylistDetail,
     PlaylistIn,
     PlaylistSongOut,
     PlaylistSummary,
     ReorderIn,
 )
-from app.shared.errors import Conflict, InvalidInput, NotFound
+from app.modules.users import service as users_service
+from app.shared.errors import Conflict, Forbidden, InvalidInput, NotFound
 from app.shared.images import delete_image, save_image
 
 logger = logging.getLogger(__name__)
@@ -26,14 +28,41 @@ logger = logging.getLogger(__name__)
 _NOT_FOUND = "No encontramos ese casete."
 
 
-def _summary(playlist: Playlist, song_count: int) -> PlaylistSummary:
+def _role(playlist: Playlist, user_id: uuid.UUID) -> str:
+    return "owner" if playlist.owner_id == user_id else "collaborator"
+
+
+def _summary(
+    playlist: Playlist, song_count: int, user_id: uuid.UUID | None = None
+) -> PlaylistSummary:
     return PlaylistSummary(
         id=playlist.id,
         name=playlist.name,
         song_count=song_count,
         updated_at=playlist.updated_at,
         has_cover=playlist.cover_path is not None,
+        role="owner" if user_id is None else _role(playlist, user_id),
     )
+
+
+async def _get_readable(
+    session: AsyncSession, user_id: uuid.UUID, playlist_id: uuid.UUID, for_update: bool = False
+) -> Playlist:
+    playlist = await repository.get_readable(session, user_id, playlist_id, for_update)
+    if playlist is None:
+        raise NotFound(_NOT_FOUND, code="playlist_not_found")
+    return playlist
+
+
+async def _members(session: AsyncSession, playlist_id: uuid.UUID) -> list[MemberOut]:
+    members = []
+    for m in await repository.list_members(session, playlist_id):
+        try:
+            name = (await users_service.get_user(session, m.user_id)).name
+        except Exception:
+            name = "Alguien"
+        members.append(MemberOut(user_id=m.user_id, name=name))
+    return members
 
 
 async def _get_owned(
@@ -57,7 +86,7 @@ def _song_out(entry: PlaylistSong, status: str, fresh: SongOut | None = None) ->
     )
 
 
-async def _detail(session: AsyncSession, playlist: Playlist) -> PlaylistDetail:
+async def _detail(session: AsyncSession, playlist: Playlist, user_id: uuid.UUID) -> PlaylistDetail:
     entries = await repository.list_songs(session, playlist.id)
     songs: list[PlaylistSongOut]
     try:
@@ -83,6 +112,8 @@ async def _detail(session: AsyncSession, playlist: Playlist) -> PlaylistDetail:
         songs=songs,
         total_seconds=sum(s.duration_seconds for s in songs),
         has_cover=playlist.cover_path is not None,
+        role=_role(playlist, user_id),
+        members=await _members(session, playlist.id),
     )
 
 
@@ -94,14 +125,14 @@ async def create_playlist(
     return _summary(playlist, 0)
 
 
-async def list_playlists(session: AsyncSession, owner_id: uuid.UUID) -> list[PlaylistSummary]:
-    return [_summary(p, n) for p, n in await repository.list_with_counts(session, owner_id)]
+async def list_playlists(session: AsyncSession, user_id: uuid.UUID) -> list[PlaylistSummary]:
+    return [_summary(p, n, user_id) for p, n in await repository.list_with_counts(session, user_id)]
 
 
 async def get_playlist(
     session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID
 ) -> PlaylistDetail:
-    return await _detail(session, await _get_owned(session, owner_id, playlist_id))
+    return await _detail(session, await _get_readable(session, owner_id, playlist_id), owner_id)
 
 
 async def rename_playlist(
@@ -126,7 +157,7 @@ async def delete_playlist(
 async def add_song(
     session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID, song_id: uuid.UUID
 ) -> PlaylistDetail:
-    playlist = await _get_owned(session, owner_id, playlist_id, for_update=True)
+    playlist = await _get_readable(session, owner_id, playlist_id, for_update=True)
     song = await catalog_service.get_song(session, song_id)
     if await repository.get_entry(session, playlist.id, song_id) is not None:
         raise _duplicate()
@@ -147,7 +178,7 @@ async def add_song(
     except IntegrityError:
         await session.rollback()
         raise _duplicate() from None
-    return await _detail(session, playlist)
+    return await _detail(session, playlist, owner_id)
 
 
 def _duplicate() -> Conflict:
@@ -157,7 +188,7 @@ def _duplicate() -> Conflict:
 async def remove_song(
     session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID, song_id: uuid.UUID
 ) -> PlaylistDetail:
-    playlist = await _get_owned(session, owner_id, playlist_id, for_update=True)
+    playlist = await _get_readable(session, owner_id, playlist_id, for_update=True)
     entry = await repository.get_entry(session, playlist.id, song_id)
     if entry is None:
         raise NotFound("Esa canción no está en el casete.", code="song_not_in_playlist")
@@ -169,13 +200,13 @@ async def remove_song(
         e.position = position
     repository.touch(playlist)
     await session.commit()
-    return await _detail(session, playlist)
+    return await _detail(session, playlist, owner_id)
 
 
 async def reorder(
     session: AsyncSession, owner_id: uuid.UUID, playlist_id: uuid.UUID, data: ReorderIn
 ) -> PlaylistDetail:
-    playlist = await _get_owned(session, owner_id, playlist_id, for_update=True)
+    playlist = await _get_readable(session, owner_id, playlist_id, for_update=True)
     entries = {e.song_id: e for e in await repository.list_songs(session, playlist.id)}
     if len(data.song_ids) != len(entries) or set(data.song_ids) != set(entries):
         raise InvalidInput(
@@ -185,7 +216,7 @@ async def reorder(
         entries[song_id].position = position
     repository.touch(playlist)
     await session.commit()
-    return await _detail(session, playlist)
+    return await _detail(session, playlist, owner_id)
 
 
 def _covers_dir() -> Path:
@@ -203,8 +234,29 @@ async def set_cover(
 
 
 async def get_cover_file(session: AsyncSession, user_id: uuid.UUID, playlist_id: uuid.UUID) -> Path:
-    playlist = await _get_owned(session, user_id, playlist_id)
+    playlist = await _get_readable(session, user_id, playlist_id)
     path = _covers_dir() / playlist.cover_path if playlist.cover_path else None
     if path is None or not path.is_file():
         raise NotFound("Este casete no tiene portada.", code="cover_not_found")
     return path
+
+
+async def add_member(session: AsyncSession, playlist_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    """Uso interno (invitaciones): añade a la persona como colaboradora si aún no lo es."""
+    if await repository.get_member(session, playlist_id, user_id) is None:
+        session.add(PlaylistMember(playlist_id=playlist_id, user_id=user_id))
+        await session.commit()
+
+
+async def remove_member(
+    session: AsyncSession, actor_id: uuid.UUID, playlist_id: uuid.UUID, member_id: uuid.UUID
+) -> None:
+    """El dueño quita a cualquiera; una colaboradora solo puede salir ella misma."""
+    playlist = await _get_readable(session, actor_id, playlist_id, for_update=True)
+    if playlist.owner_id != actor_id and actor_id != member_id:
+        raise Forbidden("Solo quien creó el casete puede quitar colaboradores.")
+    member = await repository.get_member(session, playlist.id, member_id)
+    if member is None:
+        raise NotFound("Esa persona no colabora en este casete.", code="member_not_found")
+    await session.delete(member)
+    await session.commit()

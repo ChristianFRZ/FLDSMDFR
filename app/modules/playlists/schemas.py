@@ -9,12 +9,21 @@ class PlaylistIn(BaseModel):
     name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
 
 
+Role = Literal["owner", "collaborator"]
+
+
+class MemberOut(BaseModel):
+    user_id: uuid.UUID
+    name: str
+
+
 class PlaylistSummary(BaseModel):
     id: uuid.UUID
     name: str
     song_count: int
     updated_at: datetime
     has_cover: bool = False
+    role: Role = "owner"
 
 
 class PlaylistSongOut(BaseModel):
@@ -33,6 +42,8 @@ class PlaylistDetail(BaseModel):
     songs: list[PlaylistSongOut]
     total_seconds: int
     has_cover: bool = False
+    role: Role = "owner"
+    members: list[MemberOut] = []
 
 
 class AddSongIn(BaseModel):

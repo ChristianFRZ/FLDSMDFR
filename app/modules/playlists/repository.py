@@ -1,10 +1,10 @@
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.playlists.models import Playlist, PlaylistSong
+from app.modules.playlists.models import Playlist, PlaylistMember, PlaylistSong
 
 
 async def get_owned(
@@ -20,22 +20,56 @@ async def get_owned(
     return await session.scalar(stmt)
 
 
+def _can_read(user_id: uuid.UUID):
+    member = exists().where(
+        PlaylistMember.playlist_id == Playlist.id, PlaylistMember.user_id == user_id
+    )
+    return or_(Playlist.owner_id == user_id, member)
+
+
+async def get_readable(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    playlist_id: uuid.UUID,
+    for_update: bool = False,
+) -> Playlist | None:
+    """Casete del que la persona es dueña o miembro."""
+    stmt = select(Playlist).where(Playlist.id == playlist_id, _can_read(user_id))
+    if for_update:
+        stmt = stmt.with_for_update(of=Playlist)
+    return await session.scalar(stmt)
+
+
+async def list_members(session: AsyncSession, playlist_id: uuid.UUID) -> list[PlaylistMember]:
+    stmt = (
+        select(PlaylistMember)
+        .where(PlaylistMember.playlist_id == playlist_id)
+        .order_by(PlaylistMember.joined_at, PlaylistMember.user_id)
+    )
+    return list((await session.scalars(stmt)).all())
+
+
+async def get_member(
+    session: AsyncSession, playlist_id: uuid.UUID, user_id: uuid.UUID
+) -> PlaylistMember | None:
+    return await session.get(PlaylistMember, (playlist_id, user_id))
+
+
 async def add(session: AsyncSession, playlist: Playlist) -> Playlist:
     session.add(playlist)
     await session.commit()
     return playlist
 
 
-async def list_with_counts(
-    session: AsyncSession, owner_id: uuid.UUID
-) -> list[tuple[Playlist, int]]:
+async def list_with_counts(session: AsyncSession, user_id: uuid.UUID) -> list[tuple[Playlist, int]]:
+    """Casetes propios y colaborativos, el modificado más recientemente primero."""
     count = func.count(PlaylistSong.song_id)
     stmt = (
         select(Playlist, count)
         .outerjoin(PlaylistSong, PlaylistSong.playlist_id == Playlist.id)
-        .where(Playlist.owner_id == owner_id)
+        .where(_can_read(user_id))
         .group_by(Playlist.id)
-        .order_by(Playlist.created_at, Playlist.id)
+        .order_by(Playlist.updated_at.desc(), Playlist.id)
     )
     return [(p, n) for p, n in (await session.execute(stmt)).all()]
 
