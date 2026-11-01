@@ -2,9 +2,11 @@
 import { onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import Aviso from './components/Aviso.vue'
+import Campana from './components/Campana.vue'
 import Reproductor from './components/Reproductor.vue'
 import LayoutPrincipal from './layouts/LayoutPrincipal.vue'
 import { useFavoritos } from './composables/useFavoritos'
+import { useNotificaciones } from './composables/useNotificaciones'
 import { usePlayer } from './composables/usePlayer'
 import { useSession } from './composables/useSession'
 
@@ -16,12 +18,21 @@ onMounted(() => {
   if (audio.value) usePlayer().attach(audio.value)
 })
 
-// Los corazones dependen de la cuenta: se cargan al entrar y se vacían al salir.
+// Corazones y avisos dependen de la cuenta: se cargan al entrar y se vacían al salir.
 const session = useSession()
 const favoritos = useFavoritos()
+const notificaciones = useNotificaciones()
 watch(
   () => session.user.value?.id,
-  (id) => (id ? void favoritos.cargar() : favoritos.reiniciar()),
+  (id) => {
+    notificaciones.reiniciar()
+    if (id) {
+      void favoritos.cargar()
+      notificaciones.iniciar()
+    } else {
+      favoritos.reiniciar()
+    }
+  },
   { immediate: true },
 )
 </script>
@@ -32,6 +43,7 @@ watch(
   <RouterView v-else-if="route.meta.sinLayout" />
   <LayoutPrincipal v-else>
     <RouterView />
+    <template #campana><Campana /></template>
     <template #reproductor><Reproductor /></template>
   </LayoutPrincipal>
   <Aviso />

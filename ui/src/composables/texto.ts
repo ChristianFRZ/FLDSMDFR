@@ -10,3 +10,22 @@ export function iniciales(nombre: string): string {
 export function primerNombre(nombre: string): string {
   return nombre.trim().split(/\s+/)[0] ?? ''
 }
+
+const UNIDADES: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+  ['year', 365 * 86_400],
+  ['month', 30 * 86_400],
+  ['week', 7 * 86_400],
+  ['day', 86_400],
+  ['hour', 3_600],
+  ['minute', 60],
+]
+const relativo = new Intl.RelativeTimeFormat('es', { numeric: 'auto' })
+
+/** "hace 2 horas", "ayer", "ahora": tiempo relativo en español. */
+export function tiempoRelativo(iso: string, ahora: number = Date.now()): string {
+  const segundos = Math.round((new Date(iso).getTime() - ahora) / 1000)
+  for (const [unidad, tamano] of UNIDADES) {
+    if (Math.abs(segundos) >= tamano) return relativo.format(Math.trunc(segundos / tamano), unidad)
+  }
+  return 'ahora'
+}
