@@ -139,3 +139,13 @@ async def test_summary_admin_only(user, session, media_dir):
     body = r.json()
     assert (body["total_playbacks"], body["total_songs"], body["total_users"]) == (2, 1, 2)
     assert [(t["song_id"], t["play_count"]) for t in body["top"]] == [(str(song.id), 2)]
+
+
+async def test_top_includes_full_song_for_playback(user, session, media_dir):
+    """La página de inicio reproduce desde el top: necesita duración y portada."""
+    song = await insert_song(session, media_dir)
+    await user.post("/api/playbacks", json=_event(song.id))
+    [item] = await _top(user)
+    assert item["song"]["id"] == str(song.id)
+    assert item["song"]["duration_seconds"] == song.duration_seconds
+    assert item["song"]["has_cover"] is False

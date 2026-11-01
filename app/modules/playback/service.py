@@ -66,6 +66,7 @@ async def top_songs(session: AsyncSession, limit: int = 10) -> list[TopSongOut]:
                         artist=song.artist,
                         album=song.album,
                         play_count=count,
+                        song=song,
                     )
                 )
     return result

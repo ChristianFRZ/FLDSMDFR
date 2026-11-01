@@ -24,6 +24,8 @@ class TopSongOut(BaseModel):
     artist: str
     album: str
     play_count: int
+    # Canción completa para reproducir desde el top; None si el catálogo no respondió.
+    song: SongOut | None = None
 
 
 class MetricsSummary(BaseModel):

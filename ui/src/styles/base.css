@@ -283,6 +283,22 @@ button:disabled,
   outline-offset: 2px;
 }
 
+/* Popover flotante (selector para grabar, menú de canción). */
+.popover {
+  position: absolute;
+  z-index: 40;
+  display: grid;
+  gap: var(--space-2);
+  width: 240px;
+  max-height: 320px;
+  padding: var(--space-3);
+  overflow-y: auto;
+  border: 1px solid var(--surface);
+  border-radius: var(--radius-l);
+  background: var(--bg);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 35%);
+}
+
 /* Esqueleto de carga. */
 .esqueleto-fila {
   display: grid;

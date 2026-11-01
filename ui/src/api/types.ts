@@ -105,6 +105,7 @@ export interface TopSongOut {
   artist: string
   album: string
   play_count: number
+  song?: SongOut | null
 }
 
 export interface MetricsSummary {
