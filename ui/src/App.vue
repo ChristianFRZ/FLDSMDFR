@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import Aviso from './components/Aviso.vue'
-import ControlesReproductor from './components/ControlesReproductor.vue'
+import Reproductor from './components/Reproductor.vue'
 import LayoutPrincipal from './layouts/LayoutPrincipal.vue'
+import { useFavoritos } from './composables/useFavoritos'
 import { usePlayer } from './composables/usePlayer'
+import { useSession } from './composables/useSession'
 
 const route = useRoute()
 
@@ -13,6 +15,15 @@ const audio = ref<HTMLAudioElement | null>(null)
 onMounted(() => {
   if (audio.value) usePlayer().attach(audio.value)
 })
+
+// Los corazones dependen de la cuenta: se cargan al entrar y se vacían al salir.
+const session = useSession()
+const favoritos = useFavoritos()
+watch(
+  () => session.user.value?.id,
+  (id) => (id ? void favoritos.cargar() : favoritos.reiniciar()),
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -21,7 +32,7 @@ onMounted(() => {
   <RouterView v-else-if="route.meta.sinLayout" />
   <LayoutPrincipal v-else>
     <RouterView />
-    <template #reproductor><ControlesReproductor /></template>
+    <template #reproductor><Reproductor /></template>
   </LayoutPrincipal>
   <Aviso />
   <audio ref="audio" preload="metadata" />

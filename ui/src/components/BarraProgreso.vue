@@ -119,7 +119,7 @@ function onClick(event: MouseEvent): void {
   position: relative;
   display: flex;
   align-items: center;
-  height: 40px;
+  height: 16px;
   cursor: pointer;
   touch-action: none;
 }
@@ -131,38 +131,44 @@ function onClick(event: MouseEvent): void {
 .barra__pista {
   position: relative;
   width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  background: rgb(255 255 255 / 0.2);
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
   overflow: hidden;
 }
 
+/* Fragmentos ya descargados por HTTP Range (audio.buffered). */
 .segmento-descargado {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: var(--deck-ink);
-  opacity: 0.35;
+  background: var(--ink-muted);
+  opacity: 0.45;
 }
 
-/* --accent2 y no --accent: 3.85:1 sobre --deck en el Lado A (DESIGN.md §3.2, restricción 4). */
 .barra__reproducido {
   position: absolute;
   top: 0;
   bottom: 0;
   left: 0;
-  background: var(--accent2);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
 }
 
 .barra__tirador {
   position: absolute;
   top: 50%;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--deck);
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--accent2);
+  background: var(--accent);
   transform: translate(-50%, -50%);
   pointer-events: none;
+}
+
+.barra:hover .barra__tirador,
+.barra:focus-visible .barra__tirador {
+  width: 12px;
+  height: 12px;
 }
 </style>
