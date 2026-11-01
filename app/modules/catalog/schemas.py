@@ -12,6 +12,7 @@ class SongOut(BaseModel):
     album: str
     duration_seconds: int
     is_active: bool
+    has_cover: bool = False
 
 
 class SongPage(BaseModel):

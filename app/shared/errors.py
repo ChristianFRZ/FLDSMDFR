@@ -42,6 +42,11 @@ class InvalidInput(DomainError):
     code = "invalid_input"
 
 
+class PayloadTooLarge(DomainError):
+    status = 413
+    code = "payload_too_large"
+
+
 class RangeNotSatisfiable(DomainError):
     status = 416
     code = "range_not_satisfiable"

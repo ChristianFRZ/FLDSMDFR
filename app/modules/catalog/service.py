@@ -13,6 +13,7 @@ from app.modules.catalog.audio import inspect_audio
 from app.modules.catalog.models import Song
 from app.modules.catalog.schemas import SongOut, SongPage, SongUpdate
 from app.shared.errors import InvalidInput, NotFound
+from app.shared.images import save_image
 
 _NOT_FOUND = "No encontramos esa canción."
 _ALLOWED_EXTENSIONS = {".mp3", ".ogg", ".wav"}
@@ -172,3 +173,24 @@ async def deactivate_song(session: AsyncSession, song_id: uuid.UUID) -> None:
     song = await _get_active(session, song_id)
     song.is_active = False
     await repository.save(session, song)
+
+
+def _covers_dir() -> Path:
+    return get_settings().media_dir / "covers" / "songs"
+
+
+async def set_cover(session: AsyncSession, song_id: uuid.UUID, upload: UploadFile) -> SongOut:
+    song = await _get_active(session, song_id)
+    song.cover_path = await save_image(upload, _covers_dir(), str(song.id))
+    await repository.save(session, song)
+    return SongOut.model_validate(song)
+
+
+async def get_cover_file(session: AsyncSession, song_id: uuid.UUID) -> Path:
+    song = await repository.get_by_id(session, song_id)
+    if song is None or song.cover_path is None:
+        raise NotFound("Esta canción no tiene portada.", code="cover_not_found")
+    path = _covers_dir() / song.cover_path
+    if not path.is_file():
+        raise NotFound("Esta canción no tiene portada.", code="cover_not_found")
+    return path

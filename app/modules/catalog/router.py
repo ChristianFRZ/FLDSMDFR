@@ -7,6 +7,7 @@ from app.modules.catalog import service
 from app.modules.catalog.schemas import SongOut, SongPage, SongUpdate
 from app.modules.catalog.streaming import file_response
 from app.shared.deps import current_user, get_session, require_admin
+from app.shared.images import image_response
 
 router = APIRouter(prefix="/api", tags=["catalog"], dependencies=[Depends(current_user)])
 
@@ -62,3 +63,19 @@ async def deactivate_song(
 ) -> Response:
     await service.deactivate_song(session, song_id)
     return Response(status_code=204)
+
+
+@router.put("/songs/{song_id}/cover", response_model=SongOut, dependencies=[Depends(require_admin)])
+async def set_cover(
+    song_id: uuid.UUID, file: UploadFile, session: AsyncSession = Depends(get_session)
+):
+    return await service.set_cover(session, song_id, file)
+
+
+@router.get("/songs/{song_id}/cover")
+async def get_cover(
+    song_id: uuid.UUID,
+    if_none_match: str | None = Header(None, alias="If-None-Match"),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    return image_response(await service.get_cover_file(session, song_id), if_none_match)
