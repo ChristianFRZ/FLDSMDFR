@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.social import service
-from app.modules.social.schemas import FavoritesOut, FollowOut
+from app.modules.social.schemas import FavoritesOut, FollowOut, MarkReadIn, NotificationsOut
 from app.shared.deps import CurrentUser, current_user, get_session
 
 router = APIRouter(prefix="/api/me", tags=["social"])
@@ -68,4 +68,21 @@ async def unfollow(
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     await service.unfollow(session, user.user_id, artist)
+    return Response(status_code=204)
+
+
+@router.get("/notifications", response_model=NotificationsOut)
+async def notifications(
+    user: CurrentUser = Depends(current_user), session: AsyncSession = Depends(get_session)
+):
+    return await service.notifications_for(session, user.user_id)
+
+
+@router.post("/notifications/read", status_code=204)
+async def mark_read(
+    data: MarkReadIn,
+    user: CurrentUser = Depends(current_user),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await service.mark_read(session, user.user_id, data.ids)
     return Response(status_code=204)

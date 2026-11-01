@@ -1,12 +1,21 @@
 import logging
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.catalog import service as catalog_service
+from app.modules.playlists import service as playlists_service
 from app.modules.social import repository
-from app.modules.social.schemas import FavoriteSongOut, FavoritesOut, FollowOut
+from app.modules.social.schemas import (
+    FavoriteSongOut,
+    FavoritesOut,
+    FollowOut,
+    InviteNotice,
+    NotificationOut,
+    NotificationsOut,
+)
+from app.modules.users import service as users_service
 from app.shared.errors import NotFound
 
 logger = logging.getLogger(__name__)
@@ -84,3 +93,67 @@ async def follows_for_releases(
     session: AsyncSession, user_id: uuid.UUID
 ) -> list[tuple[str, datetime]]:
     return [(f.artist_key, f.followed_at) for f in await repository.list_follows(session, user_id)]
+
+
+_RELEASE_WINDOW = timedelta(days=30)
+
+
+async def _release_notices(session: AsyncSession, user_id: uuid.UUID) -> list[NotificationOut]:
+    follows = await follows_for_releases(session, user_id)
+    if not follows:
+        return []
+    not_before = datetime.now(UTC) - _RELEASE_WINDOW
+    songs = await catalog_service.songs_by_artists_since(session, follows, not_before)
+    return [
+        NotificationOut(
+            id=f"release:{s.id}", type="release", created_at=s.created_at, read=False, song=s
+        )
+        for s in songs
+    ]
+
+
+async def _inviter_name(session: AsyncSession, user_id: uuid.UUID) -> str:
+    try:
+        return (await users_service.get_user(session, user_id)).name
+    except Exception:
+        return "Alguien"
+
+
+async def _invite_notices(session: AsyncSession, user_id: uuid.UUID) -> list[NotificationOut]:
+    notices = []
+    for p in await playlists_service.pending_invites_for(session, user_id):
+        notices.append(
+            NotificationOut(
+                id=f"invite:{p.token}",
+                type="invite",
+                created_at=p.claimed_at,
+                read=False,
+                invite=InviteNotice(
+                    token=p.token,
+                    playlist_id=p.playlist_id,
+                    playlist_name=p.playlist_name,
+                    inviter_name=await _inviter_name(session, p.invited_by),
+                ),
+            )
+        )
+    return notices
+
+
+async def notifications_for(session: AsyncSession, user_id: uuid.UUID) -> NotificationsOut:
+    """Avisos calculados al leerlos; si una fuente falla se omite (modo degradado)."""
+    items: list[NotificationOut] = []
+    for source in (_release_notices, _invite_notices):
+        try:
+            items.extend(await source(session, user_id))
+        except Exception:
+            await session.rollback()
+            logger.warning("Fuente de avisos no disponible: %s", source.__name__, exc_info=True)
+    read = await repository.read_ids(session, user_id, [n.id for n in items])
+    for n in items:
+        n.read = n.id in read
+    items.sort(key=lambda n: n.created_at, reverse=True)
+    return NotificationsOut(items=items, unread_count=sum(not n.read for n in items))
+
+
+async def mark_read(session: AsyncSession, user_id: uuid.UUID, ids: list[str]) -> None:
+    await repository.mark_read(session, user_id, ids)

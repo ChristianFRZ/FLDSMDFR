@@ -1,8 +1,10 @@
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, StringConstraints
+
+from app.modules.catalog.schemas import SongOut
 
 
 class FavoriteSongOut(BaseModel):
@@ -26,3 +28,30 @@ class FollowOut(BaseModel):
     followed_at: datetime
     song_count: int
     cover_song_id: uuid.UUID | None
+
+
+class InviteNotice(BaseModel):
+    token: str
+    playlist_id: uuid.UUID
+    playlist_name: str
+    inviter_name: str
+
+
+class NotificationOut(BaseModel):
+    id: str
+    type: Literal["release", "invite"]
+    created_at: datetime
+    read: bool
+    song: SongOut | None = None
+    invite: InviteNotice | None = None
+
+
+class NotificationsOut(BaseModel):
+    items: list[NotificationOut]
+    unread_count: int
+
+
+class MarkReadIn(BaseModel):
+    ids: list[Annotated[str, StringConstraints(min_length=1, max_length=120)]] = Field(
+        max_length=100
+    )
