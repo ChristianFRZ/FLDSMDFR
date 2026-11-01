@@ -15,6 +15,9 @@ class SongOut(BaseModel):
     is_active: bool
     has_cover: bool = False
     created_at: datetime | None = None
+    # Para el panel de Streaming: formato y bitrate estimado (size_bytes * 8 / duración).
+    size_bytes: int = 0
+    mime_type: str = ""
 
 
 class SongPage(BaseModel):

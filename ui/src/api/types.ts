@@ -25,6 +25,8 @@ export interface SongOut {
   is_active: boolean
   has_cover: boolean
   created_at?: string | null
+  size_bytes?: number
+  mime_type?: string
 }
 
 export interface SongPage {

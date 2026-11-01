@@ -123,3 +123,12 @@ async def test_stream_missing_file_404(client, session, media_dir):
     song, _ = await _stream_setup(client, session, media_dir)
     (media_dir / f"{song.id}.wav").unlink()
     assert (await client.get(f"/api/songs/{song.id}/stream")).status_code == 404
+
+
+async def test_song_out_exposes_size_and_mime(client, session, media_dir):
+    """El panel de Streaming estima el bitrate con el tamaño y muestra el formato."""
+    await signup(client)
+    song = await insert_song(session, media_dir, title="Granizo")
+    [item] = (await client.get("/api/songs", params={"q": "Granizo"})).json()["items"]
+    assert item["size_bytes"] == song.size_bytes
+    assert item["mime_type"] == song.mime_type
