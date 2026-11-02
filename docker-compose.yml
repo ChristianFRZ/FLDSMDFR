@@ -1,22 +1,64 @@
+x-app-env: &app-env
+  FLDSMDFR_DATABASE_URL: ${FLDSMDFR_DATABASE_URL:-postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/fldsmdfr}
+  FLDSMDFR_JWT_SECRET: ${FLDSMDFR_JWT_SECRET:-cambia-este-secreto-en-produccion}
+  FLDSMDFR_COOKIE_SECURE: ${FLDSMDFR_COOKIE_SECURE:-false}
+  FLDSMDFR_ADMIN_EMAIL: ${FLDSMDFR_ADMIN_EMAIL:-admin@fldsmdfr.mx}
+  FLDSMDFR_ADMIN_PASSWORD: ${FLDSMDFR_ADMIN_PASSWORD:-admin12345}
+  FLDSMDFR_LISTENER_EMAIL: ${FLDSMDFR_LISTENER_EMAIL:-oyente@fldsmdfr.mx}
+  FLDSMDFR_LISTENER_PASSWORD: ${FLDSMDFR_LISTENER_PASSWORD:-oyente12345}
+
 services:
-  monolito:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: fldsmdfr-monolito
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: fldsmdfr
+      POSTGRES_PASSWORD: fldsmdfr
+      POSTGRES_DB: fldsmdfr
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fldsmdfr"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment: *app-env
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
     volumes:
-      - ./db:/app/db
-      - ./media/audio:/app/media/audio
-    environment:
-      - FLDSMDFR_HOST=0.0.0.0
-      - FLDSMDFR_PORT=8000
-      - FLDSMDFR_DB_PATH=/app/db/fldsmdfr.db
-      - FLDSMDFR_MEDIA_DIR=/app/media/audio
-    restart: unless-stopped
+      - media:/media/audio
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
+    restart: unless-stopped
+
+  tests:
+    build: .
+    profiles: ["test"]
+    entrypoint: []
+    command: pytest -q
+    environment:
+      FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/fldsmdfr_test
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+      - ./scripts:/app/scripts
+      - ./media/seed:/app/media/seed
+
+volumes:
+  pgdata:
+  media:

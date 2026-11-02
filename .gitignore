@@ -40,3 +40,12 @@ htmlcov/
 # OS specific
 .DS_Store
 Thumbs.db
+
+# Brainstorming companion
+.superpowers/
+
+# Proyecto
+node_modules/
+ui/dist/
+.env
+.ruff_cache/

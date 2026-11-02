@@ -1,0 +1,11 @@
+{
+  "songs": [
+    {"file": "Spectre NCS.mp3", "title": "Spectre", "artist": "Alan Walker", "album": "NCS"},
+    {"file": "Heroes Tonight NCS.mp3", "title": "Heroes Tonight", "artist": "Janji feat. Johnning", "album": "NCS"},
+    {"file": "Animals NCS.mp3", "title": "Animals", "artist": "Martin Garrix", "album": "NCS"}
+  ],
+  "demo_playlist": {
+    "name": "No CopyRight Songs",
+    "files": ["Spectre NCS.mp3", "Heroes Tonight NCS.mp3", "Animals NCS.mp3"]
+  }
+}

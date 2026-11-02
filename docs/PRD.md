@@ -106,7 +106,8 @@ Toda la lógica reside en una sola aplicación con un único proceso:
 - `module_users`: Gestión en memoria / base única de usuarios y sesiones.
 - `module_playlists`: Gestión de colecciones y asociaciones usuario-canción.
 - `module_catalog`: Metadatos y lectura directa de archivos locales de audio.
-- `module_playback`: Incremento sincrónico del contador en la misma base de datos.
+- `module_playback`: Incremento sincrónico del contador en la misma base de datos e historial de escucha por usuario.
+- `module_social`: Favoritas, artistas seguidos y avisos (lanzamientos de artistas seguidos e invitaciones a casetes). Los avisos se calculan al leer, consultando a `catalog` y `playlists` solo por su `service`.
 
 ### Servicios resultantes (`02-separacion` en adelante)
 1. **API Gateway / Proxy:** Punto de entrada HTTP expuesto en el puerto frontal (`8080`), enruta y balancea hacia los servicios internos.
@@ -119,7 +120,9 @@ Toda la lógica reside en una sola aplicación con un único proceso:
 |---|---|---|
 | Usuarios y credenciales | `users-playlists-service` | Base de datos relacional aislada |
 | Playlists y enlaces usuario-canción | `users-playlists-service` | Base de datos relacional aislada |
-| Metadatos de canciones (título, artista, duración) | `catalog-streaming-service` | Base de datos de catálogo |
+| Miembros de casetes e invitaciones por enlace (`playlist_members`, `playlist_invites`, `playlist_invite_claims`) | `users-playlists-service` | Base de datos relacional aislada |
+| Favoritas, artistas seguidos y avisos leídos (`favorites`, `artist_follows`, `notification_reads`) | `users-playlists-service` (módulo `social`) | Base de datos relacional aislada; las canciones se referencian por id, sin llave foránea |
+| Metadatos de canciones (título, artista, duración) y portadas | `catalog-streaming-service` | Base de datos de catálogo; las portadas en el volumen multimedia |
 | Archivos de audio (binarios MP3) | `catalog-streaming-service` | Volumen compartido de archivos multimedia |
 | Eventos de reproducción y contadores | `playback-metrics-service` | Base de datos de telemetría y métricas |
 
@@ -140,6 +143,7 @@ Toda la lógica reside en una sola aplicación con un único proceso:
 | **Balanceo** | Integrado en el API Gateway o proxy inverso (ej. Nginx / Gateway Round-Robin) frente a `catalog-streaming-service` | La carga de streaming es pesada; repartir entre múltiples réplicas (`catalog_1`, `catalog_2`) evita saturación. | Si una réplica falla, el balanceador redirige a réplicas activas (failover transparente). |
 | **Datos (tipo de base, réplicas)** | Bases de datos independientes por servicio (SQLite / PostgreSQL) en volúmenes persistentes | Garantiza autonomía de microservicios y evita que consultas analíticas bloqueen transacciones. | Si cae una base de datos específica, solo se afecta el servicio dependiente; el resto continúa operando. |
 | **Operaciones entre servicios** | Llamadas REST internas y comunicación asíncrona mediante eventos de reproducción | Desacopla la respuesta inmediata al usuario del procesamiento de telemetría. | Se aplican timeouts de 1.5s y degradación: si falla el registro de reproducción, el streaming no se corta. |
+| **Avisos (módulo `social`)** | `users-playlists-service`; el cliente consulta cada 30 s mientras la pestaña está visible | Los lanzamientos se calculan al leer a partir de los artistas seguidos y el catálogo, sin cola de mensajes. | Si el catálogo no responde, los avisos se degradan: solo se muestran las invitaciones y el siguiente sondeo reintenta. |
 | **Manejo de fallas** | Clientes internos con timeout configurable, circuit breaker simple y claves de idempotencia UUID | Previene bloqueos por cascada (*cascading failures*) y evita conteos duplicados por reintentos de red. | Si un servicio externo está caído, el circuit breaker abre el circuito y responde con fallback inmediato. |
 
 ---

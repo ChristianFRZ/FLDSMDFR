@@ -1,0 +1,11 @@
+.git
+.superpowers
+.env
+.ruff_cache
+.pytest_cache
+__pycache__
+*.pyc
+node_modules
+ui/node_modules
+ui/dist
+docs

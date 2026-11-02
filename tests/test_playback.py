@@ -1,79 +1,151 @@
+import asyncio
 import uuid
-from fastapi.testclient import TestClient
+
+import pytest
+from httpx import AsyncClient
+
+from tests.audio_fixtures import insert_song
+from tests.helpers import make_admin_client, signup
 
 
-def test_playback_under_10_seconds_rejected(client: TestClient):
-    # PRD Criterio 1: Se requiere al menos 10 segundos para computar una reproducción
-    payload = {
-        "playback_id": str(uuid.uuid4()),
-        "song_id": 1,
-        "user_id": 1,
-        "played_duration": 8.5,  # Menor a 10s
-    }
-    response = client.post("/api/playbacks", json=payload)
-    assert response.status_code == 422
-    assert "umbral mínimo requerido" in response.json()["detail"]
+@pytest.fixture
+async def user(client):
+    await signup(client)
+    return client
 
 
-def test_playback_valid_and_idempotency(client: TestClient):
-    playback_uuid = str(uuid.uuid4())
-    payload = {
-        "playback_id": playback_uuid,
-        "song_id": 2,
-        "user_id": 1,
-        "played_duration": 12.0,  # Mayor a 10s
+def _event(song_id, playback_id=None, seconds=30) -> dict:
+    return {
+        "playback_id": str(playback_id or uuid.uuid4()),
+        "song_id": str(song_id),
+        "listened_seconds": seconds,
     }
 
-    # 1. Primer envío: debe registrarse y contar (+1)
-    res1 = client.post("/api/playbacks", json=payload)
-    assert res1.status_code == 201
-    data1 = res1.json()
-    assert data1["counted"] is True
-    initial_count = data1["current_play_count"]
-    assert initial_count >= 1
 
-    # 2. Segundo envío (reintento con MISMO UUID): debe ser detectado como duplicado y no incrementar
-    res2 = client.post("/api/playbacks", json=payload)
-    assert res2.status_code == 201
-    data2 = res2.json()
-    assert data2["counted"] is False
-    assert data2["current_play_count"] == initial_count
-    assert "idempotencia" in data2["message"].lower()
-
-    # 3. Tercer envío con NUEVO UUID: debe volver a contar (+1)
-    payload_new = {
-        "playback_id": str(uuid.uuid4()),
-        "song_id": 2,
-        "user_id": 1,
-        "played_duration": 15.0,
-    }
-    res3 = client.post("/api/playbacks", json=payload_new)
-    assert res3.status_code == 201
-    data3 = res3.json()
-    assert data3["counted"] is True
-    assert data3["current_play_count"] == initial_count + 1
+async def _top(c: AsyncClient) -> list[dict]:
+    r = await c.get("/api/metrics/top")
+    assert r.status_code == 200, r.text
+    return r.json()
 
 
-def test_top_metrics_ordering(client: TestClient):
-    # Generar varias reproducciones para la canción 3 para colocarla en la cima
-    for _ in range(5):
-        client.post(
-            "/api/playbacks",
-            json={
-                "playback_id": str(uuid.uuid4()),
-                "song_id": 3,
-                "user_id": 2,
-                "played_duration": 11.0,
-            },
-        )
+async def test_first_event_counts(user, session, media_dir):
+    song = await insert_song(session, media_dir)
+    r = await user.post("/api/playbacks", json=_event(song.id))
+    assert r.status_code == 201
+    assert r.json()["counted"] is True
+    top = await _top(user)
+    assert [(t["song_id"], t["play_count"]) for t in top] == [(str(song.id), 1)]
 
-    response = client.get("/api/metrics/top?limit=5")
-    assert response.status_code == 200
-    top_list = response.json()
-    assert len(top_list) > 0
 
-    # Verificar orden descendente
-    play_counts = [item["play_count"] for item in top_list]
-    assert play_counts == sorted(play_counts, reverse=True)
-    # La canción con más reproducciones debe estar de primera
-    assert top_list[0]["song_id"] == 3
+async def test_retry_same_id_not_double_counted(user, session, media_dir):
+    song = await insert_song(session, media_dir)
+    body = _event(song.id)
+    assert (await user.post("/api/playbacks", json=body)).status_code == 201
+    again = await user.post("/api/playbacks", json=body)
+    assert again.status_code == 200
+    assert again.json()["counted"] is False
+    assert (await _top(user))[0]["play_count"] == 1
+
+
+async def test_concurrent_same_id_counts_once(user, session, media_dir):
+    song = await insert_song(session, media_dir)
+    body = _event(song.id)
+    # Cada peticion abre su propia sesion de DB (get_session).
+    responses = await asyncio.gather(*(user.post("/api/playbacks", json=body) for _ in range(5)))
+    assert sorted(r.status_code for r in responses) == [200, 200, 200, 200, 201]
+    assert (await _top(user))[0]["play_count"] == 1
+
+
+async def test_concurrent_distinct_ids(user, session, media_dir):
+    song = await insert_song(session, media_dir)
+    responses = await asyncio.gather(
+        *(user.post("/api/playbacks", json=_event(song.id)) for _ in range(20))
+    )
+    assert [r.status_code for r in responses] == [201] * 20
+    assert (await _top(user))[0]["play_count"] == 20
+
+
+@pytest.mark.parametrize("seconds", [9, 86401])
+async def test_listened_seconds_out_of_range_rejected(user, session, media_dir, seconds):
+    song = await insert_song(session, media_dir)
+    r = await user.post("/api/playbacks", json=_event(song.id, seconds=seconds))
+    assert r.status_code == 422
+
+
+async def test_unknown_song_404(user):
+    r = await user.post("/api/playbacks", json=_event(uuid.uuid4()))
+    assert r.status_code == 404
+    assert r.json()["error"]["code"] == "song_not_found"
+
+
+async def test_requires_session(client):
+    r = await client.post("/api/playbacks", json=_event(uuid.uuid4()))
+    assert r.status_code == 401
+
+
+async def test_top_ordering(user, session, media_dir):
+    a = await insert_song(session, media_dir, title="A")
+    b = await insert_song(session, media_dir, title="B")
+    for _ in range(3):
+        await user.post("/api/playbacks", json=_event(a.id))
+    await user.post("/api/playbacks", json=_event(b.id))
+    top = await _top(user)
+    assert [(t["title"], t["play_count"]) for t in top] == [("A", 3), ("B", 1)]
+
+
+async def test_top_limit_validated_and_applied(user, session, media_dir):
+    a = await insert_song(session, media_dir, title="A")
+    b = await insert_song(session, media_dir, title="B")
+    await user.post("/api/playbacks", json=_event(a.id))
+    await user.post("/api/playbacks", json=_event(b.id))
+    assert len((await user.get("/api/metrics/top?limit=1")).json()) == 1
+    assert (await user.get("/api/metrics/top?limit=0")).status_code == 422
+    assert (await user.get("/api/metrics/top?limit=51")).status_code == 422
+
+
+async def test_top_skips_deactivated_song(user, session, media_dir):
+    a = await insert_song(session, media_dir, title="A")
+    b = await insert_song(session, media_dir, title="B")
+    await user.post("/api/playbacks", json=_event(a.id))
+    await user.post("/api/playbacks", json=_event(b.id))
+    from app.modules.catalog import service as catalog_service
+
+    await catalog_service.deactivate_song(session, a.id)
+    assert [t["title"] for t in await _top(user)] == ["B"]
+
+
+async def test_top_degraded_when_catalog_fails(user, session, media_dir, monkeypatch):
+    a = await insert_song(session, media_dir, title="A")
+    await user.post("/api/playbacks", json=_event(a.id))
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("catalogo caido")
+
+    monkeypatch.setattr("app.modules.catalog.service.get_songs_by_ids", boom)
+    top = await _top(user)
+    assert [(t["song_id"], t["title"], t["play_count"]) for t in top] == [
+        (str(a.id), "Canción no disponible", 1)
+    ]
+
+
+async def test_summary_admin_only(user, session, media_dir):
+    song = await insert_song(session, media_dir)
+    await user.post("/api/playbacks", json=_event(song.id))
+    await user.post("/api/playbacks", json=_event(song.id))
+    assert (await user.get("/api/metrics/summary")).status_code == 403
+    admin = await make_admin_client(session, user)
+    r = await admin.get("/api/metrics/summary")
+    assert r.status_code == 200
+    body = r.json()
+    assert (body["total_playbacks"], body["total_songs"], body["total_users"]) == (2, 1, 2)
+    assert [(t["song_id"], t["play_count"]) for t in body["top"]] == [(str(song.id), 2)]
+
+
+async def test_top_includes_full_song_for_playback(user, session, media_dir):
+    """La página de inicio reproduce desde el top: necesita duración y portada."""
+    song = await insert_song(session, media_dir)
+    await user.post("/api/playbacks", json=_event(song.id))
+    [item] = await _top(user)
+    assert item["song"]["id"] == str(song.id)
+    assert item["song"]["duration_seconds"] == song.duration_seconds
+    assert item["song"]["has_cover"] is False
