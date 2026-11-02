@@ -11,7 +11,7 @@ Solo se incluye música con licencia libre (dominio público o Creative Commons)
    {"file": "nombre.mp3", "title": "Título", "artist": "Artista", "album": "Álbum"}
    ```
 
-3. Si quieres que aparezca en el casete demo "Para la tarde lluviosa", agrega el nombre del archivo en `demo_playlist.files`.
+3. Si quieres que aparezca en el casete demo "No CopyRight Songs", agrega el nombre del archivo en `demo_playlist.files`.
 4. Registra la fuente y la licencia en la tabla de abajo.
 
 La semilla es idempotente: una canción con el mismo título y artista no se vuelve a importar.

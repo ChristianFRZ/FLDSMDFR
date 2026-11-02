@@ -8,14 +8,14 @@ en el mismo cambio; nunca se deja la contradicción.
 MELOXO es el nombre visible del producto. El repositorio, los paquetes y los servicios de
 Docker conservan el nombre técnico FLDSMDFR.
 
-| Qué | Dónde |
-|---|---|
-| Diseño de referencia (Figma) | `cVr6xEoHkTZJyeDrngHxIL`, nodo `39:2` ("MELOXO · Tu casetera") |
-| Tokens | `ui/src/styles/tokens.css` |
-| Estilos base y piezas compartidas | `ui/src/styles/base.css` |
-| Logo | `ui/src/assets/logo-meloxo.svg`, `logo-meloxo-pequeno.svg`, `ui/src/components/LogoMeloxo.vue`, `ui/public/favicon.*` |
-| Iconos | `ui/src/components/icons/` (Lucide, licencia ISC) |
-| Diseño y plan del rediseño | `docs/superpowers/specs/2026-10-31-meloxo-rediseno-design.md` |
+| Qué                               | Dónde                                                                                                                 |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Diseño de referencia (Figma)      | `cVr6xEoHkTZJyeDrngHxIL`, nodo `39:2` ("MELOXO · Tu casetera")                                                        |
+| Tokens                            | `ui/src/styles/tokens.css`                                                                                            |
+| Estilos base y piezas compartidas | `ui/src/styles/base.css`                                                                                              |
+| Logo                              | `ui/src/assets/logo-meloxo.svg`, `logo-meloxo-pequeno.svg`, `ui/src/components/LogoMeloxo.vue`, `ui/public/favicon.*` |
+| Iconos                            | `ui/src/components/icons/` (Lucide, licencia ISC)                                                                     |
+| Diseño y plan del rediseño        | `docs/superpowers/specs/2026-10-31-meloxo-rediseno-design.md`                                                         |
 
 ---
 

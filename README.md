@@ -45,10 +45,10 @@ Al arrancar, el contenedor aplica las migraciones y ejecuta la semilla (usuarios
 
 ### Credenciales demo
 
-| Rol | Correo | Contraseña |
-| --- | --- | --- |
-| Administrador | `admin@fldsmdfr.mx` | `admin12345` |
-| Oyente | `oyente@fldsmdfr.mx` | `oyente12345` |
+| Rol           | Correo               | Contraseña    |
+| ------------- | -------------------- | ------------- |
+| Administrador | `admin@fldsmdfr.mx`  | `admin12345`  |
+| Oyente        | `oyente@fldsmdfr.mx` | `oyente12345` |
 
 Se pueden cambiar con las variables `FLDSMDFR_ADMIN_*` y `FLDSMDFR_LISTENER_*` (ver `.env.example`).
 
