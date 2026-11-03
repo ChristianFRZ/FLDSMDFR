@@ -110,27 +110,44 @@ Toda la lógica reside en una sola aplicación con un único proceso:
 - `module_social`: Favoritas, artistas seguidos y avisos (lanzamientos de artistas seguidos e invitaciones a casetes). Los avisos se calculan al leer, consultando a `catalog` y `playlists` solo por su `service`.
 
 ### Servicios resultantes (`02-separacion` en adelante)
-1. **API Gateway / Proxy:** Punto de entrada HTTP expuesto en el puerto frontal (`8080`), enruta y balancea hacia los servicios internos.
-2. **Servicio de Usuarios y Playlists (`users-playlists-service`):** Expone endpoints REST para usuarios y listas de reproducción. Dueño de la base de datos `users_playlists.db`.
-3. **Servicio de Catálogo y Streaming (`catalog-streaming-service`):** Expone endpoints de búsqueda y streaming de audio (`/stream`). Dueño de la base `catalog.db` y del volumen de almacenamiento de archivos multimedia (`/media/audio`).
-4. **Servicio de Métricas y Reproducciones (`playback-metrics-service`):** Procesa eventos de escucha, gestiona la concurrencia de contadores y almacena el histórico en `playbacks.db`.
+1. **Proxy / API Gateway:** punto de entrada HTTP en el puerto `8000`. En `02-separacion` es un Nginx mínimo (`web`) que sirve la UI y reparte `/api` por prefijo; en `03` se convierte en gateway con balanceo y directorio.
+2. **Servicio de Usuarios y Playlists (`users-playlists`):** módulos `users`, `playlists` y `social`. Emite los JWT. Dueño de la base `users_playlists` y del volumen de portadas de casetes.
+3. **Servicio de Catálogo y Streaming (`catalog-streaming`):** búsqueda, streaming con `Range`, subida y portadas de canciones. Dueño de la base `catalog` y del volumen de audio (`/media/audio`).
+4. **Servicio de Métricas y Reproducciones (`playback-metrics`):** eventos de escucha, contadores, top e historial. Dueño de la base `playback`.
+
+Las tres bases viven, en `02`, en una sola instancia de PostgreSQL 16; ningún servicio conoce la URL de la base de otro. Lo que antes era un `import` entre módulos de servicios distintos ahora es una llamada HTTP a la API interna del dueño (`/internal/...`, no expuesta por el proxy):
+
+| Quién llama | A quién | Para qué |
+|---|---|---|
+| `users-playlists` | `catalog-streaming` | validar la canción al agregarla a un casete o a favoritas; detalle de casete y favoritas; artistas seguidos y lanzamientos; resolver el casete demo de la semilla |
+| `playback-metrics` | `catalog-streaming` | validar la canción al registrar la reproducción; datos del top, del historial y de los artistas más escuchados; conteo de canciones |
+| `playback-metrics` | `users-playlists` | conteo de usuarios para el resumen del administrador |
 
 ### Dueño de cada dato (Single Source of Truth)
 | Dato / Entidad | Servicio Dueño | Almacenamiento |
 |---|---|---|
-| Usuarios y credenciales | `users-playlists-service` | Base de datos relacional aislada |
-| Playlists y enlaces usuario-canción | `users-playlists-service` | Base de datos relacional aislada |
-| Miembros de casetes e invitaciones por enlace (`playlist_members`, `playlist_invites`, `playlist_invite_claims`) | `users-playlists-service` | Base de datos relacional aislada |
-| Favoritas, artistas seguidos y avisos leídos (`favorites`, `artist_follows`, `notification_reads`) | `users-playlists-service` (módulo `social`) | Base de datos relacional aislada; las canciones se referencian por id, sin llave foránea |
-| Metadatos de canciones (título, artista, duración) y portadas | `catalog-streaming-service` | Base de datos de catálogo; las portadas en el volumen multimedia |
-| Archivos de audio (binarios MP3) | `catalog-streaming-service` | Volumen compartido de archivos multimedia |
-| Eventos de reproducción y contadores | `playback-metrics-service` | Base de datos de telemetría y métricas |
+| Usuarios y credenciales | `users-playlists` | base `users_playlists` |
+| Playlists y enlaces usuario-canción (con copia de título, artista y duración) | `users-playlists` | base `users_playlists` |
+| Miembros de casetes e invitaciones por enlace (`playlist_members`, `playlist_invites`, `playlist_invite_claims`) | `users-playlists` | base `users_playlists` |
+| Favoritas, artistas seguidos y avisos leídos (`favorites`, `artist_follows`, `notification_reads`) | `users-playlists` (módulo `social`) | base `users_playlists`; las canciones se referencian por id, sin llave foránea |
+| Portadas de casetes | `users-playlists` | volumen `playlist-covers` |
+| Metadatos de canciones (título, artista, duración) y portadas | `catalog-streaming` | base `catalog`; las portadas en el volumen `media` |
+| Archivos de audio (binarios MP3/OGG/WAV) | `catalog-streaming` | volumen `media` |
+| Eventos de reproducción y contadores | `playback-metrics` | base `playback` |
 
 ### Plan de ramas progresivo
-- `01-monolito`: Aplicación única en Python (FastAPI/Flask) con los módulos acoplados y base de datos local.
-- `02-separacion`: División del código en 3 servicios independientes en contenedores Docker comunicándose por red interna.
-- `03-gateway-balanceo`: Integración del API Gateway centralizado y balanceador de carga con múltiples instancias del servicio de streaming.
-- `04-resiliencia-concurrencia`: Implementación de timeouts, reintentos con backoff, claves de idempotencia y degradación elegante ante caídas de nodos.
+Cada rama parte de la anterior y sigue el recorrido de Mexi Banco en el curso. El `README.md` de cada rama dice qué cambió, cómo se comprueba y qué queda fuera.
+
+| Rama | Sesión del curso | Qué agrega | Cómo se demuestra |
+|---|---|---|---|
+| `01-monolito` | S05 | Monolito modular: un proceso, una base, módulos con límites verificados por prueba. | La aplicación completa en `:8000`. |
+| `02-separacion` | S07 (antes del lab) | Tres servicios con base propia, llamadas HTTP por DNS de Compose, proxy Nginx mínimo para la UI. Sin timeouts ni reintentos a propósito. | `docker compose stop catalog-streaming`: lo que depende del catálogo responde `503` o se degrada; lo demás sigue. |
+| `03-gateway-discovery-balanceo` | S07 | Gateway con rutas por servicio, **directorio** donde cada instancia se registra, **tres réplicas** de `catalog-streaming` y balanceo round-robin (también en las llamadas internas, que pasan a usar nombres lógicos del directorio). | Respuestas con cabecera `X-Instancia` alternando réplicas; apagar una réplica y ver que el tráfico sigue en las demás tras el plazo de expiración del directorio. |
+| `04-resiliencia` | S08 | Timeouts explícitos (1.5 s), reintentos con backoff solo en llamadas idempotentes, **circuit breaker** en `app/clients` (cerrado / abierto / semiabierto, hecho a mano), degradación donde hoy hay `503` (favoritas e historial con estado `degraded`) y `Idempotency-Key` en las escrituras que se reintenten. | Apagar el catálogo y mostrar el circuito abriéndose, respondiendo rápido sin llamar, y cerrándose al volver. |
+| `05-mensajeria` | S09 | **RabbitMQ.** `playback-metrics` deja de recibir la reproducción por HTTP síncrono: se publica `cancion.reproducida` y un consumidor la cuenta con idempotencia por `playback_id` (restricción `UNIQUE` en la misma transacción), ack manual después de guardar, DLQ para mensajes envenenados y outbox para la doble escritura. `catalog-streaming` publica `cancion.publicada` y `users-playlists` arma los avisos de lanzamientos a partir del evento. | Apagar `playback-metrics`, reproducir varias canciones, ver los mensajes en la cola y los contadores ponerse al día al encenderlo; duplicado y mensaje envenenado resueltos. |
+| `06-poliglota-cache` | S11 | **Redis** como caché del top y de los metadatos de canciones más pedidos (derivado, con TTL e invalidación al cambiar), y un almacén orientado a escrituras para la telemetría de reproducciones, manteniendo PostgreSQL como verdad de usuarios, casetes y catálogo. | Hit ratio medido, dato viejo provocado y explicado, y la aplicación funcionando con Redis apagado. |
+
+**Por qué no hay saga en `04`:** hoy ninguna operación escribe en dos servicios. La más parecida, agregar una canción a un casete, solo *lee* del catálogo y escribe en `users-playlists`; si la canción se retira después, el casete conserva la copia y la marca `unavailable` al leer. Si en una rama posterior aparece una escritura en dos servicios (por ejemplo, retirar una canción y limpiar casetes y favoritas), se resolverá con una saga orquestada y su compensación, como en el lab S08.
 
 ---
 
@@ -138,31 +155,41 @@ Toda la lógica reside en una sola aplicación con un único proceso:
 
 | Pieza | Dónde vive | Por qué | Qué pasa si falla |
 |---|---|---|---|
-| **API Gateway** | Contenedor frontal expuesto (`gateway`, puerto `8080`) | Actúa como fachada única para los clientes, oculta la topología interna y enruta tráfico. | Si se cae, el sistema queda inaccesible para clientes externos. Se mitiga mediante reinicio automático (`restart: always` en Docker). |
-| **Directorio / DNS** | Red interna de Docker Compose (`networks: sd-net`) con resolución DNS por nombre de servicio | Permite desacoplar IPs y resolver nombres como `http://catalog-service:5001`. | Si falla la resolución de nombres, los servicios no se comunican; Docker Engine administra este DNS embebido. |
-| **Balanceo** | Integrado en el API Gateway o proxy inverso (ej. Nginx / Gateway Round-Robin) frente a `catalog-streaming-service` | La carga de streaming es pesada; repartir entre múltiples réplicas (`catalog_1`, `catalog_2`) evita saturación. | Si una réplica falla, el balanceador redirige a réplicas activas (failover transparente). |
-| **Datos (tipo de base, réplicas)** | Bases de datos independientes por servicio (SQLite / PostgreSQL) en volúmenes persistentes | Garantiza autonomía de microservicios y evita que consultas analíticas bloqueen transacciones. | Si cae una base de datos específica, solo se afecta el servicio dependiente; el resto continúa operando. |
-| **Operaciones entre servicios** | Llamadas REST internas y comunicación asíncrona mediante eventos de reproducción | Desacopla la respuesta inmediata al usuario del procesamiento de telemetría. | Se aplican timeouts de 1.5s y degradación: si falla el registro de reproducción, el streaming no se corta. |
-| **Avisos (módulo `social`)** | `users-playlists-service`; el cliente consulta cada 30 s mientras la pestaña está visible | Los lanzamientos se calculan al leer a partir de los artistas seguidos y el catálogo, sin cola de mensajes. | Si el catálogo no responde, los avisos se degradan: solo se muestran las invitaciones y el siguiente sondeo reintenta. |
-| **Manejo de fallas** | Clientes internos con timeout configurable, circuit breaker simple y claves de idempotencia UUID | Previene bloqueos por cascada (*cascading failures*) y evita conteos duplicados por reintentos de red. | Si un servicio externo está caído, el circuit breaker abre el circuito y responde con fallback inmediato. |
+| **API Gateway / proxy** | `02`: contenedor `web` (Nginx) en el puerto `8000`, que sirve la UI y reparte `/api` por prefijo. `03`: gateway con balanceo y consulta al directorio. | Fachada única para el navegador (un solo origen, la cookie de sesión llega a todos), oculta la topología interna y no expone `/internal`. | Si se cae, el sistema queda inaccesible para los clientes; se mitiga con `restart: unless-stopped`. Si cae un servicio detrás, el proxy sigue arriba y responde `503` en JSON. |
+| **Directorio / DNS** | `02`: DNS embebido de Docker (`http://catalog-streaming:8000`); Nginx resuelve en cada petición (`resolver 127.0.0.11`). `03`: directorio de servicios donde cada réplica se registra con latido. | Desacopla IPs y permite apagar y encender servicios sin reconfigurar a nadie. | Sin resolución de nombres los servicios no se encuentran; Docker Engine administra este DNS. En `03`, una réplica que deja de latir sale del directorio tras su plazo de expiración. |
+| **Balanceo** | `03`: en el gateway, round-robin frente a las réplicas de `catalog-streaming`, y en los clientes internos. | La carga de streaming es pesada; repartirla entre réplicas evita saturación. | Si una réplica falla, el balanceador deja de enviarle tráfico al actualizarse el directorio. |
+| **Datos (tipo de base, réplicas)** | Una base PostgreSQL por servicio (`users_playlists`, `catalog`, `playback`), en `02` dentro de la misma instancia; volúmenes `media` y `playlist-covers`. | Autonomía de cada servicio: nadie lee las tablas de otro y el esquema puede cambiar sin coordinar. | Cada servicio responde `503` en `/api/health` si pierde su base; los demás siguen. En `02` la instancia es una sola: si cae, caen las tres bases (se separan cuando haga falta). |
+| **Operaciones entre servicios** | `02`: HTTP síncrono a `/internal/...` con clientes `httpx` en `app/clients/`. `05`: eventos de reproducción y de lanzamientos por RabbitMQ. | Llamadas explícitas con contrato; la telemetría pasa a asíncrona para no depender de que `playback-metrics` esté vivo. | `02`: sin conexión o `5xx` → `503 service_unavailable`; detalle de casete y top se degradan. `04`: timeouts de 1.5 s, reintentos y circuit breaker. |
+| **Avisos (módulo `social`)** | `users-playlists`; el cliente consulta cada 30 s mientras la pestaña está visible | Los lanzamientos se calculan al leer a partir de los artistas seguidos y el catálogo (por HTTP desde `02`, por eventos desde `05`). | Si el catálogo no responde, los avisos se degradan y el siguiente sondeo reintenta. |
+| **Manejo de fallas** | `02`: traducción uniforme de fallas remotas a `503`. `04`: timeouts, circuit breaker y claves de idempotencia UUID. `05`: idempotencia del consumidor, DLQ y outbox. | Previene fallas en cascada y conteos duplicados por reintentos. | Si un servicio está caído, el circuit breaker abre el circuito y responde con fallback inmediato (desde `04`). |
+| **Autenticación** | `users-playlists` emite el JWT (cookie `httpOnly`); cada servicio lo valida localmente con el secreto compartido. | No hace falta preguntar a `users-playlists` en cada petición: el streaming sigue funcionando aunque ese servicio esté caído. | Si `users-playlists` cae, nadie puede iniciar sesión, pero las sesiones abiertas siguen valiendo hasta que expiran (8 h). |
 
 ---
 
 ## 8. Stack y cómo se levanta
 
 ### Tecnologías seleccionadas
-- **Lenguaje:** Python 3.11+ (estándar de la materia para servicios distribuidos).
-- **Frameworks web y comunicación:**
-  - **FastAPI / Flask:** Para las APIs REST del Gateway, Usuarios y Métricas.
-  - **gRPC / HTTP Streaming:** Para comunicación de alto rendimiento o streaming binario por chunks.
-- **Bases de datos:** SQLite (o PostgreSQL ligero en contenedor) con esquemas separados por servicio.
+- **Lenguaje:** Python 3.12.
+- **Servicios:** FastAPI, SQLAlchemy 2 asíncrono (asyncpg), Alembic (una cadena de migraciones por servicio), Pydantic, PyJWT, `httpx` para las llamadas entre servicios.
+- **Bases de datos:** PostgreSQL 16, una base por servicio.
+- **Proxy:** Nginx (`02`); gateway y directorio a definir en `03` (ver §10).
+- **Interfaz:** Vue 3 + Vite + TypeScript, compilada en la imagen de `web`.
 - **Orquestación y contenedores:** Docker y Docker Compose.
 
 ### Cómo se levanta el entorno
 Toda la arquitectura se despliega con un solo comando desde la raíz del proyecto:
 
 ```bash
-docker compose up --build
+docker compose up --build -d
+docker compose ps        # cinco contenedores healthy: db, users-playlists, catalog-streaming, playback-metrics y web
+```
+
+Pruebas por servicio:
+
+```bash
+docker compose --profile test run --rm tests-catalog
+docker compose --profile test run --rm tests-users
+docker compose --profile test run --rm tests-playback
 ```
 
 Y para apagar el sistema:
@@ -177,9 +204,14 @@ docker compose down -v
 | Decisión | Alternativas descartadas | Justificación técnica |
 |---|---|---|
 | **Database-per-Service:** Bases independientes para cada servicio | Base de datos compartida única | Evita el acoplamiento a nivel de esquema y cuellos de botella de bloqueo en concurrencia masiva. |
-| **Streaming por HTTP Range Requests:** Servir archivos de audio con soporte de chunks | Descarga completa previa en memoria | Permite reproducción instantánea sin esperar a descargar canciones completas de 5-10 MB. |
+| **Una instancia de PostgreSQL con tres bases en `02`** | Tres contenedores de PostgreSQL | Mismo aislamiento lógico (cada servicio solo conoce su URL) con menos memoria en las laptops del equipo; separarlas es solo configuración. |
+| **Streaming por HTTP Range Requests:** Servir archivos de audio con soporte de chunks | Descarga completa previa en memoria | Permite reproducción instantánea sin esperar a descargar canciones completas de 5-10 MB. El proxy no guarda en buffer `/api/songs`. |
 | **Idempotencia en reproducciones mediante UUIDs** | Incremento directo `counter += 1` en URL simple | Evita que reintentos de red generen múltiples incrementos erróneos para la misma sesión de escucha. |
-| **Docker Compose con DNS embebido** | Configuración manual de IPs fijas o Consul complejo | Simplifica la operación académica y permite el uso de nombres canónicos estables (`http://users-service:5000`). |
+| **Docker Compose con DNS embebido** | Configuración manual de IPs fijas o Consul complejo | Simplifica la operación académica y permite el uso de nombres canónicos estables (`http://catalog-streaming:8000`). |
+| **Proxy Nginx mínimo en `02`** | Que el navegador llame a cada servicio por su puerto; gateway completo desde `02` | Mantiene la UI funcionando con un solo origen (cookie y sin CORS) sin adelantar el gateway, que es el tema de `03`. |
+| **JWT validado en cada servicio** | Validar la sesión preguntándole a `users-playlists` en cada petición | El token se firma con un secreto compartido y no guarda estado: el streaming no depende de que `users-playlists` responda. |
+| **API interna `/internal/...` con clientes que conservan la firma del monolito** | Reescribir la lógica de negocio alrededor de llamadas remotas | El cambio de `import` a HTTP queda en `app/clients/`; `service.py` de cada módulo casi no cambia y la diferencia entre ramas se lee fácil. |
+| **Código transversal copiado por servicio** (`shared/`, clientes) | Un paquete común instalado en los tres | Cada servicio se construye y evoluciona solo, como el `compartido/` de Mexi Banco; se acepta la duplicación. |
 | **Degradación elegante en el Gateway** | Cancelar la petición completa si algún servicio secundario falla | Si el servicio de métricas no está disponible, el usuario puede seguir escuchando su canción sin interrupciones. |
 
 ---
@@ -187,5 +219,7 @@ docker compose down -v
 ## 10. Preguntas abiertas y desacuerdos
 
 1. **Protocolo de comunicación interna para streaming:** ¿Conviene exponer el streaming directamente por HTTP REST con `StreamingResponse` de FastAPI o implementar un canal gRPC con streaming unidireccional? *(Acuerdo inicial: HTTP Range Requests en REST por facilidad de consumo desde navegador/cliente estándar).*
-2. **Almacenamiento de archivos binarios:** ¿Montar una carpeta compartida en el host con volúmenes de Docker o levantar un contenedor con almacenamiento de objetos tipo MinIO compatible con S3? *(Acuerdo inicial: volumen local montado en el contenedor de catálogo para simplicidad y menor sobrecarga).*
-3. **Manejo de autenticación distribuida:** ¿Pasar tokens JWT sin estado firmados por el Gateway a los servicios, o validar sesiones directamente en `users-service`?
+2. **Almacenamiento de archivos binarios:** ¿Montar una carpeta compartida en el host con volúmenes de Docker o levantar un contenedor con almacenamiento de objetos tipo MinIO compatible con S3? *(Acuerdo inicial: volumen local montado en el contenedor de catálogo para simplicidad y menor sobrecarga). En `03`, con tres réplicas del catálogo, el volumen `media` se comparte entre ellas; si eso estorba, MinIO vuelve a la mesa.*
+3. **Manejo de autenticación distribuida:** *(Resuelto en `02`: JWT firmado por `users-playlists` y validado localmente en cada servicio con el secreto compartido.)* Queda abierto si en `03` el gateway valida el token antes de enrutar.
+4. **Gateway y directorio para `03`:** ¿Nginx con `upstream` y Consul, Traefik leyendo el directorio, o un gateway propio en FastAPI? El curso usa Spring Cloud Gateway y Eureka; en la defensa hay que explicar dónde vive cada pieza en nuestra tecnología.
+5. **Almacén de telemetría para `06`:** ¿Mantener los eventos en PostgreSQL con particiones por fecha o moverlos a un almacén orientado a escrituras? Se decide con mediciones de `05`.

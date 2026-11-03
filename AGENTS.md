@@ -2,53 +2,74 @@
 
 ## 1. Arquitectura del proyecto
 
-FLDSMDFR es un **monolito modular**: una sola aplicación FastAPI, un solo proceso y una sola base de datos PostgreSQL, organizada para poder separarse después en servicios (PRD §6).
+En la rama `02-separacion`, FLDSMDFR son **tres servicios FastAPI** independientes, cada uno con **su propia base de datos** PostgreSQL, que se comunican **por HTTP** con los nombres DNS de Docker Compose, más un proxy Nginx (`web`) que sirve la UI y reparte `/api` por prefijo (PRD §6). La rama `01-monolito` conserva el monolito modular del que salieron.
 
-- **Módulos claros:** cada módulo tiene una responsabilidad específica.
-- **Límites bien definidos:** cada módulo expone solo su interfaz pública.
-- **Dependencias controladas:** se evita el acoplamiento innecesario entre módulos.
+- **Servicios autónomos:** cada uno se construye, se prueba y se despliega solo.
+- **Una base por servicio:** ningún servicio lee ni escribe la base de otro.
+- **Contratos explícitos:** lo que un servicio necesita de otro lo pide a su API interna (`/internal/...`), nunca por import.
 
 ### 1.1. Estructura general
 
 ```text
-app/modules/   # Lógica de negocio: users, catalog, playlists, playback, social
-app/db/        # Acceso y gestión de datos: sesión, base declarativa, migraciones Alembic
-app/shared/    # Transversal: errores uniformes, seguridad (JWT, hashing), dependencias
-app/main.py    # Ensamblado de la aplicación; app/spa.py sirve el SPA compilado
-ui/            # Interfaz de usuario (Vue 3 + Vite + TypeScript)
-scripts/       # Entrypoint del contenedor y semilla idempotente
-tests/         # Pruebas de backend (pytest), incluida la de arquitectura
+services/
+  users-playlists/     # módulos users, playlists y social; emite los JWT
+  catalog-streaming/   # módulo catalog: canciones, audio y portadas
+  playback-metrics/    # módulo playback: reproducciones, historial y métricas
+web/                   # Nginx: compila y sirve ui/, reparte /api por prefijo
+ui/                    # Interfaz de usuario (Vue 3 + Vite + TypeScript)
+docker/initdb/         # crea las tres bases y sus copias _test
 ```
 
-Cada módulo de `app/modules/<nombre>/` tiene `router.py` (HTTP), `service.py` (lógica), `repository.py` (consultas), `models.py` (tablas) y `schemas.py` (contratos Pydantic).
+Cada servicio tiene la misma forma interna:
 
-**Regla de módulos (obligatoria):**
+```text
+app/main.py, app/config.py
+app/modules/<nombre>/  # router.py, service.py, repository.py, models.py, schemas.py
+app/clients/           # clientes HTTP de otros servicios (solo en quien los consume)
+app/db/                # sesión, base declarativa y su propia cadena de migraciones Alembic
+app/shared/            # errores uniformes, JWT, dependencias (copia por servicio)
+scripts/               # entrypoint y semilla idempotente (si aplica)
+tests/                 # pytest, incluida su prueba de arquitectura
+```
+
+**Regla de servicios (obligatoria):**
+
+- Un servicio nunca importa código de otro servicio. Lo que necesite lo pide por HTTP a `/internal/...` mediante un cliente en `app/clients/`, que traduce un `404` remoto al mismo `NotFound` y una falla de red o `5xx` a `503 service_unavailable`.
+- `/internal/...` no se expone por el proxy; solo se usa dentro de la red de Compose.
+- No hay llaves foráneas ni consultas entre bases de servicios distintos; las referencias son identificadores.
+- Solo `users-playlists` emite tokens; los demás validan el JWT localmente con `FLDSMDFR_JWT_SECRET`.
+
+**Regla de módulos (dentro de un servicio con varios módulos, como `users-playlists`):**
 
 - Un módulo solo usa a otro mediante `app.modules.<otro>.service` y `app.modules.<otro>.schemas`. Nunca importa su `models` ni su `repository`.
-- No hay llaves foráneas entre tablas de módulos distintos; las referencias entre módulos son identificadores sin FK.
-- Lo verifica `tests/test_architecture.py`. Si una prueba de arquitectura falla, se corrige el código, no la prueba.
+
+Ambas reglas las verifica `tests/test_architecture.py` de cada servicio. Si una prueba de arquitectura falla, se corrige el código, no la prueba.
 
 ### 1.2. Archivos del proyecto
 
 - `AGENTS.md`: define cómo debe trabajar el agente de programación.
 - `DESIGN.md`: fuente de verdad visual del producto (diseño, componentes y experiencia de usuario). La UI debe seguirlo.
 - `SKILLS.md`: reúne habilidades, procedimientos y prompts reutilizables para tareas de desarrollo.
-- `docs/PRD.md`: requisitos y plan de separación en servicios.
+- `docs/PRD.md`: requisitos y plan de separación en servicios (ramas `02` a `06`).
+- `docs/superpowers/`: diseño y plan de implementación de cada rama.
 
 ## 2. Pila tecnológica
 
 - **Backend:** Python 3.12, FastAPI, SQLAlchemy 2 asíncrono (asyncpg), Alembic, Pydantic, JWT (PyJWT), Argon2 (pwdlib) y mutagen para leer audio.
 - **Base de datos:** PostgreSQL 16.
 - **Frontend:** Vue 3, Vue Router y Vite con TypeScript. Sin Pinia. Pruebas con Vitest.
-- **Empaquetado:** Docker Compose (`db` + `app`; perfil `test` para las pruebas). El SPA se compila en el `Dockerfile` y lo sirve FastAPI.
+- **Empaquetado:** Docker Compose (`db`, los tres servicios y `web`; perfil `test` con `tests-catalog`, `tests-users` y `tests-playback`). El SPA se compila en `web/Dockerfile` y lo sirve Nginx.
+- **Comunicación entre servicios:** HTTP con `httpx`; en las pruebas, los servicios remotos se sustituyen por versiones falsas con el mismo contrato.
 - **Calidad:** `ruff` para el backend y `vue-tsc` en el build del frontend.
 
 Comandos habituales:
 
 ```bash
-docker compose up --build                       # levantar todo (http://localhost:8000)
-docker compose --profile test run --rm tests    # pruebas de backend
-docker compose run --rm tests ruff check .      # lint
+docker compose up --build -d                              # levantar todo (http://localhost:8000)
+docker compose --profile test run --rm tests-catalog      # pruebas de catalog-streaming
+docker compose --profile test run --rm tests-users        # pruebas de users-playlists
+docker compose --profile test run --rm tests-playback     # pruebas de playback-metrics
+docker compose --profile test run --rm tests-users ruff check .   # lint (igual en los otros)
 cd ui && npm test && npm run build              # pruebas y build del frontend
 ```
 
