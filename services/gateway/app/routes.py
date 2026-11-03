@@ -16,7 +16,14 @@ _PREFIXES: list[tuple[str, str]] = [
 
 
 def service_for(path: str) -> str | object:
-    """Nombre lógico del servicio para `path`, o BLOCKED. Lo que no es /api va al SPA (web)."""
+    """Nombre lógico del servicio para `path` (ya decodificado), o BLOCKED.
+
+    Lo que no es /api va al SPA (web). Una ruta con segmentos `.` o `..` se bloquea: httpx los
+    resuelve al reenviar, así que `/api/../internal/...` llegaría a /internal. Los navegadores ya
+    los quitan antes de enviar, de modo que solo los manda quien busca saltarse esta tabla.
+    """
+    if any(segment in (".", "..") for segment in path.split("/")):
+        return BLOCKED
     if path == "/internal" or path.startswith("/internal/"):
         return BLOCKED
     for prefix, service in _PREFIXES:

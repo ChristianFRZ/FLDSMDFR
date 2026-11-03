@@ -42,7 +42,13 @@ def upstream(label: str) -> FastAPI:
     async def echo(path: str, request: Request):
         body = await request.body()
         return JSONResponse(
-            {"label": label, "path": f"/{path}", "query": request.url.query, "bytes": len(body)},
+            {
+                "label": label,
+                "path": f"/{path}",
+                "raw_path": request.scope["raw_path"].decode("latin-1"),
+                "query": request.url.query,
+                "bytes": len(body),
+            },
             headers={"X-Instancia": label},
         )
 

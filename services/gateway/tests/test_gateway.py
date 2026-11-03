@@ -1,7 +1,13 @@
 """El gateway: única puerta, reparte por prefijo y en round-robin entre instancias vivas."""
 
+import asyncio
+import json
+from urllib.parse import unquote
+
+import httpx
 import pytest
 
+from app.main import app
 from tests.conftest import AUDIO
 
 
@@ -66,6 +72,70 @@ async def test_internal_is_404(client, cluster):
     r = await client.get("/internal/users/count")
     assert r.status_code == 404
     assert r.json()["error"]["code"] == "not_found"
+
+
+async def _raw_get(raw: str) -> tuple[int, dict]:
+    """GET con la ruta cruda: un cliente HTTP quitaría los . y .. (como curl --path-as-is)."""
+    scope = {
+        "type": "http",
+        "asgi": {"version": "3.0"},
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": unquote(raw),
+        "raw_path": raw.encode(),
+        "root_path": "",
+        "query_string": b"",
+        "headers": [(b"host", b"gateway")],
+        "client": ("127.0.0.1", 1),
+        "server": ("gateway", 8000),
+    }
+    sent: list[dict] = []
+
+    done = asyncio.Event()
+    requested = False
+
+    async def receive():
+        nonlocal requested
+        if not requested:
+            requested = True
+            return {"type": "http.request", "body": b"", "more_body": False}
+        await done.wait()
+        return {"type": "http.disconnect"}
+
+    async def send(message):
+        sent.append(message)
+        if message["type"] == "http.response.body" and not message.get("more_body"):
+            done.set()
+
+    await app(scope, receive, send)
+    status = next(m["status"] for m in sent if m["type"] == "http.response.start")
+    body = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body")
+    return status, json.loads(body)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "/api/../internal/users/count",
+        "/api/%2e%2e/internal/users/count",
+        "/api/songs/../../internal/songs/count",
+        "/api/./../internal/songs/count",
+        "/./internal/users/count",
+    ],
+)
+async def test_internal_dot_segments_is_404(cluster, raw):
+    """Los segmentos . y .. no sirven para saltar el bloqueo de /internal."""
+    status, body = await _raw_get(raw)
+    assert status == 404
+    assert body["error"]["code"] == "not_found"
+
+
+async def test_percent_encoding_preserved(client, cluster):
+    """Un %25 literal (artista llamado "%41") llega igual al servicio, no como "A"."""
+    r = await client.put(httpx.URL("http://gateway", raw_path=b"/api/me/follows/%2541"))
+    assert r.status_code == 200
+    assert r.json()["raw_path"] == "/api/me/follows/%2541"
 
 
 async def test_range_passthrough_206(client, cluster):

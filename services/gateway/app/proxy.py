@@ -14,8 +14,15 @@ from app.shared import discovery
 
 # Cabeceras de un solo salto (RFC 9110 §7.6.1): no se reenvían.
 _HOP_BY_HOP = {
-    "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
-    "te", "trailer", "transfer-encoding", "upgrade", "host",
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    "host",
 }
 
 _balancer = discovery.RoundRobin()
@@ -59,7 +66,8 @@ async def forward(service: str, request: Request) -> Response:
         ("x-forwarded-proto", request.url.scheme),
         ("x-forwarded-host", request.headers.get("host", "")),
     ]
-    url = f"{base}{request.url.path}"
+    # La ruta tal como llegó: decodificarla y volver a codificarla cambia un %25 literal.
+    url = f"{base}{request.scope['raw_path'].decode('latin-1')}"
     if request.url.query:
         url += f"?{request.url.query}"
     upstream_request = _http().build_request(
