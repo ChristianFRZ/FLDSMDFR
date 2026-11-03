@@ -1,6 +1,21 @@
-# 02-separacion: tres servicios con su propia base, comunicados por HTTP con los nombres DNS
-# de Compose, y un proxy (web) que sirve la UI y reparte /api por prefijo.
-# Solo se publica el puerto 8000 (web).
+# 03-gateway-discovery-balanceo: los servicios de 02 se encuentran solos.
+#   - discovery (Consul, panel en :8500): el directorio. Cada instancia se registra al arrancar
+#     con su nombre lógico, su IP y un check TTL, y manda un latido.
+#   - gateway (:8000): la ÚNICA puerta. Reparte por prefijo y en round-robin entre las
+#     instancias vivas que anuncia el directorio.
+#   - catalog-streaming en TRES réplicas. Cada respuesta dice cuál contestó (X-Instancia).
+#   - users-playlists y playback-metrics llaman al catálogo por nombre lógico y balancean ellos.
+# Solo se publican 8000 (gateway) y 8500 (panel del directorio).
+
+# Tiempos del directorio, cortos para clase. Se cambian desde la terminal sin tocar este archivo,
+# por ejemplo: FLDSMDFR_TTL_S=30 docker compose up -d
+x-directorio: &directorio
+  FLDSMDFR_DISCOVERY_ENABLED: "true"
+  FLDSMDFR_CONSUL_URL: http://discovery:8500
+  FLDSMDFR_HEARTBEAT_S: ${FLDSMDFR_HEARTBEAT_S:-3}
+  FLDSMDFR_TTL_S: ${FLDSMDFR_TTL_S:-10}
+  FLDSMDFR_DEREGISTER_AFTER: ${FLDSMDFR_DEREGISTER_AFTER:-1m}
+  FLDSMDFR_LB_CACHE_S: ${FLDSMDFR_LB_CACHE_S:-5}
 
 x-jwt: &jwt
   FLDSMDFR_JWT_SECRET: ${FLDSMDFR_JWT_SECRET:-cambia-este-secreto-en-produccion}
@@ -10,9 +25,9 @@ x-test-secret: &test-secret
 
 x-healthcheck: &healthcheck
   test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-  interval: 10s
-  timeout: 5s
-  retries: 5
+  interval: 5s
+  timeout: 3s
+  retries: 10
 
 services:
   db:
@@ -30,18 +45,53 @@ services:
       timeout: 3s
       retries: 10
 
-  catalog-streaming:
+  # El directorio. Publicado en el 8500 solo para ver el panel; los servicios usan la red interna.
+  discovery:
+    image: hashicorp/consul:1.20
+    command: agent -dev -client 0.0.0.0 -log-level warn
+    ports:
+      - "8500:8500"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8500/v1/status/leader"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Migra y siembra el catálogo UNA vez; las réplicas esperan a que termine.
+  catalog-init:
     build:
       context: .
       dockerfile: services/catalog-streaming/Dockerfile
-    env_file:
-      - path: .env
-        required: false
+    entrypoint: ["/app/scripts/init.sh"]
     environment:
       <<: *jwt
       FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/catalog
     depends_on:
       db:
+        condition: service_healthy
+    volumes:
+      - media:/media/audio
+    restart: "no"
+
+  # Tres réplicas, sin puertos publicados (se llega por el gateway). Comparten el volumen de audio.
+  # Para cambiar el número: docker compose up -d --scale catalog-streaming=2
+  catalog-streaming:
+    build:
+      context: .
+      dockerfile: services/catalog-streaming/Dockerfile
+    deploy:
+      replicas: 3
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: [*jwt, *directorio]
+      FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/catalog
+      FLDSMDFR_SERVICE_NAME: catalog-streaming
+    depends_on:
+      catalog-init:
+        condition: service_completed_successfully
+      discovery:
         condition: service_healthy
     volumes:
       - media:/media/audio
@@ -56,9 +106,9 @@ services:
       - path: .env
         required: false
     environment:
-      <<: *jwt
+      <<: [*jwt, *directorio]
       FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/users_playlists
-      FLDSMDFR_CATALOG_URL: http://catalog-streaming:8000
+      FLDSMDFR_SERVICE_NAME: users-playlists
       FLDSMDFR_COOKIE_SECURE: ${FLDSMDFR_COOKIE_SECURE:-false}
       FLDSMDFR_ADMIN_EMAIL: ${FLDSMDFR_ADMIN_EMAIL:-admin@fldsmdfr.mx}
       FLDSMDFR_ADMIN_PASSWORD: ${FLDSMDFR_ADMIN_PASSWORD:-admin12345}
@@ -67,7 +117,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      # Solo para la semilla del casete demo; en marcha, el servicio arranca sin el catálogo.
+      discovery:
+        condition: service_healthy
+      # Solo para la semilla del casete demo: las réplicas sanas ya están en el directorio.
       catalog-streaming:
         condition: service_healthy
     volumes:
@@ -83,34 +135,51 @@ services:
       - path: .env
         required: false
     environment:
-      <<: *jwt
+      <<: [*jwt, *directorio]
       FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/playback
-      FLDSMDFR_CATALOG_URL: http://catalog-streaming:8000
-      FLDSMDFR_USERS_URL: http://users-playlists:8000
+      FLDSMDFR_SERVICE_NAME: playback-metrics
     depends_on:
       db:
+        condition: service_healthy
+      discovery:
         condition: service_healthy
     healthcheck: *healthcheck
     restart: unless-stopped
 
+  # La única puerta. El navegador solo necesita http://localhost:8000.
+  gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    environment:
+      <<: *directorio
+      FLDSMDFR_SERVICE_NAME: gateway
+    depends_on:
+      discovery:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck: *healthcheck
+    restart: unless-stopped
+
+  # Solo el SPA, detrás del gateway; se registra en el directorio como "web".
   web:
     build:
       context: .
       dockerfile: web/Dockerfile
+    environment:
+      <<: *directorio
     depends_on:
-      - catalog-streaming
-      - users-playlists
-      - playback-metrics
-    ports:
-      - "8000:80"
+      discovery:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     restart: unless-stopped
 
-  # Pruebas por servicio (perfil test): cada una contra su base _test.
+  # Pruebas por servicio (perfil test): cada una contra su base _test, sin directorio real.
   tests-catalog:
     build:
       context: .
