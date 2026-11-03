@@ -116,7 +116,7 @@ async def test_top_degraded_when_catalog_fails(user, session, media_dir, take_do
     a = await insert_song(session, media_dir, title="A")
     await user.post("/api/playbacks", json=_event(a.id))
 
-    take_down("http://catalog.test")
+    take_down("catalog-streaming")
     top = await _top(user)
     assert [(t["song_id"], t["title"], t["play_count"]) for t in top] == [
         (str(a.id), "Canción no disponible", 1)

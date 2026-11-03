@@ -8,8 +8,6 @@ os.environ.setdefault(
     "postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/playback_test",
 )
 os.environ.setdefault("FLDSMDFR_JWT_SECRET", "secreto-de-pruebas-con-longitud-suficiente-32b")
-os.environ["FLDSMDFR_CATALOG_URL"] = "http://catalog.test"
-os.environ["FLDSMDFR_USERS_URL"] = "http://users.test"
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402
@@ -67,18 +65,18 @@ async def client():
 @pytest.fixture(autouse=True)
 def catalog() -> FakeCatalog:
     fake = FakeCatalog()
-    remote.set_transport("http://catalog.test", httpx.ASGITransport(app=fake.app))
+    remote.set_transport("catalog-streaming", httpx.ASGITransport(app=fake.app))
     FakeCatalog.current = fake
     yield fake
-    remote.set_transport("http://catalog.test", None)
+    remote.set_transport("catalog-streaming", None)
 
 
 @pytest.fixture(autouse=True)
 def users() -> FakeUsers:
     fake = FakeUsers()
-    remote.set_transport("http://users.test", httpx.ASGITransport(app=fake.app))
+    remote.set_transport("users-playlists", httpx.ASGITransport(app=fake.app))
     yield fake
-    remote.set_transport("http://users.test", None)
+    remote.set_transport("users-playlists", None)
 
 
 class _Down(httpx.AsyncBaseTransport):
@@ -88,5 +86,5 @@ class _Down(httpx.AsyncBaseTransport):
 
 @pytest.fixture
 def take_down(catalog, users):
-    """take_down("http://catalog.test") simula `docker compose stop` de ese servicio."""
+    """take_down("catalog-streaming") simula `docker compose stop` de ese servicio."""
     return lambda base_url: remote.set_transport(base_url, _Down())

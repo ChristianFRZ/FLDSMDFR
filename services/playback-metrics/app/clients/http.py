@@ -1,15 +1,21 @@
-"""Llamadas HTTP a otros servicios por la red de Compose (`http://<servicio>:8000`).
+"""Llamadas HTTP a otros servicios, por nombre lógico y balanceadas del lado del cliente.
 
-En 02-separacion no hay timeouts propios, reintentos ni circuit breaker (llegan en la rama
-04): si el otro servicio no responde o falla con 5xx, la petición termina en un 503 uniforme.
+Cada llamada pide al directorio (Consul, con caché de `lb_cache_s`) las instancias vivas del
+servicio y elige una en round-robin, como el `@LoadBalanced` de Mexi Banco. Todavía no hay
+timeouts propios, reintentos en otra instancia ni circuit breaker (rama 04): si no hay
+instancias, la elegida no responde o falla con 5xx, la petición termina en un 503 uniforme.
 """
 
 import httpx
 
+from app.shared import discovery
 from app.shared.errors import DomainError, NotFound
 
-_clients: dict[str, httpx.AsyncClient] = {}
-_transports: dict[str, httpx.AsyncBaseTransport | None] = {}
+_overrides: dict[str, httpx.AsyncBaseTransport] = {}
+_override_clients: dict[str, httpx.AsyncClient] = {}
+_network_transport: httpx.AsyncBaseTransport | None = None
+_network: httpx.AsyncClient | None = None
+_balancer = discovery.RoundRobin()
 
 
 class RemoteUnavailable(DomainError):
@@ -23,24 +29,42 @@ class RemoteUnavailable(DomainError):
         self.service = service
 
 
-def set_transport(base_url: str, transport: httpx.AsyncBaseTransport | None) -> None:
-    """Solo para pruebas: sustituye la red real por un transporte (ASGI o simulado)."""
-    _transports[base_url] = transport
-    _clients.pop(base_url, None)
+def set_transport(service: str, transport: httpx.AsyncBaseTransport | None) -> None:
+    """Solo para pruebas: atiende `service` con este transporte, sin pasar por el directorio."""
+    _override_clients.pop(service, None)
+    if transport is None:
+        _overrides.pop(service, None)
+    else:
+        _overrides[service] = transport
 
 
-def get_client(base_url: str) -> httpx.AsyncClient:
-    client = _clients.get(base_url)
-    if client is None:
-        client = httpx.AsyncClient(base_url=base_url, transport=_transports.get(base_url))
-        _clients[base_url] = client
-    return client
+def set_network_transport(transport: httpx.AsyncBaseTransport | None) -> None:
+    """Solo para pruebas: la "red" hacia las instancias que devuelve el directorio."""
+    global _network_transport, _network
+    _network_transport, _network = transport, None
 
 
-async def call(service: str, base_url: str, method: str, path: str, **kwargs) -> httpx.Response:
-    """Hace la petición y traduce fallas: 404 → NotFound con el código remoto; red o 5xx → 503."""
+async def _target(service: str) -> tuple[httpx.AsyncClient, str]:
+    if service in _overrides:
+        client = _override_clients.get(service)
+        if client is None:
+            client = httpx.AsyncClient(base_url=f"http://{service}", transport=_overrides[service])
+            _override_clients[service] = client
+        return client, ""
+    global _network
+    if _network is None:
+        _network = httpx.AsyncClient(transport=_network_transport)
     try:
-        response = await get_client(base_url).request(method, path, **kwargs)
+        return _network, await _balancer.pick(service)
+    except discovery.NoInstances as exc:
+        raise RemoteUnavailable(service) from exc
+
+
+async def call(service: str, method: str, path: str, **kwargs) -> httpx.Response:
+    """Hace la petición y traduce fallas: 404 → NotFound con el código remoto; red o 5xx → 503."""
+    client, base = await _target(service)
+    try:
+        response = await client.request(method, f"{base}{path}", **kwargs)
     except httpx.HTTPError as exc:
         raise RemoteUnavailable(service) from exc
     if response.status_code == 404:

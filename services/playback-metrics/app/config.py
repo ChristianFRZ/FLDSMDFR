@@ -11,9 +11,16 @@ class Settings(BaseSettings):
     database_url: str
     jwt_secret: str
     cookie_name: str = "fldsmdfr_session"
-    catalog_url: str = "http://catalog-streaming:8000"
-    users_url: str = "http://users-playlists:8000"
 
+    # Directorio (Consul). Tiempos cortos para clase; ver app/shared/discovery.py.
+    consul_url: str = "http://discovery:8500"
+    service_name: str = "playback-metrics"
+    service_port: int = 8000
+    discovery_enabled: bool = False
+    heartbeat_s: float = 3
+    ttl_s: int = 10
+    deregister_after: str = "1m"
+    lb_cache_s: float = 5
 
 @lru_cache
 def get_settings() -> Settings:

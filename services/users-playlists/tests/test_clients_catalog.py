@@ -42,7 +42,7 @@ async def test_catalog_5xx_returns_503(user, catalog):
     async def boom(request: httpx.Request) -> httpx.Response:
         return httpx.Response(500, json={"error": {"code": "internal", "message": "x"}})
 
-    remote.set_transport("http://catalog.test", httpx.MockTransport(boom))
+    remote.set_transport("catalog-streaming", httpx.MockTransport(boom))
     r = await user.put(f"/api/me/favorites/{uuid.uuid4()}")
     assert r.status_code == 503
     assert r.json()["error"]["code"] == "service_unavailable"

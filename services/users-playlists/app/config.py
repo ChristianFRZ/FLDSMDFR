@@ -17,12 +17,20 @@ class Settings(BaseSettings):
     # Portadas de casetes en <media_dir>/covers/playlists (volumen propio, no el del catálogo).
     media_dir: Path = Path("/media")
     seed_dir: Path = Path("media/seed")
-    catalog_url: str = "http://catalog-streaming:8000"
     admin_email: str
     admin_password: str
     listener_email: str
     listener_password: str
 
+    # Directorio (Consul). Tiempos cortos para clase; ver app/shared/discovery.py.
+    consul_url: str = "http://discovery:8500"
+    service_name: str = "users-playlists"
+    service_port: int = 8000
+    discovery_enabled: bool = False
+    heartbeat_s: float = 3
+    ttl_s: int = 10
+    deregister_after: str = "1m"
+    lb_cache_s: float = 5
 
 @lru_cache
 def get_settings() -> Settings:

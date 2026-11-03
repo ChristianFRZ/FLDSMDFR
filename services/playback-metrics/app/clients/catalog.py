@@ -6,14 +6,12 @@ from collections.abc import Sequence
 
 from app.clients import http
 from app.clients.catalog_schemas import SongOut
-from app.config import get_settings
 
 SERVICE = "catalog-streaming"
 
 
 async def _call(method: str, path: str, **kwargs):
-    base_url = get_settings().catalog_url
-    return await http.call(SERVICE, base_url, method, f"/internal{path}", **kwargs)
+    return await http.call(SERVICE, method, f"/internal{path}", **kwargs)
 
 
 def normalize_artist(name: str) -> str:

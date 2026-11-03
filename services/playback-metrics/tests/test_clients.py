@@ -27,7 +27,7 @@ async def test_record_playback_unknown_song_404(user):
 
 async def test_record_playback_catalog_down_503(user, session, media_dir, take_down):
     song = await insert_song(session, media_dir)
-    take_down("http://catalog.test")
+    take_down("catalog-streaming")
     r = await user.post("/api/playbacks", json=_event(song.id))
     assert r.status_code == 503
     assert r.json()["error"]["code"] == "service_unavailable"
@@ -36,7 +36,7 @@ async def test_record_playback_catalog_down_503(user, session, media_dir, take_d
 
 async def test_summary_users_down_503(client, session, take_down):
     admin = await make_admin_client(session, client)
-    take_down("http://users.test")
+    take_down("users-playlists")
     r = await admin.get("/api/metrics/summary")
     assert r.status_code == 503
     assert "users-playlists" in r.json()["error"]["message"]
@@ -45,6 +45,6 @@ async def test_summary_users_down_503(client, session, take_down):
 
 async def test_empty_history_needs_no_catalog(user, take_down):
     """Con historial vacío no se llama al catálogo; con datos responde 503 (lo mejora 04)."""
-    take_down("http://catalog.test")
+    take_down("catalog-streaming")
     r = await user.get("/api/me/history")
     assert r.status_code == 200  # historial vacío: no hay ids que pedirle al catálogo

@@ -15,7 +15,6 @@ os.environ.setdefault("FLDSMDFR_LISTENER_EMAIL", "oyente@test.mx")
 os.environ.setdefault("FLDSMDFR_LISTENER_PASSWORD", "oyente12345")
 _MEDIA_TMP = tempfile.TemporaryDirectory(prefix="fldsmdfr-media-")
 os.environ["FLDSMDFR_MEDIA_DIR"] = _MEDIA_TMP.name
-os.environ["FLDSMDFR_CATALOG_URL"] = "http://catalog.test"
 
 import httpx  # noqa: E402
 import pytest  # noqa: E402
@@ -72,10 +71,10 @@ async def client():
 def catalog() -> FakeCatalog:
     """Cada prueba arranca con un catálogo falso vacío en lugar de catalog-streaming."""
     fake = FakeCatalog()
-    remote.set_transport("http://catalog.test", httpx.ASGITransport(app=fake.app))
+    remote.set_transport("catalog-streaming", httpx.ASGITransport(app=fake.app))
     FakeCatalog.current = fake
     yield fake
-    remote.set_transport("http://catalog.test", None)
+    remote.set_transport("catalog-streaming", None)
 
 
 class _Down(httpx.AsyncBaseTransport):
@@ -86,10 +85,10 @@ class _Down(httpx.AsyncBaseTransport):
 @pytest.fixture
 def catalog_down(catalog) -> None:
     """Simula `docker compose stop catalog-streaming`."""
-    remote.set_transport("http://catalog.test", _Down())
+    remote.set_transport("catalog-streaming", _Down())
 
 
 @pytest.fixture
 def catalog_down_later(catalog):
     """Para apagar el catálogo a mitad de la prueba, después de preparar los datos."""
-    return lambda: remote.set_transport("http://catalog.test", _Down())
+    return lambda: remote.set_transport("catalog-streaming", _Down())
