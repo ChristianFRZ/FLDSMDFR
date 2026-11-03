@@ -15,6 +15,6 @@ RUN pip install --no-cache-dir ".[dev]" && rm -rf build *.egg-info
 COPY services/catalog-streaming/scripts ./scripts
 COPY services/catalog-streaming/tests ./tests
 COPY media/seed ./media/seed
-RUN chmod +x /app/scripts/entrypoint.sh
+RUN chmod +x /app/scripts/entrypoint.sh /app/scripts/init.sh
 
 ENTRYPOINT ["/app/scripts/entrypoint.sh"]
