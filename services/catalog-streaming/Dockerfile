@@ -11,7 +11,7 @@ ENV PYTHONPATH=/app PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
 COPY services/catalog-streaming/pyproject.toml services/catalog-streaming/alembic.ini ./
 COPY services/catalog-streaming/app ./app
-RUN pip install --no-cache-dir ".[dev]"
+RUN pip install --no-cache-dir ".[dev]" && rm -rf build *.egg-info
 COPY services/catalog-streaming/scripts ./scripts
 COPY services/catalog-streaming/tests ./tests
 COPY media/seed ./media/seed
