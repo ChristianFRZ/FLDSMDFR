@@ -164,6 +164,17 @@ services:
       - ./services/playback-metrics/app:/app/app
       - ./services/playback-metrics/tests:/app/tests
 
+  tests-gateway:
+    build:
+      context: .
+      dockerfile: services/gateway/Dockerfile
+    profiles: ["test"]
+    entrypoint: []
+    command: pytest -q
+    volumes:
+      - ./services/gateway/app:/app/app
+      - ./services/gateway/tests:/app/tests
+
 volumes:
   pgdata-servicios:
   media:
