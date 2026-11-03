@@ -1,0 +1,31 @@
+import uuid
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class SongOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    title: str
+    artist: str
+    album: str
+    duration_seconds: int
+    is_active: bool
+    has_cover: bool = False
+    created_at: datetime | None = None
+    # Para el panel de Streaming: formato y bitrate estimado (size_bytes * 8 / duración).
+    size_bytes: int = 0
+    mime_type: str = ""
+
+
+class SongPage(BaseModel):
+    items: list[SongOut]
+    total: int
+
+
+class SongUpdate(BaseModel):
+    title: str | None = Field(None, min_length=1, max_length=200)
+    artist: str | None = Field(None, min_length=1, max_length=200)
+    album: str | None = Field(None, min_length=1, max_length=200)

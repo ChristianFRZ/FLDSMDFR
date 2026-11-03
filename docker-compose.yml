@@ -1,11 +1,18 @@
-x-app-env: &app-env
-  FLDSMDFR_DATABASE_URL: ${FLDSMDFR_DATABASE_URL:-postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/fldsmdfr}
+# 02-separacion: tres servicios con su propia base, comunicados por HTTP con los nombres DNS
+# de Compose, y un proxy (web) que sirve la UI y reparte /api por prefijo.
+# Solo se publica el puerto 8000 (web).
+
+x-jwt: &jwt
   FLDSMDFR_JWT_SECRET: ${FLDSMDFR_JWT_SECRET:-cambia-este-secreto-en-produccion}
-  FLDSMDFR_COOKIE_SECURE: ${FLDSMDFR_COOKIE_SECURE:-false}
-  FLDSMDFR_ADMIN_EMAIL: ${FLDSMDFR_ADMIN_EMAIL:-admin@fldsmdfr.mx}
-  FLDSMDFR_ADMIN_PASSWORD: ${FLDSMDFR_ADMIN_PASSWORD:-admin12345}
-  FLDSMDFR_LISTENER_EMAIL: ${FLDSMDFR_LISTENER_EMAIL:-oyente@fldsmdfr.mx}
-  FLDSMDFR_LISTENER_PASSWORD: ${FLDSMDFR_LISTENER_PASSWORD:-oyente12345}
+
+x-test-secret: &test-secret
+  FLDSMDFR_JWT_SECRET: secreto-de-pruebas-con-longitud-suficiente-32b
+
+x-healthcheck: &healthcheck
+  test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+  interval: 10s
+  timeout: 5s
+  retries: 5
 
 services:
   db:
@@ -15,7 +22,7 @@ services:
       POSTGRES_PASSWORD: fldsmdfr
       POSTGRES_DB: fldsmdfr
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata-servicios:/var/lib/postgresql/data
       - ./docker/initdb:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fldsmdfr"]
@@ -23,42 +30,141 @@ services:
       timeout: 3s
       retries: 10
 
-  app:
-    build: .
+  catalog-streaming:
+    build:
+      context: .
+      dockerfile: services/catalog-streaming/Dockerfile
     env_file:
       - path: .env
         required: false
-    environment: *app-env
+    environment:
+      <<: *jwt
+      FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/catalog
     depends_on:
       db:
         condition: service_healthy
-    ports:
-      - "8000:8000"
     volumes:
       - media:/media/audio
+    healthcheck: *healthcheck
+    restart: unless-stopped
+
+  users-playlists:
+    build:
+      context: .
+      dockerfile: services/users-playlists/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *jwt
+      FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/users_playlists
+      FLDSMDFR_CATALOG_URL: http://catalog-streaming:8000
+      FLDSMDFR_COOKIE_SECURE: ${FLDSMDFR_COOKIE_SECURE:-false}
+      FLDSMDFR_ADMIN_EMAIL: ${FLDSMDFR_ADMIN_EMAIL:-admin@fldsmdfr.mx}
+      FLDSMDFR_ADMIN_PASSWORD: ${FLDSMDFR_ADMIN_PASSWORD:-admin12345}
+      FLDSMDFR_LISTENER_EMAIL: ${FLDSMDFR_LISTENER_EMAIL:-oyente@fldsmdfr.mx}
+      FLDSMDFR_LISTENER_PASSWORD: ${FLDSMDFR_LISTENER_PASSWORD:-oyente12345}
+    depends_on:
+      db:
+        condition: service_healthy
+      # Solo para la semilla del casete demo; en marcha, el servicio arranca sin el catálogo.
+      catalog-streaming:
+        condition: service_healthy
+    volumes:
+      - playlist-covers:/media/covers
+    healthcheck: *healthcheck
+    restart: unless-stopped
+
+  playback-metrics:
+    build:
+      context: .
+      dockerfile: services/playback-metrics/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      <<: *jwt
+      FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/playback
+      FLDSMDFR_CATALOG_URL: http://catalog-streaming:8000
+      FLDSMDFR_USERS_URL: http://users-playlists:8000
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck: *healthcheck
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    depends_on:
+      - catalog-streaming
+      - users-playlists
+      - playback-metrics
+    ports:
+      - "8000:80"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "wget", "-qO-", "http://localhost/api/health"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
 
-  tests:
-    build: .
+  # Pruebas por servicio (perfil test): cada una contra su base _test.
+  tests-catalog:
+    build:
+      context: .
+      dockerfile: services/catalog-streaming/Dockerfile
     profiles: ["test"]
     entrypoint: []
     command: pytest -q
     environment:
-      FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/fldsmdfr_test
+      <<: *test-secret
+      FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/catalog_test
     depends_on:
       db:
         condition: service_healthy
     volumes:
-      - ./app:/app/app
-      - ./tests:/app/tests
-      - ./scripts:/app/scripts
-      - ./media/seed:/app/media/seed
+      - ./services/catalog-streaming/app:/app/app
+      - ./services/catalog-streaming/tests:/app/tests
+      - ./services/catalog-streaming/scripts:/app/scripts
+
+  tests-users:
+    build:
+      context: .
+      dockerfile: services/users-playlists/Dockerfile
+    profiles: ["test"]
+    entrypoint: []
+    command: pytest -q
+    environment:
+      <<: *test-secret
+      FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/users_playlists_test
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./services/users-playlists/app:/app/app
+      - ./services/users-playlists/tests:/app/tests
+      - ./services/users-playlists/scripts:/app/scripts
+
+  tests-playback:
+    build:
+      context: .
+      dockerfile: services/playback-metrics/Dockerfile
+    profiles: ["test"]
+    entrypoint: []
+    command: pytest -q
+    environment:
+      <<: *test-secret
+      FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/playback_test
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./services/playback-metrics/app:/app/app
+      - ./services/playback-metrics/tests:/app/tests
 
 volumes:
-  pgdata:
+  pgdata-servicios:
   media:
+  playlist-covers:
