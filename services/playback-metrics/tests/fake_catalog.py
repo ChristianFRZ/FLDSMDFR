@@ -81,7 +81,8 @@ class FakeCatalog:
 
         @app.get("/internal/songs/count")
         async def count():
-            return {"count": len(self._active())}
+            # Como catalog-streaming: cuenta todas las filas, también las inactivas.
+            return {"count": len(self.songs)}
 
         @app.get("/internal/songs/lookup")
         async def lookup(title: str = Query(), artist: str = Query()):

@@ -77,3 +77,10 @@ async def test_internal_releases_respect_since(client, session, media_dir):
               "not_before": past.isoformat()},
     )
     assert later.json() == []
+
+
+async def test_internal_count_includes_inactive(client, session, media_dir):
+    """Contrato que replican los catálogos falsos de los otros servicios."""
+    await insert_song(session, media_dir)
+    await insert_song(session, media_dir, title="Retirada", is_active=False)
+    assert (await client.get("/internal/songs/count")).json() == {"count": 2}

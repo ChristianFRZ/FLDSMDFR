@@ -145,3 +145,13 @@ async def test_top_includes_full_song_for_playback(user, session, media_dir):
     assert item["song"]["id"] == str(song.id)
     assert item["song"]["duration_seconds"] == song.duration_seconds
     assert item["song"]["has_cover"] is False
+
+
+async def test_summary_total_songs_counts_inactive(user, session, media_dir, users):
+    """Igual que el catálogo real (y el monolito): total_songs cuenta también las retiradas."""
+    song = await insert_song(session, media_dir)
+    await insert_song(session, media_dir, title="Otra")
+    await deactivate_song(song.id)
+    admin = await make_admin_client(session, user)
+    body = (await admin.get("/api/metrics/summary")).json()
+    assert body["total_songs"] == 2

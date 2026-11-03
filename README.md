@@ -93,6 +93,8 @@ Al arrancar, cada servicio aplica sus migraciones. `catalog-streaming` importa l
 | `/internal/...` | **404**: la API interna no se expone |
 | todo lo demás | SPA (`index.html` para Vue Router) |
 
+Subidas que rebasan el límite del proxy (21 MB) reciben el mismo error en JSON que daba el monolito: `422 file_too_large` en `/api/songs` y `413 image_too_large` en las portadas de casetes.
+
 Nginx resuelve el nombre del servicio en cada petición (DNS embebido de Docker, `127.0.0.11`). Si un servicio está apagado, el proxy sigue arriba y responde `503` con el formato de error de la API.
 
 ## Contratos internos
@@ -120,6 +122,7 @@ docker compose stop catalog-streaming
 | Iniciar sesión, listar casetes, `/api/auth/me` | `200`: no necesitan al catálogo |
 | Abrir un casete | `200` **degradado**: canciones con estado `degraded` a partir de las copias guardadas (comportamiento heredado del monolito) |
 | "Lo más escuchado" (`/api/metrics/top`) | `200` degradado: "Canción no disponible" con sus conteos |
+| Resumen del administrador (`/api/metrics/summary`) | `503`: necesita el conteo de canciones del catálogo |
 | Catálogo, streaming, portadas | `503` desde el proxy |
 | Marcar favorita, registrar reproducción, historial | `503` `service_unavailable` (`El servicio catalog-streaming no está disponible…`) |
 
