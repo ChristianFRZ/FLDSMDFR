@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Index, Integer, func
+from sqlalchemy import BigInteger, DateTime, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -21,6 +21,11 @@ class PlaybackEvent(Base):
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    # Copia de la canción para el historial degradado (rama 04); vacía en eventos anteriores.
+    title_snapshot: Mapped[str | None] = mapped_column(String(200))
+    artist_snapshot: Mapped[str | None] = mapped_column(String(200))
+    album_snapshot: Mapped[str | None] = mapped_column(String(200))
+    duration_snapshot: Mapped[int | None] = mapped_column(Integer)
 
 
 Index(

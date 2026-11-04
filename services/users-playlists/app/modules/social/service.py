@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.clients import catalog
+from app.clients.http import RemoteUnavailable
 from app.modules.playlists import service as playlists_service
 from app.modules.social import repository
 from app.modules.social.schemas import (
@@ -21,9 +22,12 @@ from app.shared.errors import NotFound
 logger = logging.getLogger(__name__)
 
 
+UNAVAILABLE_TITLE = "Canción no disponible"
+
+
 async def like(session: AsyncSession, user_id: uuid.UUID, song_id: uuid.UUID) -> None:
-    await catalog.get_song(song_id)  # 404 si no existe o está inactiva
-    await repository.add_favorite(session, user_id, song_id)
+    song = await catalog.get_song(song_id)  # 404 si no existe o está inactiva
+    await repository.add_favorite(session, user_id, song)  # guarda la copia para el modo degradado
 
 
 async def unlike(session: AsyncSession, user_id: uuid.UUID, song_id: uuid.UUID) -> None:
@@ -36,7 +40,11 @@ async def favorite_ids(session: AsyncSession, user_id: uuid.UUID) -> list[uuid.U
 
 async def list_favorites(session: AsyncSession, user_id: uuid.UUID) -> FavoritesOut:
     favorites = await repository.list_favorites(session, user_id)
-    songs = await catalog.get_songs_by_ids([f.song_id for f in favorites])
+    try:
+        songs = await catalog.get_songs_by_ids([f.song_id for f in favorites])
+    except RemoteUnavailable:
+        logger.warning("Catálogo no disponible; las favoritas se muestran con sus copias")
+        return _degraded_favorites(favorites)
     out = []
     for f in favorites:
         song = songs.get(f.song_id)
@@ -55,7 +63,51 @@ async def list_favorites(session: AsyncSession, user_id: uuid.UUID) -> Favorites
             )
         )
     total = sum(s.duration_seconds for s in out if s.status == "ok")
+    # Al final: si el commit falla, el rollback expira los objetos y ya no se leen.
+    await _refresh_snapshots(session, user_id, favorites, songs)
     return FavoritesOut(songs=out, total_seconds=total)
+
+
+def _degraded_favorites(favorites) -> FavoritesOut:
+    out = [
+        FavoriteSongOut(
+            song_id=f.song_id,
+            title=f.title_snapshot or UNAVAILABLE_TITLE,
+            artist=f.artist_snapshot or "",
+            album=f.album_snapshot or "",
+            duration_seconds=f.duration_snapshot or 0,
+            has_cover=False,
+            status="degraded",
+            added_at=f.created_at,
+        )
+        for f in favorites
+    ]
+    return FavoritesOut(
+        songs=out, total_seconds=sum(s.duration_seconds for s in out), degraded=True
+    )
+
+
+async def _refresh_snapshots(session, user_id, favorites, songs) -> None:
+    """Con el catálogo arriba, completa o corrige las copias que difieren de los datos vivos."""
+    stale = [
+        songs[f.song_id]
+        for f in favorites
+        if f.song_id in songs
+        and (f.title_snapshot, f.artist_snapshot, f.album_snapshot, f.duration_snapshot)
+        != (
+            songs[f.song_id].title,
+            songs[f.song_id].artist,
+            songs[f.song_id].album,
+            songs[f.song_id].duration_seconds,
+        )
+    ]
+    if not stale:
+        return
+    try:
+        await repository.save_snapshots(session, user_id, stale)
+    except Exception:
+        logger.warning("No se pudieron guardar las copias de favoritas", exc_info=True)
+        await session.rollback()
 
 
 async def follow(session: AsyncSession, user_id: uuid.UUID, artist: str) -> None:

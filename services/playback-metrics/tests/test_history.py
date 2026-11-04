@@ -47,7 +47,11 @@ async def test_history_is_per_user(user, client, session, media_dir):
     await _play(user, a.id)
     other = AsyncClient(transport=client._transport, base_url="http://test")
     await signup(other, email="otra@test.mx")
-    assert (await other.get("/api/me/history")).json() == {"items": [], "total": 0}
+    assert (await other.get("/api/me/history")).json() == {
+        "items": [],
+        "total": 0,
+        "degraded": False,
+    }
     await other.aclose()
 
 

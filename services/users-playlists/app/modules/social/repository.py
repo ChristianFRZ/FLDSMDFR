@@ -1,16 +1,40 @@
 import uuid
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clients.catalog_schemas import SongOut
 from app.modules.social.models import ArtistFollow, Favorite, NotificationRead
 
 
-async def add_favorite(session: AsyncSession, user_id: uuid.UUID, song_id: uuid.UUID) -> None:
+def _snapshot(song: SongOut) -> dict:
+    return {
+        "title_snapshot": song.title,
+        "artist_snapshot": song.artist,
+        "album_snapshot": song.album,
+        "duration_snapshot": song.duration_seconds,
+    }
+
+
+async def add_favorite(session: AsyncSession, user_id: uuid.UUID, song: SongOut) -> None:
+    stmt = insert(Favorite).values(user_id=user_id, song_id=song.id, **_snapshot(song))
     await session.execute(
-        insert(Favorite).values(user_id=user_id, song_id=song_id).on_conflict_do_nothing()
+        stmt.on_conflict_do_update(
+            index_elements=[Favorite.user_id, Favorite.song_id], set_=_snapshot(song)
+        )
     )
+    await session.commit()
+
+
+async def save_snapshots(session: AsyncSession, user_id: uuid.UUID, songs: list[SongOut]) -> None:
+    """Actualiza la copia de las favoritas de `user_id` con los datos vivos del catálogo."""
+    for song in songs:
+        await session.execute(
+            update(Favorite)
+            .where(Favorite.user_id == user_id, Favorite.song_id == song.id)
+            .values(**_snapshot(song))
+        )
     await session.commit()
 
 

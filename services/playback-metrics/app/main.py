@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.clients.circuits_router import router as circuits_router
 from app.config import get_settings
 from app.modules.playback.router import router as playback_router
 from app.shared import discovery
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
 
     register_error_handlers(app)
     app.include_router(playback_router)
+    app.include_router(circuits_router)
 
     @app.get("/api/health")
     async def health(session: AsyncSession = Depends(get_session)):

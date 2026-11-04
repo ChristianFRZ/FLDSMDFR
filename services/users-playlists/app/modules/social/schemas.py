@@ -14,13 +14,14 @@ class FavoriteSongOut(BaseModel):
     album: str
     duration_seconds: int
     has_cover: bool
-    status: Literal["ok", "unavailable"]
+    status: Literal["ok", "degraded", "unavailable"]
     added_at: datetime
 
 
 class FavoritesOut(BaseModel):
     songs: list[FavoriteSongOut]
     total_seconds: int
+    degraded: bool = False  # el catálogo no respondió: los datos son las últimas copias
 
 
 class FollowOut(BaseModel):

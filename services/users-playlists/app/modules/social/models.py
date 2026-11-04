@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -15,6 +15,11 @@ class Favorite(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     song_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Copia de la canción para el modo degradado (rama 04); vacía en filas anteriores.
+    title_snapshot: Mapped[str | None] = mapped_column(String(200))
+    artist_snapshot: Mapped[str | None] = mapped_column(String(200))
+    album_snapshot: Mapped[str | None] = mapped_column(String(200))
+    duration_snapshot: Mapped[int | None] = mapped_column(Integer)
 
 
 class ArtistFollow(Base):

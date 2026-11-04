@@ -34,12 +34,13 @@ async def test_record_playback_catalog_down_503(user, session, media_dir, take_d
     assert "catalog-streaming" in r.json()["error"]["message"]
 
 
-async def test_summary_users_down_503(client, session, take_down):
+async def test_summary_users_down_degrades(client, session, take_down):
+    """Desde 04 el resumen ya no responde 503: el total que falta queda en null."""
     admin = await make_admin_client(session, client)
     take_down("users-playlists")
     r = await admin.get("/api/metrics/summary")
-    assert r.status_code == 503
-    assert "users-playlists" in r.json()["error"]["message"]
+    assert r.status_code == 200
+    assert r.json()["total_users"] is None
     await admin.aclose()
 
 
