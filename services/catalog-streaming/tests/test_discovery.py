@@ -92,3 +92,16 @@ async def test_register_retries_when_directory_down(consul):
 async def test_responses_carry_x_instancia(client):
     r = await client.get("/api/health")
     assert r.headers["X-Instancia"] == f"catalog-streaming-{socket.gethostname()}"
+
+
+async def test_heartbeat_reregisters_when_address_changes(consul, monkeypatch):
+    """Si Docker le cambia la IP a un contenedor vivo, el latido corrige el registro: si no, el
+    directorio anunciaría una IP que ahora es de otro servicio."""
+    monkeypatch.setattr(discovery, "_address", lambda: "10.0.0.1")
+    instance = await discovery.register("catalog-streaming", 8000, start_heartbeat=False)
+    monkeypatch.setattr(discovery, "_address", lambda: "10.0.0.2")
+    await discovery.heartbeat_once()
+    assert consul.services[instance]["Address"] == "10.0.0.2"
+    assert await discovery.instances("catalog-streaming", use_cache=False) == [
+        "http://10.0.0.2:8000"
+    ]

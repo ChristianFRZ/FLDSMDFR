@@ -109,6 +109,19 @@ async def heartbeat_once() -> None:
     """Un latido. Si Consul ya no conoce el check (se reinició o nos expulsó), se re-registra."""
     if _registered is None:
         return
+    address = _address()
+    if address != _registered["Address"]:
+        # Docker le cambió la IP a este contenedor vivo: sin esto, el directorio seguiría
+        # anunciando una IP que ahora puede ser de otro servicio.
+        logger.warning(
+            "Directorio: la IP de %s cambió de %s a %s; se vuelve a registrar",
+            _registered["ID"],
+            _registered["Address"],
+            address,
+        )
+        _registered["Address"] = address
+        if not await _put_registration():
+            return
     check = _registered["Check"]["CheckID"]
     try:
         r = await _consul().put(f"/v1/agent/check/pass/{check}")

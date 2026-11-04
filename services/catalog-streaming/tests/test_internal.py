@@ -22,9 +22,7 @@ async def test_internal_get_song_without_session(client, session, media_dir):
 async def test_internal_batch_includes_inactive_with_flag(client, session, media_dir):
     active = await insert_song(session, media_dir, title="Activa")
     inactive = await insert_song(session, media_dir, title="Retirada", is_active=False)
-    r = await client.post(
-        "/internal/songs/batch", json={"ids": [str(active.id), str(inactive.id)]}
-    )
+    r = await client.post("/internal/songs/batch", json={"ids": [str(active.id), str(inactive.id)]})
     assert r.status_code == 200
     flags = {s["title"]: s["is_active"] for s in r.json()}
     assert flags == {"Activa": True, "Retirada": False}
@@ -67,14 +65,18 @@ async def test_internal_releases_respect_since(client, session, media_dir):
     future = datetime.now(UTC) + timedelta(days=1)
     r = await client.post(
         "/internal/artists/releases",
-        json={"follows": [{"artist": "banda", "since": past.isoformat()}],
-              "not_before": past.isoformat()},
+        json={
+            "follows": [{"artist": "banda", "since": past.isoformat()}],
+            "not_before": past.isoformat(),
+        },
     )
     assert [s["title"] for s in r.json()] == ["Nueva"]
     later = await client.post(
         "/internal/artists/releases",
-        json={"follows": [{"artist": "banda", "since": future.isoformat()}],
-              "not_before": past.isoformat()},
+        json={
+            "follows": [{"artist": "banda", "since": future.isoformat()}],
+            "not_before": past.isoformat(),
+        },
     )
     assert later.json() == []
 
