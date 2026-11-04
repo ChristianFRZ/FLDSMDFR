@@ -88,3 +88,12 @@ class _Down(httpx.AsyncBaseTransport):
 def take_down(catalog, users):
     """take_down("catalog-streaming") simula `docker compose stop` de ese servicio."""
     return lambda base_url: remote.set_transport(base_url, _Down())
+
+
+@pytest.fixture(autouse=True)
+def _fresh_breakers(monkeypatch):
+    """Cada prueba empieza con los circuitos cerrados y sin esperar entre reintentos."""
+    remote.reset_breakers()
+    monkeypatch.setattr(remote, "retry_wait", lambda: 0)
+    yield
+    remote.reset_breakers()

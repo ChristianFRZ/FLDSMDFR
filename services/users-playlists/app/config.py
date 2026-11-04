@@ -32,6 +32,13 @@ class Settings(BaseSettings):
     deregister_after: str = "1m"
     lb_cache_s: float = 5
 
+    # Resiliencia (rama 04): ver app/clients/http.py y app/shared/circuit.py.
+    call_timeout_s: float = 1.5
+    retries: int = 1
+    cb_failures: int = 5
+    cb_open_s: float = 10
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()  # type: ignore[call-arg]

@@ -92,3 +92,12 @@ def catalog_down(catalog) -> None:
 def catalog_down_later(catalog):
     """Para apagar el catálogo a mitad de la prueba, después de preparar los datos."""
     return lambda: remote.set_transport("catalog-streaming", _Down())
+
+
+@pytest.fixture(autouse=True)
+def _fresh_breakers(monkeypatch):
+    """Cada prueba empieza con los circuitos cerrados y sin esperar entre reintentos."""
+    remote.reset_breakers()
+    monkeypatch.setattr(remote, "retry_wait", lambda: 0)
+    yield
+    remote.reset_breakers()

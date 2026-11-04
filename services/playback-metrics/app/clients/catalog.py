@@ -33,12 +33,10 @@ async def get_songs_by_ids(ids: Sequence[uuid.UUID]) -> dict[uuid.UUID, SongOut]
     return {s.id: s for s in songs}
 
 
-
 async def count_active_by_artists(artists: Sequence[str]) -> dict[str, int]:
     if not artists:
         return {}
     return (await _call("POST", "/artists/counts", json={"artists": list(artists)})).json()
-
 
 
 async def count_songs() -> int:

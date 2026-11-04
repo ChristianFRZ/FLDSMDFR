@@ -14,7 +14,10 @@ class FakeConsul:
     def add(self, name: str, instance_id: str, address: str, port: int = 8000) -> None:
         """Registra una instancia ajena (como si otro contenedor se hubiera registrado)."""
         self.services[instance_id] = {
-            "ID": instance_id, "Name": name, "Address": address, "Port": port,
+            "ID": instance_id,
+            "Name": name,
+            "Address": address,
+            "Port": port,
             "Check": {"CheckID": f"{instance_id}-ttl"},
         }
         self.status[f"{instance_id}-ttl"] = "passing"

@@ -1,4 +1,3 @@
-
 import pytest
 
 from tests.audio_fixtures import insert_song, set_cover
@@ -50,4 +49,3 @@ async def test_follow_list_has_counts_and_cover(user, client, session, media_dir
     f = (await user.get("/api/me/follows")).json()[0]
     assert f["song_count"] == 2
     assert f["cover_song_id"] == str(nueva.id)
-
