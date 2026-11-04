@@ -2,7 +2,7 @@
 
 ## 1. Arquitectura del proyecto
 
-En la rama `03-gateway-discovery-balanceo`, FLDSMDFR son **tres servicios FastAPI** independientes, cada uno con **su propia base de datos** PostgreSQL, que se comunican **por HTTP** usando **nombres lógicos** resueltos en un **directorio** (Consul, contenedor `discovery`). Un **gateway propio** (`services/gateway/`) es la única puerta: reparte `/api` por prefijo y en round-robin entre las instancias vivas; `web` (Nginx) solo sirve la UI. `catalog-streaming` corre en tres réplicas (PRD §6–§7). Las ramas `01-monolito` y `02-separacion` conservan los pasos anteriores.
+En la rama `04-resiliencia` (sobre `03-gateway-discovery-balanceo`), FLDSMDFR son **tres servicios FastAPI** independientes, cada uno con **su propia base de datos** PostgreSQL, que se comunican **por HTTP** usando **nombres lógicos** resueltos en un **directorio** (Consul, contenedor `discovery`). Un **gateway propio** (`services/gateway/`) es la única puerta: reparte `/api` por prefijo y en round-robin entre las instancias vivas; `web` (Nginx) solo sirve la UI. `catalog-streaming` corre en tres réplicas. Las llamadas entre servicios llevan timeout, reintento en otra réplica y circuit breaker, y las lecturas se degradan con copias (PRD §6–§7). Las ramas `01-monolito` y `02-separacion` conservan los pasos anteriores.
 
 - **Servicios autónomos:** cada uno se construye, se prueba y se despliega solo.
 - **Una base por servicio:** ningún servicio lee ni escribe la base de otro.
@@ -49,7 +49,14 @@ tests/                 # pytest, incluida su prueba de arquitectura
 - Ningún servicio usa la URL o el nombre DNS de otro. Los clientes llaman con `http.call("<nombre-lógico>", ...)`, que pide las instancias `passing` al directorio y elige una con `discovery.RoundRobin`. `NoInstances` se traduce a `503 service_unavailable`.
 - Cada instancia se registra en el `lifespan` (`discovery.register`) con id `<servicio>-<hostname>`, check TTL y latido, y se da de baja al apagarse. Toda respuesta lleva `X-Instancia`.
 - Las pruebas no usan un Consul real: `tests/fake_consul.py` y `http.set_transport(servicio, transporte)` sustituyen el directorio y los servicios remotos.
-- Sin reintentos ni circuit breaker en `03`: llegan en `04`.
+- El latido vuelve a registrar la instancia si cambió la IP del contenedor.
+
+**Regla de resiliencia (desde `04`):**
+
+- Toda llamada a otro servicio pasa por `http.call`, que aplica 1.5 s por intento, un reintento en otra réplica (solo ante timeout, red o `5xx`) y el circuit breaker de `app/shared/circuit.py`. No se llama a otro servicio con un cliente `httpx` propio.
+- Solo se reintentan operaciones seguras: las llamadas internas son lecturas; en el gateway solo `GET`/`HEAD` que no llegaron a conectar. Una escritura nueva entre servicios necesita idempotencia antes de reintentarse.
+- Una lectura que puede degradarse captura `RemoteUnavailable` y responde con copias (`*_snapshot`) o `null` y `degraded: true`; nunca un `500`.
+- Las pruebas reinician los circuitos (`http.reset_breakers()`) y ponen `http.retry_wait` en 0 (fixture autouse del `conftest`).
 
 Las reglas de servicios y de módulos las verifica `tests/test_architecture.py` de cada servicio con base (el gateway no tiene módulos). Si una prueba de arquitectura falla, se corrige el código, no la prueba.
 
@@ -79,7 +86,7 @@ docker compose --profile test run --rm tests-catalog      # pruebas de catalog-s
 docker compose --profile test run --rm tests-users        # pruebas de users-playlists
 docker compose --profile test run --rm tests-playback     # pruebas de playback-metrics
 docker compose --profile test run --rm tests-gateway      # pruebas del gateway
-./scripts/demo-03.sh                                      # demo de balanceo y caída de una réplica
+./scripts/demo-04.sh                                      # demo de reintento, circuito y degradación
 docker compose --profile test run --rm tests-users ruff check .   # lint (igual en los otros)
 cd ui && npm test && npm run build              # pruebas y build del frontend
 ```

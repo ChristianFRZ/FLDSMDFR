@@ -1,3 +1,8 @@
+# 04-resiliencia: sobre 03, las fallas se vuelven rápidas, acotadas y visibles.
+#   - Clientes internos (users-playlists, playback-metrics): 1.5 s por intento, un reintento
+#     en otra réplica y un circuit breaker por servicio remoto (x-resiliencia).
+#   - Gateway: 1.5 s para conectar y un reintento en otra réplica si no conectó (GET/HEAD).
+#
 # 03-gateway-discovery-balanceo: los servicios de 02 se encuentran solos.
 #   - discovery (Consul, panel en :8500): el directorio. Cada instancia se registra al arrancar
 #     con su nombre lógico, su IP y un check TTL, y manda un latido.
@@ -16,6 +21,14 @@ x-directorio: &directorio
   FLDSMDFR_TTL_S: ${FLDSMDFR_TTL_S:-10}
   FLDSMDFR_DEREGISTER_AFTER: ${FLDSMDFR_DEREGISTER_AFTER:-1m}
   FLDSMDFR_LB_CACHE_S: ${FLDSMDFR_LB_CACHE_S:-5}
+
+# Resiliencia de los clientes internos (rama 04). Igual que los tiempos del directorio, se
+# cambian desde la terminal: FLDSMDFR_CB_OPEN_S=30 docker compose up -d
+x-resiliencia: &resiliencia
+  FLDSMDFR_CALL_TIMEOUT_S: ${FLDSMDFR_CALL_TIMEOUT_S:-1.5}
+  FLDSMDFR_RETRIES: ${FLDSMDFR_RETRIES:-1}
+  FLDSMDFR_CB_FAILURES: ${FLDSMDFR_CB_FAILURES:-5}
+  FLDSMDFR_CB_OPEN_S: ${FLDSMDFR_CB_OPEN_S:-10}
 
 x-jwt: &jwt
   FLDSMDFR_JWT_SECRET: ${FLDSMDFR_JWT_SECRET:-cambia-este-secreto-en-produccion}
@@ -106,7 +119,7 @@ services:
       - path: .env
         required: false
     environment:
-      <<: [*jwt, *directorio]
+      <<: [*jwt, *directorio, *resiliencia]
       FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/users_playlists
       FLDSMDFR_SERVICE_NAME: users-playlists
       FLDSMDFR_COOKIE_SECURE: ${FLDSMDFR_COOKIE_SECURE:-false}
@@ -135,7 +148,7 @@ services:
       - path: .env
         required: false
     environment:
-      <<: [*jwt, *directorio]
+      <<: [*jwt, *directorio, *resiliencia]
       FLDSMDFR_DATABASE_URL: postgresql+asyncpg://fldsmdfr:fldsmdfr@db:5432/playback
       FLDSMDFR_SERVICE_NAME: playback-metrics
     depends_on:
@@ -154,6 +167,9 @@ services:
     environment:
       <<: *directorio
       FLDSMDFR_SERVICE_NAME: gateway
+      FLDSMDFR_UPSTREAM_CONNECT_S: ${FLDSMDFR_UPSTREAM_CONNECT_S:-1.5}
+      FLDSMDFR_UPSTREAM_READ_S: ${FLDSMDFR_UPSTREAM_READ_S:-30}
+      FLDSMDFR_RETRIES: ${FLDSMDFR_RETRIES:-1}
     depends_on:
       discovery:
         condition: service_healthy

@@ -1,15 +1,21 @@
-# MELOXO · Streaming musical (gateway, directorio y balanceo)
+# MELOXO · Streaming musical (resiliencia)
 
 **MELOXO** es el nombre visible de la aplicación; el repositorio, los paquetes y los contenedores conservan el nombre del equipo, `FLDSMDFR`.
 
-Proyecto semestral de **Sistemas Distribuidos** (Semestre 2027-1, FI-UNAM). Esta rama entrega el paso **`03-gateway-discovery-balanceo`** del plan del [PRD](docs/PRD.md). Parte de [`02-separacion`](../../tree/02-separacion), donde los tres servicios se llamaban por el DNS de Compose. Aquí **se encuentran solos**:
+Proyecto semestral de **Sistemas Distribuidos** (Semestre 2027-1, FI-UNAM). Esta rama entrega el paso **`04-resiliencia`** del plan del [PRD](docs/PRD.md). Parte de [`03-gateway-discovery-balanceo`](../../tree/03-gateway-discovery-balanceo), donde la demo mostró dos problemas:
 
-- cada instancia se registra en un **directorio** (Consul) y manda latidos;
-- un **gateway propio** es la única puerta y reparte en **round-robin** entre las instancias vivas;
-- el streaming corre en **tres réplicas**;
-- las llamadas internas también se balancean, **del lado del cliente**.
+- una réplica muerta dejaba colgada **unos 7 s** cada petición que le tocaba, y luego respondía `503`;
+- con el catálogo caído, favoritas, historial y resumen respondían `503`, y cada petición volvía a golpear al servicio caído.
 
-Es la misma etapa que Mexi Banco en el lab S07 (Eureka + Spring Cloud Gateway), resuelta en nuestra tecnología.
+Aquí las fallas se vuelven **rápidas, acotadas y visibles**:
+
+- **timeouts** explícitos;
+- **un reintento en otra réplica**;
+- un **circuit breaker hecho a mano**, con sus tres estados;
+- **degradación con copias** en favoritas e historial;
+- el estado de los circuitos en el **panel del administrador**.
+
+Es la parte de circuit breaker del lab S08 de Mexi Banco. La saga no está, y la sección [¿Y la saga?](#y-la-saga) explica por qué.
 
 ## Equipo
 
@@ -19,55 +25,80 @@ Es la misma etapa que Mexi Banco en el lab S07 (Eureka + Spring Cloud Gateway), 
 - Nava Santiago Erick ([@Saiko-E](https://github.com/Saiko-E))
 - Pérez Paitán Brent Armando ([@zmd-brnt](https://github.com/zmd-brnt))
 
-## Qué cambió respecto a `02-separacion`
+## Qué cambió respecto a `03-gateway-discovery-balanceo`
 
-| | `02-separacion` | `03-gateway-discovery-balanceo` |
+| | `03` | `04-resiliencia` |
 |---|---|---|
-| Puerta de entrada | Nginx (`web`) reparte `/api` por prefijo | **`gateway`** (FastAPI): prefijo → directorio → round-robin |
-| Cómo se encuentran los servicios | DNS de Compose (`http://catalog-streaming:8000`) | **Directorio Consul**: registro, latido TTL y baja |
-| Réplicas del catálogo | 1 | **3**, con un volumen de audio compartido |
-| Llamadas internas | a un nombre DNS fijo | **por nombre lógico**, balanceadas por el cliente |
-| Migración y semilla del catálogo | al arrancar el servicio | una vez, en **`catalog-init`**, antes de las réplicas |
-| `web` | proxy + SPA | **solo el SPA**, detrás del gateway y registrado en el directorio |
-| Cabeceras | — | **`X-Instancia`** (qué réplica contestó) y **`X-Gateway-Instancia`** |
+| Petición que cae en una réplica muerta | Cuelga unos 7 s (timeout de conexión de `httpx`) y luego `503` | El gateway corta a los **1.5 s** y **reintenta en otra réplica**: `200` en unos 1.7 s |
+| Llamadas internas | Sin timeout propio ni reintento | **1.5 s por intento**, **un reintento en otra réplica**, **circuit breaker** por servicio remoto |
+| Catálogo caído | Cada petición lo vuelve a intentar | El circuito se abre tras **5 fallas seguidas** y deja de llamarlo durante **10 s** |
+| Favoritas e historial con el catálogo caído | `503` | `200` con **copias** guardadas y `status: "degraded"`; la UI marca "Sin actualizar" |
+| Resumen del administrador sin catálogo o sin usuarios | `503` | `200` con el total faltante en `null` ("—" en la Cabina) |
+| Cabina | Resumen, subida, catálogo y usuarios | Más la tarjeta **"Resiliencia"** con el estado de cada circuito, refrescada cada 2 s |
+| Directorio | La IP se registraba una sola vez | El latido **vuelve a registrar** la instancia si cambió la IP del contenedor |
 
-La UI y las rutas públicas (`/api/...`) no cambian.
+Las rutas públicas no cambian. Hay dos nuevas, solo para administradores:
 
-## Dónde vive cada pieza
+- `GET /api/admin/circuits` (`users-playlists`);
+- `GET /api/metrics/circuits` (`playback-metrics`).
 
-| Pieza | Dónde vive | Qué hace |
+## Dónde vive cada mecanismo
+
+| Mecanismo | Dónde vive | Qué hace |
 |---|---|---|
-| **Gateway** | `services/gateway/` (contenedor `gateway`, único puerto público `:8000`) | Decide el servicio por prefijo (`app/routes.py`), pide las instancias vivas al directorio y elige una en round-robin (`app/shared/discovery.py`), y reenvía en streaming (`app/proxy.py`). |
-| **Directorio** | Contenedor `discovery` (Consul 1.20, panel en <http://localhost:8500>) | Lista de instancias con su estado. Cada una se registra sola; el directorio solo sabe que sigue viva porque recibe su latido. |
-| **Registro y latido** | `app/shared/discovery.py` de cada servicio, arrancado en el `lifespan` de FastAPI; `web/register.sh` para Nginx | Registro con id `<servicio>-<hostname>`, IP y check TTL; latido cada 3 s; baja al recibir SIGTERM. |
-| **Balanceador del gateway** | `RoundRobin` en el gateway | Round-robin sobre la lista `passing` del directorio, cacheada 5 s. |
-| **Balanceador interno** | `app/clients/http.py` de `users-playlists` y `playback-metrics` | El mismo `RoundRobin`: `catalog.get_songs_by_ids(...)` va a una réplica distinta en cada llamada. |
+| **Circuit breaker** | `app/shared/circuit.py` en `users-playlists` y `playback-metrics` (copia por servicio) | Es una clase `CircuitBreaker` por servicio remoto, con tres estados: **cerrado** (deja pasar y cuenta fallas seguidas), **abierto** (no llama y responde `503` al instante) y **semiabierto** (deja pasar **una** prueba). Cada cambio deja una línea en el log. |
+| **Timeout y reintento internos** | `app/clients/http.py` en los mismos servicios | Cada intento tiene un límite total de 1.5 s. Ante timeout, error de red o `5xx`, hace un segundo intento en **otra** instancia del directorio, tras 100–300 ms. El circuito cuenta la llamada completa: un intento más su reintento es **una** falla. |
+| **Timeout y reintento del gateway** | `services/gateway/app/proxy.py` | Da 1.5 s para **conectar** y 30 s por lectura o escritura, para no cortar el audio ni las subidas. Si no logró conectar, un `GET` o `HEAD` se reintenta en otra réplica. |
+| **Copias para el modo degradado** | Columnas `*_snapshot` de `favorites` (base `users_playlists`) y de `playback_events` (base `playback`) | Se llenan al escribir y se corrigen al leer con el catálogo arriba. Se usan cuando el catálogo no responde. |
+| **Estado de los circuitos** | `app/clients/circuits_router.py` (API) y `ui/src/components/EstadoCircuitos.vue` (Cabina) | Muestra, por circuito: origen → destino, estado, fallas seguidas, desde cuándo está en ese estado y en cuántos segundos vuelve a probar. |
 
 ```text
-navegador ──► :8000 gateway ── prefijo ──► ¿quién atiende?
-                  │                         │
-                  │ GET /v1/health/service/<nombre>?passing=true   (caché 5 s)
-                  ▼                         ▼
-           discovery (Consul :8500) ◄── latido cada 3 s ── todas las instancias
-                  ▲
-                  │ mismo directorio, mismo round-robin
-   users-playlists ──► catalog-streaming ×3 ◄── playback-metrics
-   playback-metrics ──► users-playlists
-                      web (SPA) ◄── gateway (todo lo que no es /api)
-
-   db: un postgres:16 con users_playlists, catalog y playback · volúmenes media y playlist-covers
+            ┌──────────── gateway :8000 ────────────┐
+navegador ─►│ 1.5 s para conectar; si no conecta,   │──► catalog-streaming ×3
+            │ GET/HEAD reintenta en otra réplica    │──► users-playlists ──┐
+            └───────────────────────────────────────┘──► playback-metrics ─┤
+                                                                           │ http.call(...)
+   users-playlists / playback-metrics ── circuito ── intento 1.5 s ── reintento en otra réplica
+                                          (cerrado │ abierto │ semiabierto)          │
+                                                                                     ▼
+                                                               catalog-streaming / users-playlists
 ```
 
-### Tiempos del directorio
+### Qué cuenta como falla y qué responde cada cosa
 
-| Variable | Por omisión | Qué controla |
+| Caso | ¿Se reintenta? | ¿Cuenta para el circuito? | Qué recibe quien llamó |
+|---|---|---|---|
+| Timeout, error de red, `5xx` o sin instancias | Sí (salvo sin instancias) | Sí | `503 service_unavailable` |
+| `404` del dueño del dato | No | No | El mismo `NotFound` de siempre |
+| Otro `4xx` (error de contrato) | No | No | `503`, como en `03` |
+| Circuito abierto | No llama | — | `503` en milisegundos |
+
+### Qué se degrada y qué sigue con `503`
+
+- **Se degradan, con copias:**
+  - **favoritas**: `200` con `degraded: true` y cada canción en `status: "degraded"`;
+  - **historial e Inicio**: igual, con la misma forma de respuesta;
+  - **detalle de casete**: ya se degradaba desde `01`; ahora la UI también lo marca;
+  - **top**: ya se degradaba;
+  - **resumen del administrador**: el total faltante va en `null`.
+- **Siguen con `503`, ahora rápido:**
+  - **marcar favorita, agregar a un casete y registrar una reproducción**: necesitan validar contra el catálogo, y aceptarlas a ciegas cambiaría el negocio. La UI ya reintenta la reproducción con el mismo `playback_id`. Que no se pierda es tema de `05`.
+  - **`top-artists`**: los artistas salen del catálogo y no hay copia que mostrar.
+
+Una fila guardada antes de esta rama no tiene copia. Con el catálogo caído se muestra como "Canción no disponible". En la siguiente lectura con el catálogo arriba se completa sola: una migración no puede preguntarle a otro servicio.
+
+### Ajustes
+
+| Variable | Por omisión | Dónde |
 |---|---|---|
-| `FLDSMDFR_HEARTBEAT_S` | `3` | cada cuánto manda latido cada instancia |
-| `FLDSMDFR_TTL_S` | `10` | sin latido durante este tiempo, la instancia pasa a `critical` y deja de recibir tráfico |
-| `FLDSMDFR_DEREGISTER_AFTER` | `1m` | en `critical` durante este tiempo, Consul la borra del registro (1 min es el mínimo de Consul) |
-| `FLDSMDFR_LB_CACHE_S` | `5` | cuánto guarda cada balanceador la lista de instancias |
+| `FLDSMDFR_CALL_TIMEOUT_S` | `1.5` | clientes internos |
+| `FLDSMDFR_RETRIES` | `1` | clientes internos y gateway |
+| `FLDSMDFR_CB_FAILURES` | `5` | clientes internos |
+| `FLDSMDFR_CB_OPEN_S` | `10` | clientes internos |
+| `FLDSMDFR_UPSTREAM_CONNECT_S` | `1.5` | gateway |
+| `FLDSMDFR_UPSTREAM_READ_S` | `30` | gateway |
 
-Se cambian sin tocar archivos, por ejemplo `FLDSMDFR_TTL_S=30 docker compose up -d`. Una réplica que muere **sin darse de baja** puede seguir recibiendo tráfico hasta unos `TTL + caché` (≈15 s).
+Se cambian sin tocar archivos, por ejemplo `FLDSMDFR_CB_OPEN_S=30 docker compose up -d`. Los tiempos del directorio de `03` siguen igual: latido 3 s, TTL 10 s, caché 5 s y baja al minuto.
 
 ## Inicio rápido
 
@@ -80,10 +111,10 @@ docker compose ps        # catalog-init "Exited (0)"; los demás healthy (3 de c
 ```
 
 - Aplicación: <http://localhost:8000>
+- Cabina, con la tarjeta "Resiliencia": <http://localhost:8000/cabina> (como administrador)
 - Panel del directorio: <http://localhost:8500>
-- Salud del gateway: <http://localhost:8000/api/health> (`{"status":"ok","directory":"ok"}`)
 
-> **Si vienes de `02-separacion`:** `docker compose down` en esa rama y luego `up --build` en esta. Los volúmenes se conservan: la semilla es idempotente.
+> **Si vienes de `03`:** `docker compose up --build -d` basta. Las migraciones nuevas (`0011` en `users_playlists` y `0012` en `playback`) solo agregan columnas opcionales.
 
 ### Credenciales demo
 
@@ -92,69 +123,68 @@ docker compose ps        # catalog-init "Exited (0)"; los demás healthy (3 de c
 | Administrador | `admin@fldsmdfr.mx`  | `admin12345`  |
 | Oyente        | `oyente@fldsmdfr.mx` | `oyente12345` |
 
-## Rutas del gateway
-
-| Prefijo público | Servicio lógico |
-|---|---|
-| `/api/playbacks`, `/api/metrics/`, `/api/me/history` | `playback-metrics` |
-| `/api/songs` | `catalog-streaming` (3 réplicas) |
-| `/api/...` (auth, users, playlists, invites, el resto de `/api/me/`) | `users-playlists` |
-| `/api/health` | responde el gateway |
-| `/internal/...` | **404**: la API interna no se expone |
-| todo lo demás | `web` (SPA) |
-
-Errores del gateway, con el mismo formato JSON que la API:
-
-| Situación | Respuesta |
-|---|---|
-| No hay instancias vivas del servicio | `503 service_unavailable` con el nombre del servicio |
-| La instancia elegida no responde | `503 service_unavailable` (sin reintento en otra; eso es `04`) |
-| Subida de más de 21 MB | `422 file_too_large` en `/api/songs`, `413 image_too_large` en el resto |
-
-## Demo: el balanceo y una réplica que muere
+## Demo: una réplica muerta, el circuito y la degradación
 
 ```bash
-./scripts/demo-03.sh
+./scripts/demo-04.sh
 ```
 
-Salida real (recortada) en esta máquina:
+Abre la Cabina como administrador mientras corre: la tarjeta "Resiliencia" cambia en vivo. Salida real (recortada) en esta máquina:
 
 ```text
-== 2. Nueve consultas por el gateway: round-robin entre las réplicas
-200 catalog-streaming-e2ccc57a28e2
-200 catalog-streaming-f64ef425e61f
-200 catalog-streaming-2c0bfe736dd0
-200 catalog-streaming-e2ccc57a28e2
-...
+== 2. docker kill fldsmdfr-catalog-streaming-1: en 03 había esperas de ~7 s y 503; ahora se reintenta en otra réplica
+t= 0s  canciones 200  1.76s catalog-streaming-d7034950269b   | favoritas 200  1.76s al día
+t= 5s  canciones 200  0.02s catalog-streaming-62cfc315b252   | favoritas 200  0.04s al día
+t= 6s  canciones 200  1.70s catalog-streaming-d7034950269b   | favoritas 200  1.71s al día
+t=11s  canciones 200  0.02s catalog-streaming-62cfc315b252   | favoritas 200  0.03s al día
+t=12s… canciones 200 ~0.01s alternando entre las dos réplicas vivas
 
-== 3. docker kill fldsmdfr-catalog-streaming-1 (muere SIN darse de baja)
-t= 0s  200 catalog-streaming-e2ccc57a28e2  | vivas: 2c0b… e2cc… f64e…
-t= 1s  503 -                               | vivas: 2c0b… e2cc… f64e…
-t= 8s  200 catalog-streaming-2c0bfe736dd0  | vivas: 2c0b… e2cc… f64e…
-t= 9s  200 catalog-streaming-e2ccc57a28e2  | vivas: 2c0b… e2cc…
-t=10s  503 -                               | vivas: 2c0b… e2cc…
-t=14s  200 catalog-streaming-e2ccc57a28e2  | vivas: 2c0b… e2cc…
-t=15s… 200 alternando entre las dos réplicas que quedan
+== 3. docker compose stop catalog-streaming (las tres): el circuito se abre a las 5 fallas
+t= 0s  favoritas 200  0.03s degradadas (copias) | circuito cerrado (1 fallas)
+t= 4s  favoritas 200  0.02s degradadas (copias) | circuito cerrado (4 fallas)
+t= 5s  favoritas 200  0.01s degradadas (copias) | circuito abierto (5 fallas, vuelve a probar en 10 s)
+t= 8s  favoritas 200  0.01s degradadas (copias) | circuito abierto (5 fallas, vuelve a probar en 7 s)
 
-== 5. docker stop fldsmdfr-catalog-streaming-1 (SIGTERM: se da de baja antes de salir)
-t= 0s  200 catalog-streaming-2c0bfe736dd0  | vivas: 2c0b… e2cc…
-t= 2s  503 -                               | vivas: 2c0b… e2cc…
-t= 8s… 200 alternando entre las dos réplicas que quedan
+== 4. docker compose start catalog-streaming: semiabierto → una prueba → cerrado
+t= 0s  circuito semiabierto (5 fallas) | favoritas 200  0.02s degradadas (copias) | réplicas vivas 0
+t= 1s  circuito abierto (6 fallas, vuelve a probar en 9 s) | favoritas 200  0.03s degradadas (copias) | réplicas vivas 0
+t= 4s  circuito abierto (6 fallas, vuelve a probar en 6 s) | favoritas 200  0.02s degradadas (copias) | réplicas vivas 3
+t=11s  circuito semiabierto (6 fallas) | favoritas 200  0.05s al día | réplicas vivas 3
+t=12s  circuito cerrado (0 fallas) | favoritas 200  0.05s al día | réplicas vivas 3
+
+== 5. Las transiciones, tal como quedaron en el log de users-playlists
+circuito users-playlists→catalog-streaming: cerrado → abierto (5 fallas seguidas)
+circuito users-playlists→catalog-streaming: abierto → semiabierto (pasaron 10 s)
+circuito users-playlists→catalog-streaming: semiabierto → abierto (falló la prueba)
+circuito users-playlists→catalog-streaming: abierto → semiabierto (pasaron 10 s)
+circuito users-playlists→catalog-streaming: semiabierto → cerrado (la prueba salió bien)
 ```
 
 Cómo se lee, que es lo que se pregunta en la defensa:
 
-1. **`kill`:** la réplica muere sin avisar y sigue apareciendo como viva unos 9 s, hasta que vence su TTL. Mientras tanto, a cada tercera petición le toca la réplica muerta.
-2. **Esas peticiones no fallan de inmediato.** Se quedan colgadas unos 6–7 s, que es el timeout de conexión por omisión de `httpx` hacia una IP que ya no existe, y luego responden `503`. En `03` no hay timeouts propios ni reintento en otra réplica: es la razón de ser de la rama `04`.
-3. **Cuando el directorio ya no la anuncia,** la caché del balanceador (5 s) todavía alcanza a mandarle una petición más. Después, todo va a las dos réplicas que quedan.
-4. **`docker start`:** la réplica se vuelve a registrar con el mismo id y recibe tráfico de nuevo en cuanto la caché se refresca.
-5. **`stop`:** sale del directorio al instante, porque se da de baja. Solo la caché del gateway puede mandarle alguna petición antes de enterarse.
+1. **`kill` de una réplica:**
+   - Ya no hay `503`.
+   - La petición que cae en la réplica muerta tarda unos 1.7 s: 1.5 s intentando conectar, más el reintento en otra réplica. En `03` eran unos 7 s y terminaba en `503`.
+   - Cuando el directorio deja de anunciarla (TTL de 10 s, más la caché de 5 s), todo vuelve a tardar milisegundos.
+2. **Catálogo caído entero:**
+   - Favoritas responde `200` con sus copias desde la primera petición.
+   - A la quinta falla seguida, el circuito se abre, y a partir de ahí `users-playlists` ya no intenta llamar al catálogo.
+3. **Semiabierto:**
+   - A los 10 s el circuito deja pasar **una** prueba.
+   - En la salida de arriba, la primera prueba falló porque las réplicas todavía no estaban registradas, así que el circuito volvió a abrirse otros 10 s.
+   - La segunda prueba salió bien y el circuito se cerró. Las favoritas volvieron a estar al día y sus copias se actualizaron.
 
-El balanceo interno se ve en los logs. Abre un casete varias veces y cuenta las llamadas `POST /internal/songs/batch` en cada réplica (`docker logs fldsmdfr-catalog-streaming-N`): se reparten por igual (2/2/2 con seis aperturas).
+## ¿Y la saga?
 
-## Contratos internos
+El lab S08 pide una **saga orquestada** para la transferencia de Mexi Banco, porque esa operación escribe en dos cuentas: si el abono falla después del cargo, hay que devolver el dinero.
 
-Igual que en `02`: `catalog-streaming` expone `GET /songs/{id}`, `POST /songs/batch`, `GET /songs/count`, `GET /songs/lookup`, `POST /artists/counts`, `POST /artists/latest` y `POST /artists/releases` bajo `/internal`; `users-playlists` expone `GET /internal/users/count`. Lo que cambia es **cómo se llega**: `http.call("catalog-streaming", ...)` pide la lista al directorio y elige una instancia en round-robin. Sin instancias vivas o sin respuesta → `503 service_unavailable`; un `404` remoto → el mismo `NotFound` de siempre.
+En MELOXO **ninguna operación escribe en dos servicios**:
+
+- **Agregar una canción a un casete o a favoritas** solo *lee* del catálogo para validarla y escribe en `users-playlists`.
+- **Registrar una reproducción** lee del catálogo y escribe solo en `playback-metrics`.
+- **Retirar una canción** solo la desactiva en el catálogo. Los casetes y las favoritas conservan su copia, y al leer la marcan como no disponible. Es consistencia eventual al leer, no una compensación.
+
+Si en una rama posterior aparece una escritura en dos servicios (por ejemplo, borrar una cuenta y con ella su historial), se resolverá con una saga orquestada y su compensación, como en el lab S08. El razonamiento completo está en el PRD, §6 y §9.
 
 ## Pruebas
 
@@ -163,62 +193,75 @@ docker compose --profile test run --rm tests-catalog
 docker compose --profile test run --rm tests-users
 docker compose --profile test run --rm tests-playback
 docker compose --profile test run --rm tests-gateway
-docker compose --profile test run --rm tests-gateway ruff check .   # igual en los demás
+docker compose --profile test run --rm tests-users ruff check .   # igual en los demás
 cd ui && npm ci && npm test && npm run build
 ```
 
-- **Directorio:** las pruebas de registro, latido, baja, caché y round-robin (`tests/test_discovery.py` en cada servicio) usan un Consul falso en memoria (`tests/fake_consul.py`).
-- **Balanceo de los clientes:** `tests/test_client_balancing.py` registra dos instancias falsas y comprueba que las llamadas alternan.
-- **Gateway:** sus pruebas (`services/gateway/tests/`) cubren:
-  - rutas por prefijo y round-robin;
-  - `503` sin instancias o con una instancia muerta;
-  - `/internal` bloqueado y `Range` con `206`;
-  - varias cabeceras `Set-Cookie`, subidas y límite de tamaño;
-  - la caché del balanceador.
+- **Circuito** (`tests/test_circuit.py`, con un reloj falso):
+  - las transiciones de los tres estados;
+  - una sola prueba en semiabierto;
+  - el `snapshot` y la línea de log.
+- **Clientes** (`tests/test_client_resilience.py`):
+  - un timeout se reintenta en otra instancia;
+  - un `4xx` ni se reintenta ni cuenta;
+  - con el circuito abierto, no se llama al servicio remoto.
+- **Degradación:**
+  - favoritas, historial y resumen con su servicio caído;
+  - copias en filas viejas;
+  - la copia se actualiza al leer;
+  - si falla la escritura de la copia, la respuesta sigue siendo `200`.
+- **Gateway** (`tests/test_gateway_resilience.py`):
+  - reintento si no conectó;
+  - un `POST` nunca se reintenta;
+  - un `5xx` no se reintenta;
+  - los límites configurados.
+- **Directorio:** `test_heartbeat_reregisters_when_address_changes`.
+- **UI:**
+  - `EstadoCircuitos`: estados, una mitad sin datos, refresco cada 2 s y pausa con la pestaña oculta;
+  - el estado "Sin actualizar" en las filas;
+  - el aviso en favoritas e historial;
+  - el "—" del resumen.
 
 ## Mapa de carpetas
 
 ```text
 services/
-  gateway/             app/{main,routes,proxy,config}.py, app/shared/discovery.py, tests/
-  catalog-streaming/   app/modules/catalog/, app/shared/discovery.py, scripts/{init,entrypoint}.sh
-  users-playlists/     app/modules/{users,playlists,social}/, app/clients/, app/shared/discovery.py
-  playback-metrics/    app/modules/playback/, app/clients/, app/shared/discovery.py
-web/                   SPA con Nginx y register.sh (registro en el directorio)
-scripts/demo-03.sh     demo de balanceo y caída de una réplica
-docker/initdb/         crea las tres bases y sus copias _test
+  gateway/             app/proxy.py (timeouts y reintento), app/routes.py, tests/test_gateway_resilience.py
+  catalog-streaming/   app/modules/catalog/, scripts/{init,entrypoint}.sh
+  users-playlists/     app/shared/circuit.py, app/clients/{http,circuits_router}.py, modules/social (copias)
+  playback-metrics/    app/shared/circuit.py, app/clients/{http,circuits_router}.py, modules/playback (copias)
+ui/src/components/     EstadoCircuitos.vue, FilaCancion.vue (estado "Sin actualizar")
+scripts/demo-04.sh     demo de reintento, circuito y degradación
 ```
 
 ## Qué queda fuera (y en qué rama llega)
 
 | Falta | Rama |
 |---|---|
-| Timeouts propios, reintento en otra réplica, circuit breaker, degradación donde hoy hay `503` | `04-resiliencia` |
-| Reproducciones como eventos en RabbitMQ, consumidor idempotente, DLQ y outbox | `05-mensajeria` |
-| Caché del top y del catálogo, almacén adecuado para la telemetría | `06-poliglota-cache` |
+| Que una reproducción no se pierda con el catálogo o `playback-metrics` caídos (cola, consumidor idempotente, DLQ y outbox) | `05-mensajeria` |
+| Caché del top y del catálogo, y un almacén adecuado para la telemetría | `06-poliglota-cache` |
+| Circuito compartido entre instancias, *bulkheads* y *rate limiting* | fuera del alcance del prototipo |
 | Alta disponibilidad del gateway y del directorio | fuera del alcance del prototipo |
 
 ## Limitaciones conocidas y riesgos
 
-- **Puntos únicos:** hay un solo gateway y un solo directorio.
-  - Si cae el gateway, no hay entrada al sistema.
-  - Si cae el directorio, las cachés sirven hasta 5 s y después nadie encuentra a nadie (`503`). Las sesiones y los datos no se pierden.
-- **Ventana de falla:** con los tiempos por omisión, una réplica muerta sin baja recibe tráfico hasta unos 15 s. Cada petición que le toca tarda unos 7 s en fallar.
-- **Volumen compartido:** las tres réplicas leen y escriben el mismo volumen `media`. Una subida hecha en una réplica la ven las otras porque es el mismo disco, no por replicación.
-- **Consul en modo `-dev`:** guarda todo en memoria, sin ACL ni TLS. Si se reinicia, cada instancia se vuelve a registrar en su siguiente latido.
-- **`/internal` sin autenticación** (igual que en `02`) y **código transversal copiado** por servicio (`shared/`, `discovery.py`, clientes).
-- **Salto extra:** el gateway en Python agrega un salto y CPU al streaming. Es aceptable para el prototipo.
+- **El estado del circuito es por instancia y vive en memoria.** Si se escalara `users-playlists`, cada copia tendría su propio circuito, y al reiniciar el servicio vuelve a cerrado.
+- **Copias desactualizadas.** Mientras el catálogo no responde, se muestran los datos de la última escritura o lectura buena: es la consistencia eventual que el PRD (§4) ya acepta.
+- **1.5 s puede ser poco** para consultas pesadas con mucho historial. El valor es configurable.
+- **El primer golpe a una réplica muerta todavía cuesta ~1.7 s.** Lo que se acotó es la espera, no la ventana de TTL más caché del directorio.
+- **Los reintentos internos suman carga** a un catálogo lento. El circuito la corta a las 5 fallas.
+- **Puntos únicos**, igual que en `03`: hay un solo gateway y un solo directorio. Consul corre en modo `-dev`.
 
 ## Etapas del recorrido
 
-| Etapa | Rama | Qué muestra |
-|---|---|---|
-| 01 | `01-monolito` | La aplicación completa en un proceso, con módulos de límites claros. |
-| 02 | `02-separacion` | Tres servicios, una base por servicio, llamadas HTTP por DNS. |
-| 03 | `03-gateway-discovery-balanceo` | **Esta rama.** Directorio, gateway, réplicas y balanceo. |
-| 04 | `04-resiliencia` | Timeouts, reintentos, circuit breaker y degradación. |
-| 05 | `05-mensajeria` | Reproducciones como eventos en un broker. |
-| 06 | `06-poliglota-cache` | Caché y persistencia políglota. |
+| Etapa | Rama                            | Qué muestra                                                          |
+| ----- | ------------------------------- | -------------------------------------------------------------------- |
+| 01    | `01-monolito`                   | La aplicación completa en un proceso, con módulos de límites claros. |
+| 02    | `02-separacion`                 | Tres servicios, una base por servicio, llamadas HTTP por DNS.        |
+| 03    | `03-gateway-discovery-balanceo` | Directorio, gateway, réplicas y balanceo.                            |
+| 04    | `04-resiliencia`                | **Esta rama.** Timeouts, reintentos, circuit breaker y degradación.  |
+| 05    | `05-mensajeria`                 | Reproducciones como eventos en un broker.                            |
+| 06    | `06-poliglota-cache`            | Caché y persistencia políglota.                                      |
 
 ## Apagar
 

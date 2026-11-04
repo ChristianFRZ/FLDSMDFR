@@ -13,4 +13,6 @@ Los clientes HTTP viven en `app/clients/` de quien consume y conservan el nombre
 
 **Directorio (desde `03`).** Cada servicio, incluido el gateway, lleva su copia de `app/shared/discovery.py`. Al arrancar se registra en Consul (`discovery:8500`) con id `<servicio>-<hostname>` y check TTL, manda latido cada 3 s y se da de baja al apagarse. Los clientes no tienen URLs: `http.call("catalog-streaming", ...)` pide las instancias vivas (caché de 5 s) y elige una en round-robin; sin instancias → `503`. Cada respuesta lleva `X-Instancia`.
 
+**Resiliencia (desde `04`).** `http.call` aplica 1.5 s por intento, un reintento en otra réplica y un circuit breaker por servicio remoto (`app/shared/circuit.py`, copia en `users-playlists` y `playback-metrics`). Con el circuito abierto responde `503` al instante. Favoritas e historial guardan copias de la canción y responden `degraded` si el catálogo no contesta. El estado de los circuitos se ve en `GET /api/admin/circuits` (`users-playlists`) y `GET /api/metrics/circuits` (`playback-metrics`), y en la Cabina. El gateway da 1.5 s para conectar y reintenta en otra réplica un `GET`/`HEAD` que no conectó.
+
 Pruebas: `docker compose --profile test run --rm tests-catalog | tests-users | tests-playback | tests-gateway`.
