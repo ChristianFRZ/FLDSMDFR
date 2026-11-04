@@ -21,7 +21,8 @@ const iniciado = ref(false)
 let desde = 0
 
 const hayMas = ref(false)
-const degradado = ref(false)
+// El aviso sigue mientras haya alguna fila con copia, venga de la página que venga.
+const degradado = computed(() => items.value.some((h) => h.status === 'degraded'))
 const disponibles = computed(() => items.value.filter((h) => h.available).map((h) => h.song))
 
 async function cargar(): Promise<void> {
@@ -29,7 +30,6 @@ async function cargar(): Promise<void> {
   error.value = false
   try {
     const pagina = await me.history(PAGINA, desde)
-    degradado.value = pagina.degraded === true
     // Una canción escuchada entre páginas puede repetirse: se conserva la primera aparición.
     const vistos = new Set(items.value.map((h) => h.song.id))
     items.value = [...items.value, ...pagina.items.filter((h) => !vistos.has(h.song.id))]

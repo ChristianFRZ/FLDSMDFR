@@ -107,7 +107,10 @@ async def _refresh_snapshots(session, user_id, favorites, songs) -> None:
         await repository.save_snapshots(session, user_id, stale)
     except Exception:
         logger.warning("No se pudieron guardar las copias de favoritas", exc_info=True)
-        await session.rollback()
+        try:
+            await session.rollback()
+        except Exception:  # p. ej. la conexión se cayó: la lectura responde igual
+            logger.warning("Tampoco se pudo deshacer la escritura de copias", exc_info=True)
 
 
 async def follow(session: AsyncSession, user_id: uuid.UUID, artist: str) -> None:

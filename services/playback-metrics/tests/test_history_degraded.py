@@ -145,3 +145,19 @@ async def test_snapshot_write_failure_still_200(user, session, media_dir, monkey
     r = await user.get("/api/me/history")
     assert r.status_code == 200
     assert r.json()["items"][0]["song"]["title"] == "Nuevo"
+
+
+async def test_snapshot_commit_and_rollback_fail_still_200(user, session, media_dir, monkeypatch):
+    """Falla el commit de la copia y también el rollback (conexión caída): la lectura responde."""
+    song = await insert_song(session, media_dir, title="Viejo")
+    await _play(user, song.id)
+    fake = FakeCatalog.current
+    fake.songs[song.id] = fake.songs[song.id].model_copy(update={"title": "Nuevo"})
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("conexión perdida")
+
+    monkeypatch.setattr("app.modules.playback.repository.save_snapshots", boom)
+    monkeypatch.setattr("sqlalchemy.ext.asyncio.AsyncSession.rollback", boom)
+    r = await user.get("/api/me/history")
+    assert r.status_code == 200
