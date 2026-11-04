@@ -60,12 +60,21 @@ async def test_no_instances_503(client, consul, network):
     assert "catalog-streaming" in body["message"]
 
 
-async def test_connect_error_503(client, cluster):
-    """Réplica muerta que la caché del balanceador todavía anuncia: sin reintento en 03."""
+async def test_connect_error_retried(client, cluster):
+    """Réplica muerta que la caché del balanceador todavía anuncia: desde 04 el GET se
+    reintenta en la otra (en 03 la mitad de las peticiones daba 503)."""
     _consul, network = cluster
     del network.hosts["10.0.4.1"]
     codes = [(await client.get("/api/songs")).status_code for _ in range(2)]
-    assert sorted(codes) == [200, 503]
+    assert codes == [200, 200]
+
+
+async def test_connect_error_post_503(client, cluster):
+    """Un POST no se reintenta: con la réplica muerta, la que le toca responde 503 JSON."""
+    _consul, network = cluster
+    del network.hosts["10.0.4.1"]
+    codes = sorted([(await client.post("/api/songs", content=b"x")).status_code for _ in range(2)])
+    assert codes[-1] == 503
 
 
 async def test_internal_is_404(client, cluster):

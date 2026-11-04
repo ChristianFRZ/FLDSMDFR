@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     ttl_s: int = 10
     deregister_after: str = "1m"
     lb_cache_s: float = 5
+    # Resiliencia (rama 04): límite corto solo para CONECTAR (una réplica muerta ya no cuelga
+    # ~7 s); leer y escribir tienen 30 s por operación para no cortar audio ni subidas.
+    upstream_connect_s: float = 1.5
+    upstream_read_s: float = 30
+    retries: int = 1
 
 
 @lru_cache
