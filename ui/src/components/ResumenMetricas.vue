@@ -25,6 +25,11 @@ async function cargar(): Promise<void> {
   }
 }
 
+// null: el servicio dueño de ese total no respondió (resumen degradado, rama 04).
+function total(valor: number | null): string {
+  return valor === null ? '—' : valor.toLocaleString('es-MX')
+}
+
 onMounted(() => void cargar())
 defineExpose({ recargar: cargar })
 </script>
@@ -46,13 +51,17 @@ defineExpose({ recargar: cargar })
           <dt>reproducciones</dt>
           <dd>{{ resumen.total_playbacks.toLocaleString('es-MX') }}</dd>
         </div>
-        <div class="resumen__tarjeta">
+        <div class="resumen__tarjeta" data-prueba="total-canciones">
           <dt>canciones</dt>
-          <dd>{{ resumen.total_songs.toLocaleString('es-MX') }}</dd>
+          <!-- column-reverse: en pantalla queda número, "sin datos" y etiqueta -->
+          <p v-if="resumen.total_songs === null" class="resumen__sin-datos">sin datos</p>
+          <dd>{{ total(resumen.total_songs) }}</dd>
         </div>
-        <div class="resumen__tarjeta">
+        <div class="resumen__tarjeta" data-prueba="total-usuarios">
           <dt>usuarios</dt>
-          <dd>{{ resumen.total_users.toLocaleString('es-MX') }}</dd>
+          <!-- column-reverse: en pantalla queda número, "sin datos" y etiqueta -->
+          <p v-if="resumen.total_users === null" class="resumen__sin-datos">sin datos</p>
+          <dd>{{ total(resumen.total_users) }}</dd>
         </div>
       </dl>
 
@@ -139,5 +148,10 @@ defineExpose({ recargar: cargar })
 
 .resumen__vacio {
   margin: 0;
+}
+.resumen__sin-datos {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 11px;
 }
 </style>

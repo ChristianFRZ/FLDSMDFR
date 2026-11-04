@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import * as me from '../api/me'
 import type { HistoryItemOut } from '../api/types'
 import AvisoEnLinea from '../components/AvisoEnLinea.vue'
+import { AVISO_DEGRADADO } from '../composables/canciones'
 import FilaCancion from '../components/FilaCancion.vue'
 import { tiempoRelativo } from '../composables/texto'
 import { usePlayer } from '../composables/usePlayer'
@@ -20,6 +21,7 @@ const iniciado = ref(false)
 let desde = 0
 
 const hayMas = ref(false)
+const degradado = ref(false)
 const disponibles = computed(() => items.value.filter((h) => h.available).map((h) => h.song))
 
 async function cargar(): Promise<void> {
@@ -27,6 +29,7 @@ async function cargar(): Promise<void> {
   error.value = false
   try {
     const pagina = await me.history(PAGINA, desde)
+    degradado.value = pagina.degraded === true
     // Una canción escuchada entre páginas puede repetirse: se conserva la primera aparición.
     const vistos = new Set(items.value.map((h) => h.song.id))
     items.value = [...items.value, ...pagina.items.filter((h) => !vistos.has(h.song.id))]
@@ -53,6 +56,7 @@ function reproducir(item: HistoryItemOut): void {
       <h1 id="titulo-historial">Historial</h1>
     </header>
 
+    <AvisoEnLinea v-if="degradado && !error" tipo="aviso">{{ AVISO_DEGRADADO }}</AvisoEnLinea>
     <div v-if="!iniciado" class="esqueleto-fila" aria-hidden="true"><span /><span /></div>
     <p v-else-if="items.length === 0 && !error" class="texto-secundario">
       Aún no escuchas nada. Empieza en el <RouterLink to="/catalogo">Catálogo</RouterLink>.
@@ -62,6 +66,7 @@ function reproducir(item: HistoryItemOut): void {
         <FilaCancion
           :cancion="h.song"
           :disponible="h.available"
+          :estado="h.status"
           :sonando="player.current.value?.id === h.song.id"
           @reproducir="reproducir(h)"
         />

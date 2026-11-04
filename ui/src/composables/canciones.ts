@@ -1,6 +1,10 @@
 import type { FavoriteSongOut, PlaylistSongOut, SongOut } from '../api/types'
 
-/** Fila de casete → canción reproducible (sin portada: el detalle de casete no la trae). */
+/** Aviso de lista degradada (DESIGN.md §6.9): el catálogo no respondió y se ven las copias. */
+export const AVISO_DEGRADADO = 'El catálogo no responde; mostramos los últimos datos guardados.'
+
+/** Fila de casete → canción reproducible (sin portada: el detalle de casete no la trae).
+ * Una fila degradada (copia, catálogo caído) no se reproduce: el audio también es del catálogo. */
 export function desdeCasete(fila: PlaylistSongOut): SongOut {
   return {
     id: fila.song_id,
@@ -8,7 +12,7 @@ export function desdeCasete(fila: PlaylistSongOut): SongOut {
     artist: fila.artist,
     album: fila.album,
     duration_seconds: fila.duration_seconds,
-    is_active: fila.status !== 'unavailable',
+    is_active: fila.status === 'ok',
     has_cover: false,
   }
 }

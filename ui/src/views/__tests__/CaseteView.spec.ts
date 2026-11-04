@@ -124,4 +124,19 @@ describe('CaseteView', () => {
     expect(w.find('button[data-prueba="salir-casete"]').exists()).toBe(true)
     w.unmount()
   })
+
+  it('una canción degradada se muestra "Sin actualizar" y no se reproduce', async () => {
+    api.get.mockResolvedValue(
+      detalle({
+        songs: [
+          { song_id: 's1', title: 'Granizo', artist: 'Meteoros', album: 'A', duration_seconds: 60, position: 0, status: 'degraded' },
+        ],
+      }),
+    )
+    const { w } = await montar()
+    expect(w.text()).toContain('Sin actualizar')
+    await w.get('[data-prueba="reproducir"]').trigger('click')
+    expect(api.play).not.toHaveBeenCalled()
+    w.unmount()
+  })
 })

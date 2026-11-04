@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import EstadoCircuitos from '../components/EstadoCircuitos.vue'
 import FormularioSubida from '../components/FormularioSubida.vue'
 import GestionUsuarios from '../components/GestionUsuarios.vue'
 import ResumenMetricas from '../components/ResumenMetricas.vue'
@@ -30,6 +31,7 @@ function alCambiar(): void {
     <div class="cabina__columnas">
       <aside class="cabina__lateral" aria-label="Resumen y subida">
         <div class="tarjeta"><ResumenMetricas ref="resumen" /></div>
+        <div class="tarjeta"><EstadoCircuitos /></div>
         <div class="tarjeta"><FormularioSubida @subida="alSubir" /></div>
       </aside>
 

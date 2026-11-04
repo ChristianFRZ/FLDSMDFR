@@ -56,7 +56,7 @@ export interface MemberOut {
   name: string
 }
 
-export type PlaylistSongStatus = 'ok' | 'degraded' | 'unavailable'
+export type PlaylistSongStatus = SongStatus
 
 export interface PlaylistSongOut {
   song_id: string
@@ -112,20 +112,28 @@ export interface TopSongOut {
 
 export interface MetricsSummary {
   total_playbacks: number
-  total_songs: number
-  total_users: number
+  /** null: catalog-streaming no respondió (resumen degradado). */
+  total_songs: number | null
+  /** null: users-playlists no respondió (resumen degradado). */
+  total_users: number | null
   top: TopSongOut[]
+  degraded?: boolean
 }
+
+/** ok · degraded (copia guardada: el catálogo no respondió) · unavailable (canción retirada). */
+export type SongStatus = 'ok' | 'degraded' | 'unavailable'
 
 export interface HistoryItemOut {
   song: SongOut
   last_played_at: string
   available: boolean
+  status?: SongStatus
 }
 
 export interface HistoryPage {
   items: HistoryItemOut[]
   total: number
+  degraded?: boolean
 }
 
 export interface TopArtistOut {
@@ -142,13 +150,30 @@ export interface FavoriteSongOut {
   album: string
   duration_seconds: number
   has_cover: boolean
-  status: 'ok' | 'unavailable'
+  status: SongStatus
   added_at: string
 }
 
 export interface FavoritesOut {
   songs: FavoriteSongOut[]
   total_seconds: number
+  degraded?: boolean
+}
+
+export type CircuitState = 'closed' | 'open' | 'half_open'
+
+export interface CircuitOut {
+  source: string
+  target: string
+  state: CircuitState
+  consecutive_failures: number
+  since: string
+  retry_in_s: number | null
+}
+
+export interface CircuitsOut {
+  instance: string
+  circuits: CircuitOut[]
 }
 
 export interface FollowOut {

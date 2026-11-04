@@ -332,7 +332,7 @@ async function quitarMiembro(userId: string): Promise<void> {
           <FilaCancion
             class="casete__fila"
             :cancion="canciones[i]"
-            :disponible="fila.status !== 'unavailable'"
+            :estado="fila.status"
             :sonando="player.current.value?.id === fila.song_id"
             @reproducir="reproducir(i)"
           >

@@ -7,7 +7,7 @@ import AvisoEnLinea from '../components/AvisoEnLinea.vue'
 import CabeceraCasete from '../components/CabeceraCasete.vue'
 import FilaCancion from '../components/FilaCancion.vue'
 import Icono from '../components/icons/Icono.vue'
-import { desdeFavorita, resumenDuracion } from '../composables/canciones'
+import { AVISO_DEGRADADO, desdeFavorita, resumenDuracion } from '../composables/canciones'
 import { useFavoritos } from '../composables/useFavoritos'
 import { usePlayer } from '../composables/usePlayer'
 
@@ -70,6 +70,7 @@ function reproducir(i: number): void {
       </template>
     </CabeceraCasete>
 
+    <AvisoEnLinea v-if="datos?.degraded && !error" tipo="aviso">{{ AVISO_DEGRADADO }}</AvisoEnLinea>
     <div v-if="cargando && !datos" class="esqueleto-fila" aria-hidden="true"><span /><span /></div>
     <AvisoEnLinea v-else-if="error" reintentar @reintentar="cargar">
       No pudimos cargar tus favoritas.
@@ -82,7 +83,7 @@ function reproducir(i: number): void {
       <li v-for="(c, i) in canciones" :key="c.id">
         <FilaCancion
           :cancion="c"
-          :disponible="c.is_active"
+          :estado="datos?.songs[i]?.status"
           :sonando="player.current.value?.id === c.id"
           @reproducir="reproducir(i)"
         />

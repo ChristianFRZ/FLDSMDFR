@@ -4,6 +4,7 @@ import { RouterLink, useRouter } from 'vue-router'
 import * as me from '../api/me'
 import type { HistoryItemOut, PlaylistSummary } from '../api/types'
 import AvisoEnLinea from '../components/AvisoEnLinea.vue'
+import { AVISO_DEGRADADO } from '../composables/canciones'
 import CampoCaseteNuevo from '../components/CampoCaseteNuevo.vue'
 import FilaCancion from '../components/FilaCancion.vue'
 import SeccionArtistas from '../components/SeccionArtistas.vue'
@@ -30,6 +31,7 @@ const avisos = computed(() => notificaciones.items.value.slice(0, AVISOS_VISIBLE
 const recientes = ref<HistoryItemOut[]>([])
 const cargandoRecientes = ref(true)
 const errorRecientes = ref(false)
+const recientesDegradados = ref(false)
 const creando = ref(false)
 
 const disponibles = computed(() => recientes.value.filter((h) => h.available).map((h) => h.song))
@@ -38,7 +40,9 @@ async function cargarRecientes(): Promise<void> {
   cargandoRecientes.value = true
   errorRecientes.value = false
   try {
-    recientes.value = (await me.history(RECIENTES)).items
+    const pagina = await me.history(RECIENTES)
+    recientes.value = pagina.items
+    recientesDegradados.value = pagina.degraded === true
   } catch {
     errorRecientes.value = true
   } finally {
@@ -105,6 +109,9 @@ async function onCreado(nuevo: PlaylistSummary): Promise<void> {
           Ver todo <Icono nombre="arrow-right" :tam="14" />
         </RouterLink>
       </header>
+      <AvisoEnLinea v-if="recientesDegradados && !errorRecientes" tipo="aviso">
+        {{ AVISO_DEGRADADO }}
+      </AvisoEnLinea>
       <div v-if="cargandoRecientes" class="esqueleto-fila" aria-hidden="true"><span /><span /></div>
       <AvisoEnLinea v-else-if="errorRecientes" reintentar @reintentar="cargarRecientes">
         No pudimos cargar lo que escuchaste.
@@ -117,6 +124,7 @@ async function onCreado(nuevo: PlaylistSummary): Promise<void> {
           <FilaCancion
             :cancion="h.song"
             :disponible="h.available"
+            :estado="h.status"
             :sonando="player.current.value?.id === h.song.id"
             @reproducir="reproducir(h)"
           />

@@ -191,6 +191,7 @@ una sola forma de una tinta.
 | Vacío | Una o dos frases que dicen qué hacer y, si aplica, el botón para hacerlo. |
 | Error | `AvisoEnLinea` en el lugar del contenido con el mensaje del backend y "Reintentar". |
 | No disponible | Canción desactivada: opacidad 0.6, etiqueta "No disponible", sin reproducir. |
+| Sin actualizar | El catálogo no respondió y se muestra la copia guardada: opacidad 0.6, etiqueta "Sin actualizar · artista", sin reproducir (el audio también es del catálogo). Arriba de la lista, un `AvisoEnLinea` de tipo aviso: "El catálogo no responde; mostramos los últimos datos guardados." |
 
 ### 7.1. Barra lateral (`BarraLateral`)
 
@@ -223,7 +224,8 @@ de progreso dibuja los fragmentos descargados (`audio.buffered`).
 
 Portada, título, artista, `audio-lines` si suena, duración `m:ss` y menú `…` (Grabar en
 casete…, Añadir a favoritas/Quitar, Añadir a la cola, Reproducir a continuación). La fila
-que suena usa el estado activo.
+que suena usa el estado activo. La prop `estado` (`ok`, `degraded`, `unavailable`) aplica
+los estados "Sin actualizar" y "No disponible"; se usa en favoritas, historial, Inicio y casete.
 
 ### 7.6. Avisos (`Campana`, `PanelAvisos`, `TarjetaAviso`)
 
@@ -239,6 +241,14 @@ no leídos.
 - `SonandoAhora`: vista de pantalla completa con portada grande y controles.
 - `VentanaCarretes`: ventanita de casete con dos carretes que giran mientras suena.
 - `Aviso` (toast) y `AvisoEnLinea`: mensajes efímeros y en el lugar del contenido.
+- `EstadoCircuitos`: tarjeta "Resiliencia" de la Cabina, debajo del resumen. Por cada servicio
+  que llama a otros (`users-playlists`, `playback-metrics`), su instancia y una fila por
+  circuito: "origen → destino", estado con icono y texto (`check` Cerrado, `x` Abierto en
+  `--danger`, `loader-circle` Semiabierto), fallas seguidas, "desde hace N s" y, si está
+  abierto, "vuelve a probar en N s". Se refresca cada 2 s con la pestaña visible; si un
+  servicio no responde, su parte dice "Sin datos de <servicio>" y la otra sigue.
+- `ResumenMetricas`: un total que no llegó (servicio caído) se muestra como "—" con la nota
+  "sin datos".
 
 ---
 

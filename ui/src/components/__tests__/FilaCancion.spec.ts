@@ -43,4 +43,14 @@ describe('FilaCancion', () => {
     const w = mount(FilaCancion, { props: { cancion, sonando: true } })
     expect(w.get('[data-prueba="reproducir"]').attributes('aria-current')).toBe('true')
   })
+
+  it('estado degradado muestra "Sin actualizar" y no se reproduce', async () => {
+    const w = mount(FilaCancion, { props: { cancion, estado: 'degraded' } })
+    expect(w.text()).toContain('Sin actualizar')
+    expect(w.text()).toContain('Granizo')
+    expect(w.classes()).toContain('fila--sin-actualizar')
+    expect(w.get('[data-prueba="reproducir"]').attributes('disabled')).toBeDefined()
+    await w.get('[data-prueba="reproducir"]').trigger('click')
+    expect(w.emitted('reproducir')).toBeUndefined()
+  })
 })
