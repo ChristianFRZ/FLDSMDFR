@@ -1,0 +1,222 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Unbounded:wght@600;800&family=Syne:wght@700;800&family=Krona+One&display=swap" rel="stylesheet">
+
+<style>
+  :root { --ink:#141317; --panel:#201F25; --panel2:#2E2C35; --paper:#F4F1EA; --mute:#BDB9AF;
+          --pink:#FF3D8B; --yellow:#FFD233; --teal:#00D1BE; --cobalt:#4A5CFF; }
+  .app { --sys:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif; --disp:"Unbounded",var(--sys); --dw:800; --ds:1;
+    font-family:var(--sys); position:relative; overflow:hidden; text-align:left; font-size:13px; line-height:1.3;
+    display:grid; grid-template-columns:232px minmax(0,1fr) 224px; grid-template-rows:minmax(0,1fr) 88px; gap:10px; padding:10px; height:716px;
+    background:var(--ink) radial-gradient(#34323B 1.2px,transparent 1.3px) 0 0/16px 16px; color:var(--paper); }
+  .app * { box-sizing:border-box; }
+  .app svg.i { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  .app > aside, .app > main, .player { background:var(--panel); border:2px solid var(--paper); border-radius:14px; }
+  .app > aside, .app > main { padding:14px; overflow:hidden; position:relative; }
+  .app > main { box-shadow:5px 5px 0 var(--pink); }
+  .brand { height:30px; display:block; margin:2px 0 14px; color:var(--paper); }
+  .nav a { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; font-weight:600; }
+  .nav a.on { background:var(--panel2); }
+  .create { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; margin:10px 0 12px; padding:9px; background:var(--pink); color:var(--ink); border:2px solid var(--paper); border-radius:10px; font-weight:700; box-shadow:3px 3px 0 var(--paper); }
+  .pills { display:flex; gap:5px; margin-bottom:8px; }
+  .pills span { padding:4px 9px; border-radius:999px; font-size:12px; background:var(--panel2); }
+  .pills .on { background:var(--yellow); color:var(--ink); font-weight:600; }
+  .lrow { display:grid; grid-template-columns:36px 1fr; gap:9px; align-items:center; padding:5px 4px; }
+  .lrow b { display:block; font-size:13px; font-weight:600; }
+  small { font-size:12px; color:var(--mute); }
+  .sw { width:36px; height:36px; border-radius:6px; background:var(--c); border:2px solid var(--paper); }
+  .top { display:flex; align-items:center; gap:8px; margin-bottom:14px; }
+  .ib { width:32px; height:32px; border-radius:50%; display:grid; place-items:center; flex:none; background:var(--panel2); position:relative; }
+  .ib.plain { background:none; }
+  .ib em { position:absolute; top:-3px; right:-3px; min-width:16px; height:16px; border-radius:8px; background:var(--pink); color:var(--ink); font:700 11px/16px var(--sys); text-align:center; }
+  .search { flex:1; display:flex; gap:8px; align-items:center; padding:7px 14px; border-radius:999px; background:var(--panel2); color:var(--mute); }
+  .avatar { background:var(--teal); color:var(--ink); font-weight:800; }
+  .home h1 { font-family:var(--disp); font-weight:var(--dw); font-size:calc(26px * var(--ds)); margin:0 0 4px; line-height:1.05; letter-spacing:-.01em; }
+  .home h2 { font-family:var(--disp); font-weight:var(--dw); font-size:calc(14px * var(--ds)); margin:14px 0 8px; }
+  .pile { display:flex; height:136px; align-items:center; padding-left:6px; }
+  .t { position:relative; width:172px; flex:none; margin-right:-28px; filter:drop-shadow(0 6px 8px rgba(0,0,0,.55)); transition:transform .15s; }
+  .t svg { width:100%; display:block; }
+  .t span { position:absolute; left:11%; right:11%; top:18%; font-family:"Caveat",cursive; font-size:18px; line-height:1; color:#15131F; white-space:nowrap; overflow:hidden; }
+  .t:nth-child(1){transform:rotate(-4deg);z-index:3} .t:nth-child(2){transform:rotate(3deg) translateY(10px);z-index:2}
+  .t:nth-child(3){transform:rotate(-2deg) translateY(-6px);z-index:4} .t:nth-child(4){transform:rotate(5deg) translateY(6px);z-index:1}
+  .t:hover{transform:rotate(0) translateY(-4px) scale(1.03);z-index:9}
+  .tp1{--shell:#4A5CFF}.tp2{--shell:#FF3D8B}.tp3{--shell:#00D1BE}.tp4{--shell:#FFD233}
+  .quick { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .quick div { display:flex; align-items:center; gap:9px; background:var(--panel2); border-radius:8px; padding:6px; }
+  .row { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .cover { aspect-ratio:1.7; border-radius:8px; background:var(--c); border:2px solid var(--paper); margin-bottom:5px; }
+  .row b { display:block; font-weight:600; }
+  /* la nota: papel rasgado con cinta */
+  .note-wrap { position:relative; filter:drop-shadow(3px 4px 0 rgba(0,0,0,.55)); }
+  .note-wrap::before { content:""; position:absolute; z-index:2; top:-8px; left:38%; width:58px; height:16px; background:rgba(255,210,51,.85); transform:rotate(-4deg); }
+  .note { clip-path:polygon(0 4%,6% 0,20% 5%,38% 1%,57% 4%,74% 0,92% 5%,100% 2%,99% 96%,88% 100%,70% 95%,51% 100%,33% 96%,14% 100%,0 96%); background:var(--paper); color:var(--ink); padding:14px; }
+  .invite { position:absolute; right:18px; top:68px; transform:rotate(2.5deg); z-index:5; width:188px; }
+  .invite .note { background:var(--yellow); font-weight:600; }
+  .invite::before { background:rgba(244,241,234,.85); }
+  .invite u { text-decoration:none; font-weight:800; display:block; margin-top:4px; }
+  .now h3 { font-family:var(--disp); font-weight:var(--dw); font-size:calc(11px * var(--ds)); margin:0 0 10px; }
+  .now .t { width:100%; margin:4px 0 14px; transform:rotate(-3deg); } .now .t span { font-size:21px; }
+  .now b { display:block; font-size:15px; }
+  .now .note-wrap { margin-top:18px; transform:rotate(1.5deg); }
+  .now .note { font-family:"Caveat",cursive; font-size:21px; line-height:1.05; }
+  .now .note small { display:block; font-family:var(--sys); font-size:12px; margin-top:5px; color:#3F3D47; }
+  .nextup { margin-top:16px; } .nextup div { padding:4px 0; }
+  .deco { position:absolute; pointer-events:none; }
+  .player { grid-column:1/-1; display:grid; grid-template-columns:1fr 1.4fr 1fr; align-items:center; padding:0 14px; gap:14px; }
+  .pl-l { display:flex; gap:10px; align-items:center; min-width:0; } .pl-l .sw { width:52px; height:52px; }
+  .pl-l b { display:block; font-size:14px; }
+  .pl-c { display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .ctl { display:flex; gap:6px; align-items:center; }
+  .play { width:40px; height:40px; border-radius:50%; display:grid; place-items:center; background:var(--pink); color:var(--ink); border:2px solid var(--paper); margin:0 6px; }
+  .play svg.i { fill:currentColor; }
+  .reels { display:grid; grid-template-columns:auto auto 1fr auto auto; gap:8px; align-items:center; width:100%; font-size:12px; color:var(--mute); font-variant-numeric:tabular-nums; }
+  .reel { border-radius:50%; border:3px solid var(--paper); display:block; animation:spin 3s linear infinite; position:relative; }
+  .reel::after { content:""; position:absolute; left:50%; top:0; bottom:50%; width:2px; margin-left:-1px; background:var(--paper); }
+  .reel.a { width:22px; height:22px; } .reel.b { width:14px; height:14px; }
+  .band { height:4px; border-radius:2px; position:relative; background:#4A4852; }
+  .band i { position:absolute; inset:0 62% 0 0; border-radius:2px; background:var(--yellow); }
+  .pl-r { display:flex; justify-content:flex-end; align-items:center; gap:4px; }
+  .vol { width:92px; height:4px; border-radius:2px; background:#4A4852; position:relative; margin-left:4px; }
+  .vol i { position:absolute; inset:0 30% 0 0; background:var(--paper); border-radius:2px; }
+  .ib.act { color:var(--teal); }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  @media (prefers-reduced-motion:reduce){ .reel{animation:none} }
+  .typepick { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:14px; }
+  .typepick .option { padding:12px; display:block; }
+  .typepick p { font-size:20px; margin:0; line-height:1.15; color:var(--text-primary); }
+  .logos img { width:100%; border-radius:12px; display:block; }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="tape" viewBox="0 0 320 204">
+    <rect x="2" y="2" width="316" height="200" rx="12" fill="var(--shell)" stroke="#000" stroke-opacity=".35" stroke-width="2"/>
+    <rect x="22" y="18" width="276" height="122" rx="6" fill="#FFFDF7"/>
+    <rect x="72" y="76" width="176" height="52" rx="26" fill="#15131F"/>
+    <circle cx="100" cy="102" r="18" fill="#FFFDF7"/><circle cx="100" cy="102" r="7" fill="#15131F"/>
+    <circle cx="220" cy="102" r="18" fill="#FFFDF7"/><circle cx="220" cy="102" r="7" fill="#15131F"/>
+    <path d="M70 202 L84 160 H236 L250 202 Z" fill="#000" opacity=".22"/>
+  </symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></symbol>
+  <symbol id="i-lib" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="2"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/></symbol>
+  <symbol id="i-stats" viewBox="0 0 24 24"><path d="M5 20V11M12 20V5M19 20v-6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 1 1 12 0v5l2 2H4z"/><path d="M10 21h4"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M3 7h3c5 0 7 10 12 10h3"/><path d="M3 17h3c1.8 0 3-1 4.2-2.4M14 9.4C15 8 16.2 7 18 7h3"/><path d="m18 4 3 3-3 3M18 14l3 3-3 3"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M19 5 9 12l10 7z"/><path d="M5 5v14"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="m5 5 10 7-10 7z"/><path d="M19 5v14"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="m7 4 13 8-13 8z"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="m17 3 3 3-3 3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/><path d="m7 21-3-3 3-3"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20S4 15 4 9.5A4.5 4.5 0 0 1 12 7a4.5 4.5 0 0 1 8 2.5C20 15 12 20 12 20z"/></symbol>
+  <symbol id="i-queue" viewBox="0 0 24 24"><path d="M4 6h12M4 12h12M4 18h7"/><path d="m15 15 5 3-5 3z"/></symbol>
+  <symbol id="i-note" viewBox="0 0 24 24"><path d="M4 5h16v11l-3 3H4z"/><path d="M8 10h8M8 14h5"/></symbol>
+  <symbol id="i-vol" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16.5 9a4 4 0 0 1 0 6"/></symbol>
+  <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V4h5M20 15v5h-5M4 4l6 6M20 20l-6-6"/></symbol>
+</svg>
+
+<h2>Tercera vuelta: Memphis sobre negro, y logo</h2>
+<p class="subtitle">Logo: tres conceptos en blanco y negro. La maqueta ya usa el C como muestra.</p>
+<div class="logos section"><img src="/files/concepts.png" alt="Tres conceptos de logo: Beso de cinta, M suelta y Nota casete"></div>
+
+<h3>Tipografía de títulos</h3>
+<p class="subtitle">Da clic en una y la maqueta cambia.</p>
+<div class="typepick options">
+  <div class="option" data-choice="unbounded" onclick="toggleSelect(this);setType('Unbounded',800,1)"><p style="font-family:Unbounded;font-weight:800">Tus casetes</p><small style="color:var(--text-secondary)">Unbounded: redonda y ancha</small></div>
+  <div class="option" data-choice="syne" onclick="toggleSelect(this);setType('Syne',800,1.25)"><p style="font-family:Syne;font-weight:800">Tus casetes</p><small style="color:var(--text-secondary)">Syne: rara y artística</small></div>
+  <div class="option" data-choice="krona" onclick="toggleSelect(this);setType('Krona One',400,.95)"><p style="font-family:'Krona One'">Tus casetes</p><small style="color:var(--text-secondary)">Krona One: ancha y técnica</small></div>
+</div>
+
+<div class="app" id="app" style="--scroll:0">
+  <aside>
+    <svg class="brand" viewBox="0 0 976 256" role="img" aria-label="MELOXO"><path fill="currentColor" fill-rule="evenodd" d="M736.0 110.6 L703.4 89.4 L690.7 109.0 L723.3 130.2 L702.1 162.8 L721.6 175.5 L742.8 142.8 L775.4 164.0 L788.1 144.5 L755.5 123.3 L776.7 90.7 L757.1 78.0 Z M20.8 47.9 L18.9 49.2 L17.2 50.7 L15.7 52.4 L14.4 54.3 L13.3 56.4 L12.6 58.6 L12.2 60.9 L12.0 63.2 L12.0 192.8 L12.2 195.1 L12.6 197.4 L13.3 199.6 L14.4 201.7 L15.7 203.6 L17.2 205.3 L18.9 206.8 L20.8 208.1 L22.9 209.2 L25.1 209.9 L27.4 210.3 L29.7 210.5 L55.2 210.5 L96.5 210.5 L228.1 210.5 L204.5 181.0 L230.0 149.6 L202.5 124.1 L232.0 96.6 L206.5 73.0 L228.1 45.5 L96.5 45.5 L55.2 45.5 L29.7 45.5 L27.4 45.7 L25.1 46.1 L22.9 46.8 Z M106.5 138.9 L104.9 141.5 L103.1 144.0 L101.0 146.3 L98.7 148.4 L96.2 150.2 L93.6 151.8 L90.8 153.1 L87.9 154.1 L84.9 154.9 L81.9 155.3 L78.8 155.5 L75.7 155.3 L72.7 154.9 L69.7 154.1 L66.8 153.1 L64.0 151.8 L61.3 150.2 L58.8 148.4 L56.6 146.3 L54.5 144.0 L52.7 141.5 L51.1 138.9 L49.7 136.1 L48.7 133.2 L48.0 130.2 L47.5 127.2 L47.4 124.1 L47.5 121.0 L48.0 117.9 L48.7 114.9 L49.7 112.0 L51.1 109.3 L52.7 106.6 L54.5 104.1 L56.6 101.8 L58.8 99.8 L61.3 97.9 L64.0 96.4 L66.8 95.0 L69.7 94.0 L72.7 93.2 L75.7 92.8 L78.8 92.6 L81.9 92.8 L84.9 93.2 L87.9 94.0 L90.8 95.0 L93.6 96.4 L96.2 97.9 L98.7 99.8 L101.0 101.8 L103.1 104.1 L104.9 106.6 L106.5 109.3 L107.8 112.0 L108.9 114.9 L109.6 117.9 L110.1 121.0 L110.2 124.1 L110.1 127.2 L109.6 130.2 L108.9 133.2 L107.8 136.1 Z M188.4 136.1 L187.0 138.9 L185.5 141.5 L183.6 144.0 L181.5 146.3 L179.3 148.4 L176.8 150.2 L174.1 151.8 L171.3 153.1 L168.4 154.1 L165.5 154.9 L162.4 155.3 L159.3 155.5 L156.2 155.3 L153.2 154.9 L150.2 154.1 L147.3 153.1 L144.5 151.8 L141.9 150.2 L139.4 148.4 L137.1 146.3 L135.0 144.0 L133.2 141.5 L131.6 138.9 L130.3 136.1 L129.2 133.2 L128.5 130.2 L128.0 127.2 L127.9 124.1 L128.0 121.0 L128.5 117.9 L129.2 114.9 L130.3 112.0 L131.6 109.3 L133.2 106.6 L135.0 104.1 L137.1 101.8 L139.4 99.8 L141.9 97.9 L144.5 96.4 L147.3 95.0 L150.2 94.0 L153.2 93.2 L156.2 92.8 L159.3 92.6 L162.4 92.8 L165.5 93.2 L168.4 94.0 L171.3 95.0 L174.1 96.4 L176.8 97.9 L179.3 99.8 L181.5 101.8 L183.6 104.1 L185.5 106.6 L187.0 109.3 L188.4 112.0 L189.4 114.9 L190.1 117.9 L190.6 121.0 L190.8 124.1 L190.6 127.2 L190.1 130.2 L189.4 133.2 Z M402.2 176.4 L427.1 176.4 L427.1 83.2 L400.7 83.2 L375.8 129.8 L351.0 83.2 L324.6 83.2 L324.6 176.4 L349.4 176.4 L349.4 129.8 L370.4 167.1 L381.3 167.1 L402.2 129.8 Z M438.0 154.7 L438.0 176.4 L462.8 176.4 L509.4 176.4 L509.4 154.7 L462.8 154.7 L462.8 140.7 L501.7 140.7 L501.7 119.0 L462.8 119.0 L462.8 105.0 L509.4 105.0 L509.4 83.2 L462.8 83.2 L438.0 83.2 L438.0 105.0 L438.0 119.0 L438.0 140.7 Z M585.6 176.4 L585.6 154.7 L545.2 154.7 L545.2 83.2 L520.3 83.2 L520.3 154.7 L520.3 176.4 L545.2 176.4 Z M678.7 99.3 L675.6 95.8 L672.1 92.6 L668.3 89.8 L664.2 87.4 L659.9 85.3 L655.5 83.7 L650.9 82.6 L646.2 81.9 L641.5 81.7 L636.8 81.9 L632.1 82.6 L627.5 83.7 L623.1 85.3 L618.8 87.4 L614.8 89.8 L611.0 92.6 L607.5 95.8 L604.3 99.3 L601.5 103.1 L599.0 107.1 L597.0 111.4 L595.4 115.9 L594.3 120.4 L593.6 125.1 L593.3 129.8 L593.6 134.6 L594.3 139.2 L595.4 143.8 L597.0 148.3 L599.0 152.5 L601.5 156.6 L604.3 160.4 L607.5 163.9 L611.0 167.1 L614.8 169.9 L618.8 172.3 L623.1 174.3 L627.5 175.9 L632.1 177.1 L636.8 177.8 L641.5 178.0 L646.2 177.8 L650.9 177.1 L655.5 175.9 L659.9 174.3 L664.2 172.3 L668.3 169.9 L672.1 167.1 L675.6 163.9 L678.7 160.4 L681.6 156.6 L684.0 152.5 L686.0 148.3 L687.6 143.8 L688.7 139.2 L689.4 134.6 L689.7 129.8 L689.4 125.1 L688.7 120.4 L687.6 115.9 L686.0 111.4 L684.0 107.1 L681.6 103.1 Z M658.3 143.6 L656.9 145.2 L655.3 146.7 L653.6 147.9 L651.8 149.0 L649.8 149.9 L647.8 150.7 L645.8 151.2 L643.6 151.5 L641.5 151.6 L639.4 151.5 L637.3 151.2 L635.2 150.7 L633.2 149.9 L631.3 149.0 L629.4 147.9 L627.7 146.7 L626.1 145.2 L624.7 143.6 L623.4 141.9 L622.3 140.1 L621.4 138.2 L620.7 136.2 L620.2 134.1 L619.9 132.0 L619.8 129.8 L619.9 127.7 L620.2 125.6 L620.7 123.5 L621.4 121.5 L622.3 119.6 L623.4 117.8 L624.7 116.0 L626.1 114.5 L627.7 113.0 L629.4 111.8 L631.3 110.7 L633.2 109.7 L635.2 109.0 L637.3 108.5 L639.4 108.2 L641.5 108.1 L643.6 108.2 L645.8 108.5 L647.8 109.0 L649.8 109.7 L651.8 110.7 L653.6 111.8 L655.3 113.0 L656.9 114.5 L658.3 116.0 L659.6 117.8 L660.7 119.6 L661.6 121.5 L662.3 123.5 L662.8 125.6 L663.2 127.7 L663.3 129.8 L663.2 132.0 L662.8 134.1 L662.3 136.2 L661.6 138.2 L660.7 140.1 L659.6 141.9 Z M874.5 99.3 L871.3 95.8 L867.8 92.6 L864.0 89.8 L860.0 87.4 L855.7 85.3 L851.3 83.7 L846.7 82.6 L842.0 81.9 L837.3 81.7 L832.6 81.9 L827.9 82.6 L823.3 83.7 L818.8 85.3 L814.6 87.4 L810.5 89.8 L806.7 92.6 L803.2 95.8 L800.0 99.3 L797.2 103.1 L794.8 107.1 L792.8 111.4 L791.2 115.9 L790.0 120.4 L789.3 125.1 L789.1 129.8 L789.3 134.6 L790.0 139.2 L791.2 143.8 L792.8 148.3 L794.8 152.5 L797.2 156.6 L800.0 160.4 L803.2 163.9 L806.7 167.1 L810.5 169.9 L814.6 172.3 L818.8 174.3 L823.3 175.9 L827.9 177.1 L832.6 177.8 L837.3 178.0 L842.0 177.8 L846.7 177.1 L851.3 175.9 L855.7 174.3 L860.0 172.3 L864.0 169.9 L867.8 167.1 L871.3 163.9 L874.5 160.4 L877.3 156.6 L879.7 152.5 L881.8 148.3 L883.4 143.8 L884.5 139.2 L885.2 134.6 L885.4 129.8 L885.2 125.1 L884.5 120.4 L883.4 115.9 L881.8 111.4 L879.7 107.1 L877.3 103.1 Z M854.1 143.6 L852.7 145.2 L851.1 146.7 L849.4 147.9 L847.5 149.0 L845.6 149.9 L843.6 150.7 L841.5 151.2 L839.4 151.5 L837.3 151.6 L835.1 151.5 L833.0 151.2 L831.0 150.7 L828.9 149.9 L827.0 149.0 L825.2 147.9 L823.5 146.7 L821.9 145.2 L820.5 143.6 L819.2 141.9 L818.1 140.1 L817.2 138.2 L816.5 136.2 L815.9 134.1 L815.6 132.0 L815.5 129.8 L815.6 127.7 L815.9 125.6 L816.5 123.5 L817.2 121.5 L818.1 119.6 L819.2 117.8 L820.5 116.0 L821.9 114.5 L823.5 113.0 L825.2 111.8 L827.0 110.7 L828.9 109.7 L831.0 109.0 L833.0 108.5 L835.1 108.2 L837.3 108.1 L839.4 108.2 L841.5 108.5 L843.6 109.0 L845.6 109.7 L847.5 110.7 L849.4 111.8 L851.1 113.0 L852.7 114.5 L854.1 116.0 L855.4 117.8 L856.5 119.6 L857.4 121.5 L858.1 123.5 L858.6 125.6 L858.9 127.7 L859.0 129.8 L858.9 132.0 L858.6 134.1 L858.1 136.2 L857.4 138.2 L856.5 140.1 L855.4 141.9 Z"/></svg>
+    <div class="nav">
+      <a class="on"><svg class="i"><use href="#i-home"/></svg>Inicio</a>
+      <a><svg class="i"><use href="#i-search"/></svg>Buscar</a>
+      <a><svg class="i"><use href="#i-lib"/></svg>Tu biblioteca</a>
+      <a><svg class="i"><use href="#i-stats"/></svg>Estadísticas</a>
+    </div>
+    <div class="create"><svg class="i"><use href="#i-plus"/></svg>Crear casete</div>
+    <div class="pills"><span class="on">Casetes</span><span>Playlists</span><span>Artistas</span></div>
+    <div class="lrow"><div class="sw" style="--c:#4A5CFF"></div><div><b>Viaje a Oaxaca</b><small>7 de 12 · 3 personas</small></div></div>
+    <div class="lrow"><div class="sw" style="--c:#FF3D8B"></div><div><b>Domingo lento</b><small>12 de 12 · 5 personas</small></div></div>
+    <div class="lrow"><div class="sw" style="--c:#00D1BE"></div><div><b>Para Ana</b><small>3 de 12 · 2 personas</small></div></div>
+    <div class="lrow"><div class="sw" style="--c:#FFD233"></div><div><b>Ruido de lunes</b><small>9 de 12 · 4 personas</small></div></div>
+    <div class="lrow"><div class="sw" style="--c:#F4F1EA"></div><div><b>Noches de patio</b><small>Invitación pendiente</small></div></div>
+  </aside>
+
+  <main class="home">
+    <svg class="deco" style="right:14px;top:52px;width:86px;opacity:.9;display:none" viewBox="0 0 120 40" aria-hidden="true"><path d="M4 20c10-20 18-20 28 0s18 20 28 0 18-20 28 0 18 20 28 0" fill="none" stroke="#00D1BE" stroke-width="6" stroke-linecap="round"/></svg>
+    <div class="top">
+      <div class="ib"><svg class="i"><use href="#i-left"/></svg></div>
+      <div class="ib"><svg class="i"><use href="#i-right"/></svg></div>
+      <div class="search"><svg class="i"><use href="#i-search"/></svg>Buscar canciones o artistas</div>
+      <div class="ib"><svg class="i"><use href="#i-bell"/></svg><em>2</em></div>
+      <div class="ib avatar">B</div>
+    </div>
+    <h1>Tus casetes</h1>
+    <div class="pile">
+      <div class="t tp1"><svg viewBox="0 0 320 204" aria-hidden="true"><use href="#tape"/></svg><span>Viaje a Oaxaca</span></div>
+      <div class="t tp2"><svg viewBox="0 0 320 204" aria-hidden="true"><use href="#tape"/></svg><span>Domingo lento</span></div>
+      <div class="t tp3"><svg viewBox="0 0 320 204" aria-hidden="true"><use href="#tape"/></svg><span>Para Ana</span></div>
+      <div class="t tp4"><svg viewBox="0 0 320 204" aria-hidden="true"><use href="#tape"/></svg><span>Ruido de lunes</span></div>
+    </div>
+    <div class="invite note-wrap"><div class="note">Leo te invitó a «Noches de patio»<u>Unirme al casete</u></div></div>
+    <h2>Seguir escuchando</h2>
+    <div class="quick">
+      <div><span class="sw" style="--c:#FF3D8B"></span><b>Domingo lento</b></div>
+      <div><span class="sw" style="--c:#00D1BE"></span><b>Para Ana</b></div>
+      <div><span class="sw" style="--c:#FFD233"></span><b>Favoritas</b></div>
+    </div>
+    <h2>Lanzamientos de artistas que sigues</h2>
+    <div class="row">
+      <div><div class="cover" style="--c:linear-gradient(135deg,#FF7A1A,#FF3D8B)"></div><b>Marea Baja</b><small>Sale el viernes</small></div>
+      <div><div class="cover" style="--c:linear-gradient(135deg,#00D1BE,#4A5CFF)"></div><b>TriFace</b><small>Nuevo álbum</small></div>
+      <div><div class="cover" style="--c:linear-gradient(135deg,#FFD233,#00D1BE)"></div><b>Luz Norte</b><small>Nueva pista</small></div>
+      <div><div class="cover" style="--c:linear-gradient(135deg,#FF3D8B,#4A5CFF)"></div><b>Los Duendes</b><small>Nueva pista</small></div>
+    </div>
+  </main>
+
+  <aside class="now">
+    <h3>SONANDO · LADO A</h3>
+    <div class="t tp1"><svg viewBox="0 0 320 204" aria-hidden="true"><use href="#tape"/></svg><span>Viaje a Oaxaca</span></div>
+    <b>J'm'e FPM</b><small>TriFace · vía Jamendo · CC BY-NC-SA</small>
+    <div class="note-wrap"><div class="note">para que no te duermas manejando<small>Dedicatoria de Ana</small></div></div>
+    <div class="nextup"><small>Sigue en el casete</small><div>2 · Trio HxC</div><div>3 · Luz de carretera</div></div>
+  </aside>
+
+  <footer class="player">
+    <div class="pl-l">
+      <div class="sw" style="--c:#4A5CFF"></div>
+      <div><b>J'm'e FPM</b><small>TriFace</small></div>
+      <div class="ib plain" title="Favorita"><svg class="i"><use href="#i-heart"/></svg></div>
+      <div class="ib plain" title="Agregar a casete"><svg class="i"><use href="#i-plus"/></svg></div>
+    </div>
+    <div class="pl-c">
+      <div class="ctl">
+        <div class="ib plain act" title="Aleatorio"><svg class="i"><use href="#i-shuffle"/></svg></div>
+        <div class="ib plain" title="Anterior"><svg class="i"><use href="#i-prev"/></svg></div>
+        <div class="play" title="Reproducir"><svg class="i"><use href="#i-play"/></svg></div>
+        <div class="ib plain" title="Siguiente"><svg class="i"><use href="#i-next"/></svg></div>
+        <div class="ib plain" title="Repetir"><svg class="i"><use href="#i-repeat"/></svg></div>
+      </div>
+      <div class="reels"><span>1:12</span><span class="reel a"></span><div class="band"><i></i></div><span class="reel b"></span><span>3:03</span></div>
+    </div>
+    <div class="pl-r">
+      <div class="ib plain" title="Dedicatoria"><svg class="i"><use href="#i-note"/></svg></div>
+      <div class="ib plain" title="Cola"><svg class="i"><use href="#i-queue"/></svg></div>
+      <div class="ib plain" title="Volumen"><svg class="i"><use href="#i-vol"/></svg></div>
+      <div class="vol"><i></i></div>
+      <div class="ib plain" title="Pantalla completa"><svg class="i"><use href="#i-expand"/></svg></div>
+    </div>
+  </footer>
+</div>
+
+<script>
+  function setType(f, w, s) {
+    var a = document.getElementById('app');
+    a.style.setProperty('--disp', '"' + f + '", var(--sys)');
+    a.style.setProperty('--dw', w);
+    a.style.setProperty('--ds', s);
+  }
+</script>

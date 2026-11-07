@@ -1,0 +1,12 @@
+# Overlay de los escenarios 3 y 8. Lo levantan los propios scripts de demo/.
+# Puerto libre en vez de 8080: dos réplicas no pueden compartir el mismo.
+# Jamendo cortado: la API por URL y el audio por host, porque el proxy abre audio_url directo.
+# 192.0.2.1 es una dirección reservada para documentación: nadie responde.
+services:
+  app:
+    environment:
+      JAMENDO_API_URL: http://192.0.2.1:9/v3.0
+    extra_hosts:
+      - "prod-1.storage.jamendo.com:192.0.2.1"
+    ports: !override
+      - "8080"

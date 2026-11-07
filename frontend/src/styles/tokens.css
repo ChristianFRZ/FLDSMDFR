@@ -1,0 +1,18 @@
+:root {
+  color-scheme: dark;
+  --ink: #141317;
+  --panel: #201f25;
+  --panel-2: #2e2c35;
+  --line: #4a4852;
+  --paper: #f4f1ea;
+  --mute: #bdb9af;
+  --pink: #ff3d8b;
+  --yellow: #ffd233;
+  --teal: #00d1be;
+  --cobalt: #4a5cff;
+  --danger: #ff8a7a;
+
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  --font-display: "Unbounded", var(--font-ui);
+  --font-hand: "Caveat", cursive;
+}

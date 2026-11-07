@@ -1,30 +1,24 @@
-# Etapa 1: compila el SPA de Vue (ui/dist).
-FROM node:22-alpine AS ui
-WORKDIR /ui
-COPY ui/package.json ui/package-lock.json ./
+FROM node:24-slim AS web
+WORKDIR /web
+COPY frontend/package*.json ./
 RUN npm ci
-COPY ui/ ./
+COPY frontend/ ./
 RUN npm run build
 
-# Etapa 2: monolito FastAPI que sirve la API y el SPA compilado.
 FROM python:3.12-slim
-
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
-
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/* \
+ && useradd --create-home meloxo \
+ && mkdir -p /media && chown meloxo /media
 WORKDIR /app
-ENV PYTHONPATH=/app PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
-
-COPY pyproject.toml alembic.ini ./
-COPY app ./app
-COPY scripts ./scripts
-COPY media/seed ./media/seed
-RUN pip install --no-cache-dir ".[dev]"
-
-# Settings.ui_dist_dir = "ui/dist", relativo a WORKDIR /app.
-COPY --from=ui /ui/dist ./ui/dist
-
-RUN chmod +x /app/scripts/entrypoint.sh
-
-ENTRYPOINT ["/app/scripts/entrypoint.sh"]
+COPY backend/pyproject.toml backend/alembic.ini ./
+COPY backend/app ./app
+COPY backend/seed ./seed
+COPY backend/migrations ./migrations
+RUN pip install --no-cache-dir .
+COPY --from=web /web/dist ./static
+ENV STATIC_DIR=/app/static MEDIA_DIR=/media
+USER meloxo
+EXPOSE 8080
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8080"]
