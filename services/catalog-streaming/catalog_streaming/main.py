@@ -9,6 +9,7 @@ from meloxo_common.latency import LatencyMiddleware, LatencyRecorder, internal_r
 from meloxo_common.scheduler import periodic
 
 from catalog_streaming.config import get_settings
+from catalog_streaming.internal_routes import router as internal_routes
 from catalog_streaming.modules.catalog.composer_routes import router as composer_router
 from catalog_streaming.modules.catalog.public import publish_due_tracks, refresh_metadata
 from catalog_streaming.modules.catalog.routes import router as catalog_router
@@ -46,6 +47,7 @@ def create_app() -> FastAPI:
     app.add_middleware(LatencyMiddleware, recorder=recorder)
     app.include_router(catalog_router)
     app.include_router(composer_router)
+    app.include_router(internal_routes)
     app.include_router(internal_router(recorder))
     return app
 
