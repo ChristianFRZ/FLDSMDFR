@@ -18,8 +18,10 @@ docker compose run --rm seed python -m seed all
 Solo usan la biblioteca estándar de Python, así que no hay nada que instalar. Para correrlos todos, desde la raíz del repositorio:
 
 ```bash
-for f in demo/scenario_*.py; do python3 "$f" || break; done
+for f in demo/scenario_*.py; do python3 "$f"; echo "$f -> código $?"; done
 ```
+
+Cada escenario termina con código `0` si pasa, `1` si falla y `2` si no se cumple una precondición (por ejemplo, el 3 sin pistas de Jamendo guardadas): en ese caso imprime `PRECONDICIÓN NO CUMPLIDA` y no cuenta como fallo.
 
 | Archivo | Qué comprueba |
 | --- | --- |

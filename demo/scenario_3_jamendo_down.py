@@ -1,21 +1,19 @@
 """Con Jamendo caído, lo local y lo guardado sigue; el audio de Jamendo da un 503 controlado."""
 import time
 
-from common import Failure, admin, check, demo_stack, new_composer, published_songs, run, upload_track
+from common import Precondition, admin, check, demo_stack, new_composer, published_songs, run, upload_track
 
 MAX_SECONDS = 15
 
 
 def scenario() -> None:
     boss = admin()
+    if not boss.ok("GET", "/api/songs?size=1&source=jamendo")["items"]:
+        raise Precondition("no hay pistas de Jamendo guardadas: corre `docker compose run --rm seed python -m seed all` (requiere JAMENDO_CLIENT_ID)")
     composer, _ = new_composer("jamendo", boss)
     local = upload_track(composer, "Escenario 3")
     composer.ok("POST", f"/api/composer/tracks/{local['id']}/publish")  # sin fecha queda en borrador
-    try:
-        jamendo = published_songs(boss, 1, "jamendo")[0]
-    except Failure:
-        composer.ok("DELETE", f"/api/composer/tracks/{local['id']}")
-        raise Failure("Falta una pista de Jamendo: corre `docker compose run --rm seed python -m seed all` (requiere JAMENDO_CLIENT_ID)")
+    jamendo = published_songs(boss, 1, "jamendo")[0]
     try:
         with demo_stack():
             api = boss  # todo por el nginx de entrada: la salud vive en playback-metrics

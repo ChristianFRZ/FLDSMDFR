@@ -2,7 +2,7 @@
 import time
 from datetime import UTC, datetime, timedelta
 
-from common import COMPOSE, admin, check, compose, demo_stack, new_composer, new_user, run, sql, upload_track
+from common import COMPOSE, admin, check, compose, demo_stack, restore_catalog, new_composer, new_user, run, sql, upload_track
 
 TRACKS = 10
 WAIT_SECONDS = 45
@@ -43,6 +43,7 @@ def scenario() -> None:
             announced = [n["song"]["id"] for n in notices if n["type"] == "release"]
             check(sorted(announced) == sorted(songs), f"el seguidor recibió {len(announced)} avisos, uno por pista")
     finally:
+        restore_catalog()  # también si falló el stop o el sql, antes de borrar por la API
         for song in songs:
             composer.ok("DELETE", f"/api/composer/tracks/{song}")
 

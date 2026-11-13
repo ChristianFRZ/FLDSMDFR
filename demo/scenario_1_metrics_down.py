@@ -4,7 +4,7 @@ import uuid
 
 from common import COMPOSE, Api, admin, check, compose, error_code, new_user, published_songs, run, wait_edge
 
-SERVICE = "playback-metrics"
+METRICS = "playback-metrics"
 WAIT_SECONDS = 60
 
 
@@ -23,7 +23,7 @@ def wait_metrics(boss: Api) -> None:
         except OSError:
             pass
         time.sleep(1)
-    raise TimeoutError(f"{SERVICE} no volvió en {WAIT_SECONDS} s")
+    raise TimeoutError(f"{METRICS} no volvió en {WAIT_SECONDS} s")
 
 
 def scenario() -> None:
@@ -41,12 +41,12 @@ def scenario() -> None:
     everything_works()
     check(boss.call("GET", "/api/metrics/top")[0] == 200, "con el servicio arriba, GET /api/metrics/top responde 200")
     try:
-        compose(COMPOSE, "stop", SERVICE)
+        compose(COMPOSE, "stop", METRICS)
         everything_works()
         check_unavailable(listener, "POST", "/api/playbacks", playback, "POST /api/playbacks")
         check_unavailable(boss, "GET", "/api/metrics/top", None, "GET /api/metrics/top")
     finally:
-        compose(COMPOSE, "start", SERVICE)
+        compose(COMPOSE, "start", METRICS)
     wait_metrics(boss)
     wait_edge()
     everything_works()

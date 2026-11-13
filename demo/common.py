@@ -26,6 +26,10 @@ class Failure(Exception):
     """Lo que el escenario esperaba no ocurrió."""
 
 
+class Precondition(Exception):
+    """Falta algo que el escenario no crea por sí mismo (datos sembrados)."""
+
+
 def check(condition: object, message: str) -> None:
     if not condition:
         raise Failure(message)
@@ -37,6 +41,9 @@ def run(name: str, scenario: Callable[[], None]) -> None:
     print(name)
     try:
         scenario()
+    except Precondition as exc:
+        print(f"PRECONDICIÓN NO CUMPLIDA: {exc}")
+        sys.exit(2)
     except Exception as exc:
         print(f"FALLA: {exc}")
         sys.exit(1)
@@ -54,10 +61,6 @@ class Api:
     def __init__(self, token: str | None = None, base: str = BASE_URL):
         self.token = token
         self.base = base
-
-    def at(self, base: str) -> "Api":
-        """El mismo usuario contra otra réplica."""
-        return Api(self.token, base)
 
     def send(self, method: str, path: str, data: bytes | None, headers: dict) -> tuple[int, bytes]:
         if self.token:
@@ -156,7 +159,7 @@ def wait_up(base: str) -> None:
         try:
             if Api(base=base).send("GET", "/internal/health", None, {})[0] == 200:
                 return
-        except OSError:
+        except Exception:
             pass
         time.sleep(0.5)
     raise Failure(f"{base} no arrancó en {START_SECONDS} s")
@@ -180,8 +183,20 @@ def demo_stack(replicas: int = 1) -> Iterator[list[str]]:
             wait_up(url)
         yield urls
     finally:
-        compose(COMPOSE, "up", "-d", "--no-build", "--scale", f"{SERVICE}=1", SERVICE)
-        wait_edge()
+        restore_catalog()
+
+
+def restore_catalog(run_compose: Callable[..., str] = compose, wait: Callable[[], None] | None = None) -> None:
+    """Deja catalog-streaming en una réplica, sin overlay y arriba. Nunca tapa un error anterior:
+    si falla durante otro error lo avisa por la salida y sigue; si no había error, lo propaga."""
+    in_error = sys.exc_info()[1] is not None
+    try:
+        run_compose(COMPOSE, "up", "-d", "--no-build", "--scale", f"{SERVICE}=1", SERVICE)
+        (wait or wait_edge)()
+    except Exception as exc:
+        if not in_error:
+            raise
+        print(f"AVISO: no se pudo restaurar {SERVICE}: {exc}", file=sys.stderr)
 
 
 def wait_edge() -> None:
@@ -191,7 +206,7 @@ def wait_edge() -> None:
         try:
             if Api().send("GET", "/api/songs?size=1", None, {})[0] == 401:  # sin token: llegó al servicio
                 return
-        except OSError:
+        except Exception:
             pass
         time.sleep(0.5)
     raise Failure(f"{BASE_URL} no respondió en {START_SECONDS} s")
