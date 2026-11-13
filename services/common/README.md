@@ -12,6 +12,7 @@ Paquete de Python con lo que comparten los tres servicios de MELOXO. Aquí no va
 | [`db.py`](meloxo_common/db.py) | `Base`, motor, `session_scope()`, `get_session()` y `load_models(package)` |
 | [`internal.py`](meloxo_common/internal.py) | `InternalClient` para llamar a otro servicio (3 s, sin reintentos, lotes de 200 ids) y `UpstreamError` (503) |
 | [`auth.py`](meloxo_common/auth.py) | `build_auth(fetch)`: `resolve_user`, `current_user` y `require_role`. Guarda rol y estado de cada usuario 30 s; si el origen cae usa el último estado guardado y, sin ninguno, responde 503 |
+| [`latency.py`](meloxo_common/latency.py) | `LatencyRecorder` (tiempos por módulo y minuto en memoria), `LatencyMiddleware` e `internal_router`, que expone `POST /internal/latency/drain` para que `playback-metrics` recoja y vacíe los buckets |
 | [`contracts.py`](meloxo_common/contracts.py) | Modelos de lo que viaja entre servicios |
 | [`boundaries.py`](meloxo_common/boundaries.py) | Detector de imports prohibidos entre servicios y entre módulos |
 
