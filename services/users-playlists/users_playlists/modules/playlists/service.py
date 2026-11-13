@@ -28,7 +28,8 @@ async def list_mine(session: AsyncSession, user: CurrentUser) -> list[Playlist]:
 
 
 async def _load(session: AsyncSession, playlist_id: UUID) -> Playlist:
-    playlist = await session.get(Playlist, playlist_id)
+    # populate_existing: siempre lee la fila de la base, no la que la sesión ya tenga en memoria.
+    playlist = await session.get(Playlist, playlist_id, populate_existing=True)
     if playlist is None:
         raise AppError(404, "playlist_not_found", "Playlist no encontrada")
     return playlist
@@ -68,7 +69,7 @@ async def add_song(session: AsyncSession, user: CurrentUser, playlist_id: UUID, 
         raise AppError(503, "catalog_unavailable", "El catálogo no responde. Intenta de nuevo.") from exc
     if song_id not in songs:
         raise AppError(404, "song_not_found", "Canción no encontrada")
-    await _load_owned(session, user, playlist_id)  # la lista pudo borrarse o cambiar mientras se esperaba a catálogo
+    await _load_owned(session, user, playlist_id)  # se vuelve a leer de la base: la lista pudo borrarse o cambiar mientras se esperaba a catálogo
     position = await session.scalar(
         select(func.coalesce(func.max(PlaylistSong.position), 0) + 1).where(PlaylistSong.playlist_id == playlist_id)
     )

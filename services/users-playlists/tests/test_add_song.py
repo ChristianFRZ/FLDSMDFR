@@ -28,6 +28,24 @@ async def test_add_song_unknown_in_catalog_is_404(client, listener, fake_catalog
     assert r.status_code == 404
 
 
+async def test_add_song_to_playlist_deleted_during_catalog_call_is_404(client, listener, fake_catalog):
+    song = fake_catalog.add_song()
+    playlist = await _playlist(client, listener)
+    fake_catalog.delay = 0.6
+
+    async def delete_meanwhile():
+        await asyncio.sleep(0.2)
+        return await client.delete(f"/api/playlists/{playlist['id']}", headers=listener.headers)
+
+    added, deleted = await asyncio.gather(
+        client.post(f"/api/playlists/{playlist['id']}/songs", json={"song_id": str(song.id)}, headers=listener.headers),
+        delete_meanwhile(),
+    )
+    assert deleted.status_code == 204
+    assert added.status_code == 404
+    assert added.json()["error"]["code"] == "playlist_not_found"
+
+
 @pytest.fixture
 async def one_connection_pool(monkeypatch):
     """Un pool de una sola conexión y 0,4 s de espera: retener la conexión durante una llamada lenta lo agota."""

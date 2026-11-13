@@ -28,7 +28,7 @@ recorder = LatencyRecorder("playback-metrics", module_for)
 
 
 async def _remote(name: str, drain) -> list[LatencyBucket]:
-    """Si el servicio no responde no se pierde nada: sus buckets esperan en su memoria."""
+    """Si el servicio no responde, sus buckets esperan en su memoria. Si responde pero la respuesta del `drain` se pierde, esos buckets ya salieron de su memoria y se pierden."""
     try:
         return _buckets.validate_python(await drain())
     except Exception as exc:

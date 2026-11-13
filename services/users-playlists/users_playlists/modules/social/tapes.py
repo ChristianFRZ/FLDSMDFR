@@ -10,6 +10,7 @@ from sqlalchemy.orm import aliased
 from meloxo_common.auth import CurrentUser
 from users_playlists.config import get_settings
 from meloxo_common.errors import AppError
+from meloxo_common.internal import UpstreamError
 from users_playlists.security import hash_opaque_token, new_opaque_token
 from users_playlists.clients.catalog import get_songs
 from users_playlists.modules.social.models import InviteClaim, Tape, TapeInvite, TapeMember, TapeTrack
@@ -192,7 +193,7 @@ async def add_track(session: AsyncSession, user: CurrentUser, tape_id: UUID, dat
     # Catálogo va primero: no se le llama con la fila del casete bloqueada.
     try:
         songs = await get_songs([data.song_id])
-    except Exception as exc:
+    except UpstreamError as exc:
         raise AppError(503, "catalog_unavailable", "El catálogo no responde. Intenta de nuevo.") from exc
     summary = songs.get(data.song_id)
     if summary is None:

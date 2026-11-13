@@ -271,6 +271,20 @@ async def test_catalog_down_tape_is_degraded(client, listener, make_song, fake_c
     assert (await add_track(client, listener, tape, song)).status_code == 503
 
 
+async def test_add_track_does_not_mask_catalog_client_errors_as_503(client, listener, make_song, monkeypatch):
+    from meloxo_common.errors import AppError
+    from users_playlists.modules.social import tapes
+
+    async def rejected(ids):
+        raise AppError(400, "bad_ids", "Ids inválidos")
+
+    monkeypatch.setattr(tapes, "get_songs", rejected)
+    tape, song = await make_tape(client, listener), await make_song()
+    response = await add_track(client, listener, tape, song)
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "bad_ids"
+
+
 async def test_limits_configurable(client, listener, make_song, monkeypatch):
     monkeypatch.setattr(get_settings(), "TAPE_MAX_TRACKS", 4)
     tape = await make_tape(client, listener)
