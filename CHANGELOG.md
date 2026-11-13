@@ -45,6 +45,7 @@ Rama `02-separacion`: el monolito se parte en `users-playlists`, `catalog-stream
 ### Corregido
 - El ticket de streaming firmado sigue valiendo con users-playlists caído. (`53a77c1`)
 - Restaurar `catalog-streaming` en los escenarios no tapa errores, y el escenario 3 comprueba su precondición. (`3e628cc`)
+- Revisión final: `JWT_SECRET` y las claves de base de datos son obligatorias en Compose y el secreto exige 32 caracteres; el puerto de catálogo del overlay de demo solo escucha en `127.0.0.1`; `edge` arranca aunque playback-metrics esté caído; las rutas `/api/*` desconocidas dan 404 JSON en vez de la SPA; `add_song` relee la playlist de la base; agregar pista a un casete solo convierte `UpstreamError` en 503.
 
 ### Documentación
 - Resultados, decisiones y pendientes de la rama. (`3a51d7e`)

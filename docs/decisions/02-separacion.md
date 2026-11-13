@@ -23,7 +23,7 @@ Lo que se decidió durante la construcción sin preguntarlo al equipo, con lo qu
 - **Tarea 15:** `seed all` no se pudo correr aquí porque `JAMENDO_CLIENT_ID` está vacío en `.env`; se usó `seed activity` (pistas locales y actividad) — sin llave no hay importación de Jamendo — costo si es error: la importación de Jamendo y el escenario 3 quedan sin verificar en esta rama (ver Resultados).
 - **Tarea 14:** se perdió la cobertura de `test_pool.py` (6 pruebas de soltar la conexión antes de llamar a otro módulo) — la llamada entre dominios ahora es HTTP y ya no hay pool compartido que retener — costo si es error: una regresión por conexiones retenidas dentro de un servicio no tendría prueba.
 - **Tarea 2:** con users-playlists caído, cada petición espera el timeout de 3 s antes de usar el estado de cuenta guardado — el cliente intenta refrescar en cada petición en vez de recordar la caída — costo si es error: latencia de 3 s en todas las rutas autenticadas de catalog-streaming y playback-metrics durante la caída; se arregla con un cortacircuitos.
-- **Tarea 6:** `add_song` vuelve a leer la playlist tras la espera al catálogo y funciona por accidente (`session.get` con `expire_on_commit=False`) — se aceptó en la revisión — costo si es error: si borran la playlist durante la espera daría 500 por `IntegrityError` en vez de 404.
+- **Tarea 6:** `add_song` vuelve a leer la playlist tras la espera al catálogo y dependía de que `session.get` no devolviera un objeto en memoria (la sesión usa `expire_on_commit=False`) — en la revisión final se fijó con `populate_existing=True` y una prueba que borra la playlist durante la espera y espera 404 — costo si es error: ninguno conocido.
 - **Tarea 3:** `drain` devuelve también el minuto abierto, así que playback-metrics hace upsert con promedio ponderado al volcar a `request_metrics`, como el monolito — así no se duplican minutos — costo si es error: métricas de latencia algo imprecisas en el minuto en curso.
 - **Tarea 5:** `get_songs` y `get_artists` parten en lotes de 200 ids y unen los diccionarios, porque `InternalClient.get_ids` extiende listas y esas rutas devuelven dict — sin adaptar, el cliente fallaba — costo si es error: ajustar los clientes.
 
@@ -31,13 +31,16 @@ Lo que se decidió durante la construcción sin preguntarlo al equipo, con lo qu
 
 Servicios y common:
 
-- `InternalClient`: una respuesta 2xx no JSON o 3xx lanza `ValueError` en vez de `UpstreamError`; el timeout de httpx es por fase; `INTERNAL_TIMEOUT_SECONDS` no está cableado.
+- `InternalClient`: una respuesta 2xx no JSON o 3xx lanza `ValueError` en vez de `UpstreamError`; el timeout de httpx es por fase; el timeout de cada cliente sale de `INTERNAL_TIMEOUT_SECONDS` (3 s por defecto), pero `compose.yaml` no lo pasa a los contenedores, así que solo cambia si se agrega ahí.
 - el chequeo de fronteras (`boundaries`) ignora imports relativos, y `test_boundaries` con `{"meloxo_common"}` no tiene efecto real.
 - `load_models` y `contracts` de common no tienen pruebas; `current_user` y `require_role` no se prueban por inyección de FastAPI.
 - un `sub` mal formado da 500, como en el monolito.
 - `AuthStateCache` con `ttl=0` acumula entradas y `UsersService.set_status` toca `_entries` (debería exponer `clear()`).
 - si la auditoría pasa y el commit falla queda una entrada sin acción.
 - los buckets de latencia se pierden si se pierde la respuesta del `drain` o si falla la escritura tras drenar.
+- `ensure_artist` (`catalog_streaming/modules/catalog/composer.py`) hace una llamada HTTP a users-playlists con la transacción abierta: la primera subida de un Compositor nuevo da 503 si users-playlists está caída, y mientras espera retiene la conexión y el bloqueo de la fila.
+- `hide_song` y `restore_song` (`publishing.py`) retienen la conexión de base de datos durante la llamada de auditoría a users-playlists.
+- `compose.yaml` no pasa al contenedor `TAPE_MAX_TRACKS`, `COMPOSER_MAX_TRACKS`, `INTERNAL_TIMEOUT_SECONDS` y las demás variables con valor por defecto: cambiarlas en `.env` no tiene efecto sin agregarlas al `environment` del servicio.
 - `since` mal formado da 500 (no 422); `limit/minimum` con default 0 en demo listenable; `except Exception` sin log en `/internal/health` ni prueba de la rama caída.
 - `list_favorites` y `list_follows` dan 503 `upstream_unavailable` en vez de `catalog_unavailable`.
 - `history` da 503 si catálogo cae (el monolito fallaba igual); se podría degradar con la pista en `None`.
@@ -76,7 +79,6 @@ Semilla y demo:
 Documentación y pruebas de documentación:
 
 - `test_readmes` llama `git ls-files` por carpeta (lento a futuro) y falla con `FileNotFoundError` si no hay git.
-- el `README.md` raíz sigue roto: línea 169 con `cd backend`, unos 60 enlaces a `backend/` y conteos viejos (410/127 pruebas); `docs/README.md` aún dice "monolito con varios dominios" — lo cubre la tarea 16.
 - `backend/.venv` y otros ignorados del usuario quedan en disco sin tocar.
 
 ## Resultados de la verificación

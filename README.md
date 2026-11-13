@@ -52,7 +52,7 @@ docker compose up --build -d                      # la app queda en http://local
 docker compose run --rm seed python -m seed all   # opcional: catálogo y actividad de demo
 ```
 
-Las variables de `.env` se explican en [Variables de entorno](#variables-de-entorno). Para `POSTGRES_PASSWORD`, `JWT_SECRET` y las tres claves de rol (`USERS_DB_PASSWORD`, `CATALOG_DB_PASSWORD`, `PLAYBACKS_DB_PASSWORD`) sirve cualquier cadena larga, como la que genera `openssl rand -hex 32`. Compose no falla si falta una: la deja vacía y avisa, así que revisa el `.env` antes de arrancar.
+Las variables de `.env` se explican en [Variables de entorno](#variables-de-entorno). Para `POSTGRES_PASSWORD`, `JWT_SECRET` y las tres claves de rol (`USERS_DB_PASSWORD`, `CATALOG_DB_PASSWORD`, `PLAYBACKS_DB_PASSWORD`) sirve cualquier cadena larga, como la que genera `openssl rand -hex 32`. Compose se niega a arrancar si falta alguna de ellas, y los servicios no aceptan un `JWT_SECRET` de menos de 32 caracteres.
 
 > **Si vienes de la rama 01, el volumen de PostgreSQL del monolito no sirve.** `infra/postgres/init.sh` crea las tres bases solo cuando el volumen `pgdata` está vacío. Para estrenarlo hay que correr `docker compose down -v`, que **borra la base de datos y los archivos subidos**, y volver a sembrar. Esa orden también sirve cuando cambias `init.sh` o las claves de los roles. No la uses si tienes datos que quieras conservar.
 
@@ -104,7 +104,7 @@ Estas van en `.env`; [`.env.example`](.env.example) es la plantilla:
 | `JAMENDO_CLIENT_ID` | Llave de Jamendo. Va solo en `.env`, nunca en archivos versionados |
 | `JAMENDO_AUDIO_MODE` | `proxy` (por defecto) o `redirect` |
 
-Estas otras tienen un valor por defecto y casi nunca hay que tocarlas. Cada una se define en la configuración de su servicio:
+Estas otras tienen un valor por defecto y casi nunca hay que tocarlas. Cada una se define en la configuración de su servicio. **Ponerlas en `.env` no basta:** solo llegan a un contenedor las variables que `compose.yaml` pasa en su `environment`, y de esta tabla Compose no pasa ninguna (`JAMENDO_API_URL` solo la fija `compose.demo.yaml`). Para cambiar una hay que agregarla al `environment` del servicio en `compose.yaml`; mientras tanto rige el valor por defecto.
 
 | Variable | Por defecto | Servicio | Para qué sirve |
 | --- | --- | --- | --- |
