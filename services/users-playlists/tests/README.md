@@ -10,4 +10,5 @@ Corren contra un PostgreSQL real, en la base `users_playlists_test`, que se crea
 | [`test_catalog_client.py`](test_catalog_client.py) | Lotes de 200 ids, ids desconocidos y `UpstreamError` con catálogo caído |
 | [`test_degraded.py`](test_degraded.py) | Playlist de 250 canciones, lectura degradada y pistas que catálogo ya no conoce |
 | [`test_add_song.py`](test_add_song.py) | `503` con catálogo caído y sin retener la conexión de la base durante la llamada |
+| [`test_internal_routes.py`](test_internal_routes.py) | Rutas `/internal/*`: estado de autenticación, auditoría, límites de ids, conteos y semilla de demo |
 | [`modules/`](modules/README.md) | Pruebas de cada módulo |

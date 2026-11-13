@@ -7,6 +7,7 @@ from meloxo_common.errors import register_error_handlers
 from meloxo_common.latency import LatencyMiddleware, LatencyRecorder, internal_router
 
 from users_playlists.config import get_settings
+from users_playlists.internal_routes import router as internal_routes
 from users_playlists.modules.playlists.routes import router as playlists_router
 from users_playlists.modules.social.routes import router as social_router
 from users_playlists.modules.social.tape_routes import router as tapes_router
@@ -45,6 +46,7 @@ def create_app() -> FastAPI:
     app.include_router(playlists_router)
     app.include_router(social_router)
     app.include_router(tapes_router)
+    app.include_router(internal_routes)
     app.include_router(internal_router(recorder))
     return app
 
