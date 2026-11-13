@@ -42,3 +42,20 @@ def test_boundaries_allows_own_module(tmp_path):
 def test_boundaries_allowed_set_permits_a_service(tmp_path):
     _write(tmp_path, "social/x.py", "import catalog_streaming.contracts\n")
     assert find_violations(tmp_path, "users_playlists", {"catalog_streaming"}) == []
+
+
+def test_boundaries_layered_service_allows_root_files_and_own_module(tmp_path):
+    _write(tmp_path, "modules/catalog/x.py", "from catalog_streaming.config import get_settings\nfrom catalog_streaming.modules.catalog import y\n")
+    _write(tmp_path, "clients/users.py", "from catalog_streaming.config import get_settings\n")
+    assert find_violations(tmp_path, "catalog_streaming", ALLOWED) == []
+
+
+def test_boundaries_layered_service_flags_module_private_import(tmp_path):
+    _write(tmp_path, "modules/social/x.py", "from users_playlists.modules.users.models import User\n")
+    _write(tmp_path, "modules/catalog/x.py", "from catalog_streaming.modules.social.service import f\n")
+    assert len(find_violations(tmp_path, "catalog_streaming", ALLOWED)) == 2
+
+
+def test_boundaries_layered_service_allows_other_module_public(tmp_path):
+    _write(tmp_path, "modules/catalog/x.py", "from catalog_streaming.modules.social.public import f\n")
+    assert find_violations(tmp_path, "catalog_streaming", ALLOWED) == []

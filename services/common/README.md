@@ -23,4 +23,4 @@ pip install -e 'services/common[dev]'
 cd services/common && pytest -q
 ```
 
-`find_violations(root, package, allowed)` recibe la carpeta del paquete de un servicio, su nombre y los paquetes de otros servicios que sí puede importar.
+`find_violations(root, package, allowed)` recibe la carpeta del paquete de un servicio, su nombre y los paquetes de otros servicios que sí puede importar. Si esa carpeta tiene `modules/`, cada subcarpeta de `modules/` es un módulo y lo demás (`config.py`, `clients/`, `auth.py`…) es código del servicio que cualquier módulo puede importar.
