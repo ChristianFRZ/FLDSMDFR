@@ -5,5 +5,6 @@ Cómo se construye cada [diseño](../specs/README.md), tarea por tarea. Cada pla
 | Archivo | Rama | Qué cubre |
 | --- | --- | --- |
 | [`2026-11-05-01-monolito.md`](2026-11-05-01-monolito.md) | `01-monolito` | Las 23 tareas de la rama |
+| [`2026-11-12-02-separacion.md`](2026-11-12-02-separacion.md) | `02-separacion` | Las 16 tareas que parten el monolito en tres servicios |
 
 Para una rama nueva, agrega aquí su plan con el nombre `AAAA-MM-DD-<rama>.md`.
