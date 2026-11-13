@@ -103,6 +103,27 @@ services:
       timeout: 3s
       retries: 10
 
+  seed:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: seed/Dockerfile
+    environment:
+      USERS_URL: http://users-playlists:8001
+      CATALOG_URL: http://catalog-streaming:8002
+      PLAYBACK_URL: http://playback-metrics:8003
+      MEDIA_DIR: /media
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+    volumes:
+      - media:/media
+    depends_on:
+      users-playlists:
+        condition: service_healthy
+      catalog-streaming:
+        condition: service_healthy
+      playback-metrics:
+        condition: service_healthy
+
 volumes:
   pgdata:
   media:

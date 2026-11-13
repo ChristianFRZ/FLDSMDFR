@@ -34,12 +34,12 @@ Necesitas Docker con Compose. Corre esto desde la raíz del repositorio:
 ```bash
 cp .env.example .env                         # después, completa los valores
 docker compose up --build -d                 # la app queda en http://localhost:8080
-docker compose exec app python -m seed all   # opcional: catálogo y actividad de demo
+docker compose run --rm seed python -m seed all   # opcional: catálogo y actividad de demo
 ```
 
 Las variables de `.env` se explican en [Variables de entorno](#variables-de-entorno). Para `POSTGRES_PASSWORD` y `JWT_SECRET` sirve cualquier cadena larga, como la que genera `openssl rand -hex 32`. Usa esa misma contraseña de PostgreSQL en lugar de `CAMBIA_ESTO` dentro de `DATABASE_URL`.
 
-La semilla tarda cerca de un minuto y necesita `JAMENDO_CLIENT_ID`. Para borrar lo simulado, corre `docker compose exec app python -m seed clear`. Los demás subcomandos están en [`backend/seed/`](backend/seed/README.md).
+La semilla tarda cerca de un minuto y necesita `JAMENDO_CLIENT_ID`. Para borrar lo simulado, corre `docker compose run --rm seed python -m seed clear`. Los demás subcomandos están en [`seed/`](seed/README.md).
 
 Con la app en marcha, la documentación interactiva de la API está en <http://localhost:8080/api/docs>. Para apagar todo, usa `docker compose down`; agrega `-v` si además quieres borrar la base de datos y los archivos subidos.
 
@@ -271,7 +271,7 @@ Los términos que aparecen en el código y en la documentación, agrupados por t
 | Pista | Una canción del catálogo. Su fuente es `local` si la subió un Compositor o `jamendo` si se importó |
 | Plaza | Lugar de un miembro en un casete. Hay 8 |
 | Retención | Qué parte de una pista escucha la gente antes de dejarla |
-| Semilla | [Comando](backend/seed/README.md) que llena la app con catálogo real y actividad simulada para la demo |
+| Semilla | [Comando](seed/README.md) que llena la app con catálogo real y actividad simulada para la demo |
 
 ### Arquitectura y sistemas distribuidos
 

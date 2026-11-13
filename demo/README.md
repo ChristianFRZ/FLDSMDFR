@@ -10,7 +10,7 @@ Necesitas la app en marcha con la semilla cargada, y un `.env` con `ADMIN_EMAIL`
 
 ```bash
 docker compose up -d --build
-docker compose exec app python -m seed all
+docker compose run --rm seed python -m seed all
 ```
 
 ## Escenarios
