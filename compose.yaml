@@ -84,6 +84,25 @@ services:
       retries: 20
       start_period: 15s
 
+  edge:
+    build:
+      context: .
+      dockerfile: edge/Dockerfile
+    ports:
+      - "8080:80"
+    depends_on:
+      users-playlists:
+        condition: service_healthy
+      catalog-streaming:
+        condition: service_healthy
+      playback-metrics:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
 volumes:
   pgdata:
   media:
