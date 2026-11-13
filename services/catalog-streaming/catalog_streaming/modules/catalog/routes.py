@@ -10,6 +10,7 @@ from meloxo_common.db import get_session
 from meloxo_common.errors import AppError
 from meloxo_common.pagination import PageParams, page_body, page_params
 from meloxo_common.contracts import AuditEntry
+from meloxo_common.internal import UpstreamError
 from meloxo_common.security import decode_token, encode_token
 
 from catalog_streaming.auth import auth, auth_state_cache
@@ -74,7 +75,10 @@ async def _authorize_stream(song_id: UUID, ticket: str | None, bearer: HTTPAutho
     claims = decode_token(ticket)
     if claims.get("scope") != "stream" or claims.get("song_id") != str(song_id):
         raise invalid
-    state = await auth_state_cache.get(UUID(claims["sub"]))
+    try:
+        state = await auth_state_cache.get(UUID(claims["sub"]))
+    except UpstreamError:
+        return  # el ticket va firmado: sin users-playlists y sin estado guardado sigue valiendo
     if state is None or state.status != "active":
         raise invalid
 

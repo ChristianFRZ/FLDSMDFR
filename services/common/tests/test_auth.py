@@ -151,3 +151,18 @@ async def test_require_role_forbids_other_roles():
     assert exc.value.status == 403 and exc.value.code == "forbidden"
     admin = CurrentUser(id=state.id, role="admin")
     assert await dependency(admin) == admin
+
+
+async def test_clear_forgets_stored_states():
+    calls = []
+
+    async def fetch(user_id):
+        calls.append(user_id)
+        return AuthState(id=user_id, role="listener", status="active")
+
+    cache = AuthStateCache(fetch)
+    uid = uuid4()
+    await cache.get(uid)
+    cache.clear()
+    await cache.get(uid)
+    assert len(calls) == 2

@@ -32,6 +32,9 @@ class AuthStateCache:
         self._clock = clock
         self._entries: dict[UUID, tuple[float, AuthState | None]] = {}
 
+    def clear(self) -> None:
+        self._entries.clear()
+
     async def get(self, user_id: UUID) -> AuthState | None:
         entry = self._entries.get(user_id)
         now = self._clock()

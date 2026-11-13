@@ -1,5 +1,5 @@
 """Autenticación del servicio: el rol y el estado de cada usuario vienen de users-playlists, con caché de 30 s."""
-from meloxo_common.auth import Auth, AuthStateCache, build_auth  # noqa: F401
+from meloxo_common.auth import Auth, AuthStateCache
 
 from catalog_streaming.clients.users import get_auth_state
 

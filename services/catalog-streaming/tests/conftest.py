@@ -86,9 +86,9 @@ class UsersService:
         self.audits: list[dict] = []
         self.audit_down = False
         self.down = False
-        router.get(url__regex=rf"{USERS_URL}/internal/users/(?P<user_id>[^/]+)/auth-state").mock(side_effect=self._auth)
-        router.get(f"{USERS_URL}/internal/users/display-names").mock(side_effect=self._names)
-        router.post(f"{USERS_URL}/internal/audit").mock(side_effect=self._audit)
+        router.get(url__regex=rf"{USERS_URL}/internal/users/(?P<user_id>[^/]+)/auth-state", name="users_auth").mock(side_effect=self._auth)
+        router.get(f"{USERS_URL}/internal/users/display-names", name="users_names").mock(side_effect=self._names)
+        router.post(f"{USERS_URL}/internal/audit", name="users_audit").mock(side_effect=self._audit)
 
     def add(self, role: str, email: str) -> TestUser:
         user = TestUser(str(uuid4()), email, role)
@@ -99,7 +99,7 @@ class UsersService:
     def set_status(self, user: TestUser, status: str) -> None:
         """El estado cambia en users-playlists; el servicio lo ve cuando vence su caché."""
         self.statuses[user.id] = status
-        auth_state_cache._entries.clear()
+        auth_state_cache.clear()
 
     def _auth(self, request, user_id):
         if self.down:
@@ -126,9 +126,10 @@ class UsersService:
 
 @pytest.fixture(autouse=True)
 async def users_service():
-    respx.mock._assert_all_called = False  # las rutas de users no se usan en todas las pruebas
     with respx.mock:
         yield UsersService(respx)
+        for name in ("users_auth", "users_names", "users_audit"):
+            respx.mock.routes.pop(name, None)  # no todas las pruebas las usan
 
 
 @pytest.fixture(autouse=True)
@@ -138,7 +139,7 @@ async def db_clean():
         async with get_engine().begin() as conn:
             await conn.execute(text(f"TRUNCATE {tables} RESTART IDENTITY CASCADE"))
     catalog_public._jamendo_status.clear()
-    auth_state_cache._entries.clear()
+    auth_state_cache.clear()
     yield
 
 
