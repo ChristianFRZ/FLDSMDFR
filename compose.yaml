@@ -7,28 +7,82 @@ services:
       POSTGRES_USER: meloxo
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: meloxo
+      USERS_DB_PASSWORD: ${USERS_DB_PASSWORD}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD}
+      PLAYBACKS_DB_PASSWORD: ${PLAYBACKS_DB_PASSWORD}
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U meloxo -d meloxo"]
       interval: 3s
       timeout: 3s
       retries: 20
 
-  app:
-    build: .
-    env_file: .env
+  users-playlists:
+    build:
+      context: .
+      dockerfile: services/users-playlists/Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://meloxo:${POSTGRES_PASSWORD}@postgres:5432/meloxo
-    ports:
-      - "8080:8080"
+      DATABASE_URL: postgresql+asyncpg://users_playlists:${USERS_DB_PASSWORD}@postgres:5432/users_playlists
+      JWT_SECRET: ${JWT_SECRET}
+      CATALOG_URL: http://catalog-streaming:8002
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  catalog-streaming:
+    build:
+      context: .
+      dockerfile: services/catalog-streaming/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://catalog:${CATALOG_DB_PASSWORD}@postgres:5432/catalog
+      JWT_SECRET: ${JWT_SECRET}
+      USERS_URL: http://users-playlists:8001
+      JAMENDO_CLIENT_ID: ${JAMENDO_CLIENT_ID:-}
+      JAMENDO_AUDIO_MODE: ${JAMENDO_AUDIO_MODE:-proxy}
+      MEDIA_DIR: /media
     volumes:
       - media:/media
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8002/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  playback-metrics:
+    build:
+      context: .
+      dockerfile: services/playback-metrics/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://playbacks:${PLAYBACKS_DB_PASSWORD}@postgres:5432/playbacks
+      JWT_SECRET: ${JWT_SECRET}
+      CATALOG_URL: http://catalog-streaming:8002
+      USERS_URL: http://users-playlists:8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8003/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
 
 volumes:
   pgdata:
