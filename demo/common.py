@@ -19,6 +19,7 @@ PASSWORD = "escenario-" + uuid.uuid4().hex
 COMPOSE = ["docker", "compose"]
 OVERLAY = [*COMPOSE, "-f", "compose.yaml", "-f", "compose.demo.yaml"]
 START_SECONDS = 60
+SERVICE = "catalog-streaming"
 
 
 class Failure(Exception):
@@ -138,8 +139,9 @@ def published_songs(api: Api, count: int, source: str | None = None) -> list[dic
     return items[:count]
 
 
-def sql(query: str) -> str:
-    command = [*COMPOSE, "exec", "-T", "postgres", "psql", "-U", "meloxo", "-d", "meloxo", "-Atc", query]
+def sql(query: str, database: str = "catalog") -> str:
+    """Consulta una de las bases (users_playlists, catalog, playbacks) con el superusuario."""
+    command = [*COMPOSE, "exec", "-T", "postgres", "psql", "-U", "meloxo", "-d", database, "-Atc", query]
     return subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
 
 
@@ -148,10 +150,11 @@ def compose(command: list[str], *args: str) -> str:
 
 
 def wait_up(base: str) -> None:
+    """Espera a una réplica de catalog-streaming, publicada directo en su puerto (sin pasar por nginx)."""
     limit = time.monotonic() + START_SECONDS
     while time.monotonic() < limit:
         try:
-            if Api(base=base).send("GET", "/api/openapi.json", None, {})[0] == 200:
+            if Api(base=base).send("GET", "/internal/health", None, {})[0] == 200:
                 return
         except OSError:
             pass
@@ -162,20 +165,33 @@ def wait_up(base: str) -> None:
 def replica_urls(replicas: int) -> list[str]:
     urls = []
     for index in range(1, replicas + 1):
-        address = compose(OVERLAY, "port", "--index", str(index), "app", "8080")
+        address = compose(OVERLAY, "port", "--index", str(index), SERVICE, "8002")
         urls.append(f"http://localhost:{address.rsplit(':', 1)[1]}")
     return urls
 
 
 @contextmanager
 def demo_stack(replicas: int = 1) -> Iterator[list[str]]:
-    """Levanta la app con el overlay y, pase lo que pase, la devuelve a su estado normal en el 8080."""
+    """Levanta catalog-streaming con el overlay y, pase lo que pase, la devuelve a su estado normal en el 8080."""
     try:
-        compose(OVERLAY, "up", "-d", "--no-build", "--scale", f"app={replicas}", "app")
+        compose(OVERLAY, "up", "-d", "--no-build", "--scale", f"{SERVICE}={replicas}", SERVICE)
         urls = replica_urls(replicas)
         for url in urls:
             wait_up(url)
         yield urls
     finally:
-        compose(COMPOSE, "up", "-d", "--no-build", "--scale", "app=1", "app")
-        wait_up(BASE_URL)
+        compose(COMPOSE, "up", "-d", "--no-build", "--scale", f"{SERVICE}=1", SERVICE)
+        wait_edge()
+
+
+def wait_edge() -> None:
+    """Espera a que el nginx de entrada vuelva a repartir tráfico a catalog-streaming por el 8080."""
+    limit = time.monotonic() + START_SECONDS
+    while time.monotonic() < limit:
+        try:
+            if Api().send("GET", "/api/songs?size=1", None, {})[0] == 401:  # sin token: llegó al servicio
+                return
+        except OSError:
+            pass
+        time.sleep(0.5)
+    raise Failure(f"{BASE_URL} no respondió en {START_SECONDS} s")

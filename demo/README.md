@@ -2,11 +2,11 @@
 
 Escenarios reproducibles del [PRD](../docs/prd.md#14-pruebas-y-demo-de-fallas) y prueba de carga. Cada escenario corre contra `http://localhost:8080`, imprime `PASA` o `FALLA` y, si falla, termina con un código de error.
 
-El número de cada archivo es el del escenario en la sección 14 del PRD. Los escenarios 1 y 2 necesitan servicios separados, así que llegan en las ramas siguientes. El 9 es la [prueba de carga](#prueba-de-carga).
+El número de cada archivo es el del escenario en la sección 14 del PRD. El escenario 2 llega en una rama posterior. El 9 es la [prueba de carga](#prueba-de-carga).
 
 ## Antes de empezar
 
-Necesitas la app en marcha con la semilla cargada, y un `.env` con `ADMIN_EMAIL` y `ADMIN_PASSWORD`. Corre esto desde la raíz del repositorio:
+Necesitas el stack en marcha con la semilla cargada, y un `.env` con `ADMIN_EMAIL` y `ADMIN_PASSWORD`. La semilla `all` requiere `JAMENDO_CLIENT_ID`; sin él, `python -m seed activity` carga pistas locales y actividad, y alcanza para todos los escenarios menos el 3, que necesita al menos una pista de Jamendo guardada. Corre esto desde la raíz del repositorio:
 
 ```bash
 docker compose up -d --build
@@ -23,6 +23,7 @@ for f in demo/scenario_*.py; do python3 "$f" || break; done
 
 | Archivo | Qué comprueba |
 | --- | --- |
+| [`scenario_1_metrics_down.py`](scenario_1_metrics_down.py) | Con `playback-metrics` detenido, el catálogo, el audio con `Range` y las playlists siguen respondiendo; `POST /api/playbacks` y `GET /api/metrics/top` dan un error de la API (`upstream_unavailable`), y al arrancarlo todo vuelve a `200` |
 | [`scenario_3_jamendo_down.py`](scenario_3_jamendo_down.py) | Con Jamendo cortado, las pistas locales y los metadatos guardados siguen disponibles, y el audio de Jamendo da `503 jamendo_unavailable` |
 | [`scenario_4_idempotency.py`](scenario_4_idempotency.py) | 100 envíos del mismo `playback_id` cuentan una reproducción y suman 99 a `duplicates_discarded` |
 | [`scenario_5_tape_full.py`](scenario_5_tape_full.py) | Dos miembros agregan a la vez la pista 12: uno recibe `201` y el otro `409 tape_full`, en 5 rondas |
@@ -30,14 +31,15 @@ for f in demo/scenario_*.py; do python3 "$f" || break; done
 | [`scenario_7_permissions.py`](scenario_7_permissions.py) | Un Compositor recibe `403` en pistas ajenas y en `/api/admin/*` |
 | [`scenario_8_double_publish.py`](scenario_8_double_publish.py) | Con dos réplicas y pistas vencidas, hay un solo evento `track_published` y un solo aviso por pista |
 
-[`common.py`](common.py) reúne lo que comparten los escenarios: el cliente de la API, las cuentas de prueba y el arranque del overlay. Ese overlay es [`compose.demo.yaml`](../compose.demo.yaml), en la raíz del repositorio, y lo usan los escenarios 3 y 8.
+[`common.py`](common.py) reúne lo que comparten los escenarios: el cliente de la API, las cuentas de prueba y el arranque del overlay. Ese overlay es [`compose.demo.yaml`](../compose.demo.yaml), en la raíz del repositorio, y lo usan los escenarios 3 y 8: aplica a `catalog-streaming` el corte de Jamendo y un puerto de host libre por réplica (el 8002 interno), de modo que las réplicas se pueden consultar directo. El nginx de entrada las alcanza por el DNS de Docker. `sql()` recibe la base a consultar (`catalog` por defecto, también `users_playlists` y `playbacks`).
 
 ### Lo que hay que saber
 
-- **Los escenarios 3 y 8 recrean el contenedor `app`.** Lo devuelven a su estado normal en el puerto 8080 aunque fallen, pero no los corras mientras alguien usa la app.
+- **El escenario 1 detiene `playback-metrics`** y siempre lo arranca de nuevo, aunque falle.
+- **Los escenarios 3 y 8 recrean los contenedores de `catalog-streaming`.** Lo devuelven a una sola réplica detrás del 8080 aunque fallen, pero no los corras mientras alguien usa la app.
 - **Cortar Jamendo requiere dos cambios.** `JAMENDO_API_URL` solo cubre la API. El audio sale directo de `prod-1.storage.jamendo.com`, por eso el overlay también apunta ese host a una dirección que no responde.
 - **El escenario 6 suspende a los demás administradores** para quedar como único activo, y los reactiva al terminar.
-- **El escenario 8 vence las pistas con SQL**, con la app apagada, porque la API rechaza fechas pasadas. Así, las dos réplicas las encuentran al arrancar. Comprueba el resultado, pero no garantiza que ambas hayan consultado en el mismo instante.
+- **El escenario 8 vence las pistas con SQL**, con `catalog-streaming` apagado, porque la API rechaza fechas pasadas. Así, las dos réplicas las encuentran al arrancar. Comprueba el resultado, pero no garantiza que ambas hayan consultado en el mismo instante.
 - **Quedan usuarios en la base de datos.** Las cuentas `*@escenarios.meloxo.dev` no tienen `is_demo`, así que `seed clear` no las borra. Las pistas que crean los escenarios sí se eliminan al terminar.
 
 ## Prueba de carga

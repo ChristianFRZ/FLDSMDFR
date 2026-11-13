@@ -1,7 +1,7 @@
 """Con Jamendo caído, lo local y lo guardado sigue; el audio de Jamendo da un 503 controlado."""
 import time
 
-from common import admin, check, demo_stack, new_composer, published_songs, run, upload_track
+from common import Failure, admin, check, demo_stack, new_composer, published_songs, run, upload_track
 
 MAX_SECONDS = 15
 
@@ -11,13 +11,17 @@ def scenario() -> None:
     composer, _ = new_composer("jamendo", boss)
     local = upload_track(composer, "Escenario 3")
     composer.ok("POST", f"/api/composer/tracks/{local['id']}/publish")  # sin fecha queda en borrador
-    jamendo = published_songs(boss, 1, "jamendo")[0]
     try:
-        with demo_stack() as (url,):
-            api = boss.at(url)
+        jamendo = published_songs(boss, 1, "jamendo")[0]
+    except Failure:
+        composer.ok("DELETE", f"/api/composer/tracks/{local['id']}")
+        raise Failure("Falta una pista de Jamendo: corre `docker compose run --rm seed python -m seed all` (requiere JAMENDO_CLIENT_ID)")
+    try:
+        with demo_stack():
+            api = boss  # todo por el nginx de entrada: la salud vive en playback-metrics
             services = {s["name"]: s["status"] for s in api.ok("GET", "/api/admin/health")["services"]}
             check(services["jamendo"] != "up", f"la salud marca Jamendo como {services['jamendo']}")
-            check(services["app"] == "up" and services["database"] == "up", "la app y la base siguen arriba")
+            check(services["catalog-streaming"] == "up" and services["database"] == "up", "catalog-streaming y la base siguen arriba")
 
             check(api.ok("GET", f"/api/songs/{jamendo['id']}")["id"] == jamendo["id"], "los metadatos guardados responden")
             check(api.ok("GET", "/api/songs?source=jamendo")["total"] > 0, "la búsqueda sigue mostrando Jamendo")
