@@ -57,17 +57,17 @@ Cada cliente se registra, arma una lista de 20 pistas y después busca, abre su 
 
 ### Resultado
 
-Corrida del 2026-11-06 sobre una instalación recién reconstruida: 50 clientes durante 2 minutos, 5576 peticiones y 0 fallos.
+Corrida del 2026-11-12 sobre una pila recién reconstruida (`seed activity`): 50 clientes durante 2 minutos, 5461 peticiones y 0 fallos. Entre paréntesis, la corrida del monolito del 2026-11-06 (5576 peticiones y 0 fallos).
 
 | Medida | p50 | p95 | Objetivo p95 |
 | --- | --- | --- | --- |
-| Primer byte de audio | 12 ms | 39 ms | < 500 ms |
-| `GET /api/songs` | 36 ms | 71 ms | < 300 ms |
-| `GET /api/playlists/{id}` | 27 ms | 66 ms | < 200 ms |
+| Primer byte de audio | 9 ms (12) | 20 ms (39) | < 500 ms |
+| `GET /api/songs` | 12 ms (36) | 26 ms (71) | < 300 ms |
+| `GET /api/playlists/{id}` | 31 ms (27) | 55 ms (66) | < 200 ms |
 
-La máquina fue una laptop Intel i7-1165G7 con 8 hilos, 15 GB de RAM y Linux. Locust, la app (un proceso de uvicorn) y PostgreSQL corrieron en ella, así que el resultado no incluye la latencia de una red real. Jamendo quedó fuera de la carga.
+La máquina fue una laptop Intel i7-1165G7 con 8 hilos, 15 GB de RAM y Linux. Locust, nginx, los tres servicios y PostgreSQL corrieron en ella, así que el resultado no incluye la latencia de una red real. Jamendo quedó fuera de la carga. El análisis, incluida la fase de preparación lenta al agregar a una playlist, está en [`docs/decisions/02-separacion.md`](../docs/decisions/02-separacion.md#prueba-de-carga-f23).
 
 Conviene mencionar dos límites al presentar estos datos:
 
-- **No hay 50 conexiones de audio abiertas todo el tiempo.** Los clientes descargan cada pista a toda velocidad y luego esperan de 1 a 3 s. El ritmo total fue de 47 peticiones por segundo, y las pistas de la semilla pesan unos 480 KB.
-- **Las cifras incluyen la fase de preparación.** Durante los primeros 45 s, aproximadamente, los clientes se registran y agregan 20 pistas sin pausa, y esas peticiones son más lentas. Locust acumula los percentiles, así que esta corrida no separa por fase los p99, que van de 240 a 390 ms.
+- **No hay 50 conexiones de audio abiertas todo el tiempo.** Los clientes descargan cada pista a toda velocidad y luego esperan de 1 a 3 s. El ritmo total de la corrida del monolito fue de 47 peticiones por segundo, y las pistas de la semilla pesan unos 480 KB.
+- **Las cifras incluyen la fase de preparación.** Durante los primeros 45 s, aproximadamente, los clientes se registran y agregan 20 pistas sin pausa, y esas peticiones son más lentas. Locust acumula los percentiles, así que estas corridas no separan los percentiles por fase. En la rama 02 esa fase tuvo p50 de 780 ms y p95 de 1400 ms al agregar a una playlist; es un aviso por confirmar.

@@ -16,4 +16,4 @@ La base `meloxo` y su superusuario (`POSTGRES_PASSWORD`) siguen existiendo; las 
 
 Si cambias `init.sh` o las claves con un volumen ya creado no se vuelve a ejecutar: hay que recrearlo con `docker compose down -v` (borra los datos).
 
-Las pruebas de aislamiento están en [`../tests`](../tests).
+Las pruebas de aislamiento están en [`../tests`](../tests/README.md).

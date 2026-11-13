@@ -52,7 +52,7 @@ Servicios y common (cierre de tareas 4, 9 y 10, verificadas en el código):
 - los `main.py` de los servicios no corren alembic; lo hacen las imágenes con el `CMD` del Dockerfile (`alembic upgrade head && uvicorn ...`), así que arrancarlos a mano exige migrar antes.
 - `playback_metrics/modules/analytics/routes.py` quedó con imports sin uso tras reescribir health (`time`, `text`, `UpstreamError`, `lag_seconds`, `jamendo_status`).
 - el middleware de latencia de common no tiene prueba de respuesta en streaming ni de doble conteo.
-- `.dockerignore` no excluye `frontend/` (por ejemplo `frontend/dist` y `frontend/e2e`), que entran al contexto de build aunque los servicios no los usen.
+- `.dockerignore` no excluye `frontend/` entero (por ejemplo `frontend/e2e`), que entra al contexto de build aunque los servicios no lo usen. `**/dist` sí queda fuera.
 
 Infraestructura y edge:
 

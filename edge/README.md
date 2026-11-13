@@ -1,7 +1,6 @@
 # edge
 
-Puerta de entrada de MELOXO (puerto `8080`): un nginx que sirve la SPA del `frontend/` y reparte `/api/*` entre los tres servicios.
-Los servicios no publican puertos; solo `edge` es alcanzable desde fuera.
+Puerta de entrada de MELOXO (puerto `8080`): un nginx que sirve la SPA del `frontend/` y reparte `/api/*` entre los tres servicios. Los servicios no publican puertos; solo `edge` es alcanzable desde fuera.
 
 ## Rutas
 
@@ -21,8 +20,7 @@ nginx elige el `location` con el prefijo más largo. Los prefijos que terminan e
 
 ## Servicio caído
 
-nginx resuelve los nombres en cada petición (`resolver 127.0.0.11`, el DNS de Docker, con `proxy_pass` por variable). Por eso arranca aunque un servicio esté caído y lo recupera cuando vuelve.
-Si un servicio no responde (502, 503 o 504), edge devuelve el JSON de error de la API (`edge/errors/upstream_unavailable.json`) con `Content-Type: application/json`:
+nginx resuelve los nombres en cada petición (`resolver 127.0.0.11`, el DNS de Docker, con `proxy_pass` por variable). Por eso arranca aunque un servicio esté caído y lo recupera cuando vuelve. Si un servicio no responde (502, 503 o 504), edge devuelve el JSON de error de la API (`edge/errors/upstream_unavailable.json`) con `Content-Type: application/json`:
 
 ```json
 {"error":{"code":"upstream_unavailable","message":"Servicio no disponible","detail":null}}
