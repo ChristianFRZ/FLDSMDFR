@@ -36,6 +36,10 @@ class FakeCatalog:
         self.down = False
         self.delay = 0.0
         self.jamendo = "up"
+        self.health_error: Exception | None = None
+        self.buckets: list[dict] = []
+        router.get(f"{CATALOG_URL}/internal/health", name="cat_health").mock(side_effect=self._health)
+        router.post(f"{CATALOG_URL}/internal/latency/drain", name="cat_drain").mock(side_effect=self._drain)
         router.get(f"{CATALOG_URL}/internal/songs", name="cat_songs").mock(side_effect=self._songs)
         router.get(f"{CATALOG_URL}/internal/artists", name="cat_artists").mock(side_effect=self._artists)
         router.get(f"{CATALOG_URL}/internal/catalog/by-source", name="cat_by_source").mock(side_effect=self._by_source)
@@ -136,3 +140,16 @@ class FakeCatalog:
     async def _owned(self, request, user_id):
         await self._gate(request)
         return httpx.Response(200, json=[str(s.id) for s in self.songs.values() if str(s.owner) == user_id])
+
+    async def _health(self, request):
+        await self._gate(request)
+        if self.health_error:
+            raise self.health_error
+        return httpx.Response(
+            200, json={"name": "catalog-streaming", "status": "up", "database_ms": 2.5, "uptime_seconds": 90}
+        )
+
+    async def _drain(self, request):
+        await self._gate(request)
+        taken, self.buckets = self.buckets, []
+        return httpx.Response(200, json=taken)

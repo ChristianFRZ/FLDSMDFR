@@ -15,6 +15,10 @@ class FakeUsers:
         self.tapes: list[set[UUID]] = []
         self.calls: list[httpx.Request] = []
         self.down = False
+        self.health_error: Exception | None = None
+        self.buckets: list[dict] = []
+        router.get(f"{USERS_URL}/internal/health", name="usr_health").mock(side_effect=self._health)
+        router.post(f"{USERS_URL}/internal/latency/drain", name="usr_drain").mock(side_effect=self._drain)
         router.get(url__regex=rf"{USERS_URL}/internal/users/(?P<user_id>[^/]+)/auth-state", name="usr_auth").mock(
             side_effect=self._auth_state
         )
@@ -68,3 +72,16 @@ class FakeUsers:
         return httpx.Response(
             200, json={"tapes": len(self.tapes), "members": 0, "tracks": sum(len(t) for t in self.tapes), "dedications": 0}
         )
+
+    async def _health(self, request):
+        await self._gate(request)
+        if self.health_error:
+            raise self.health_error
+        return httpx.Response(
+            200, json={"name": "users-playlists", "status": "up", "database_ms": 1.5, "uptime_seconds": 120}
+        )
+
+    async def _drain(self, request):
+        await self._gate(request)
+        taken, self.buckets = self.buckets, []
+        return httpx.Response(200, json=taken)

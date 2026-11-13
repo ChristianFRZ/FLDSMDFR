@@ -60,3 +60,11 @@ async def count_tape_inclusions(song_ids: list[UUID]) -> int:
 
 async def tape_activity() -> TapeActivity:
     return TapeActivity.model_validate(await _users().get("/internal/tapes/activity"))
+
+
+async def service_health() -> dict:
+    return await _users().get("/internal/health")
+
+
+async def drain_latency() -> list[dict]:
+    return await _users().post("/internal/latency/drain")

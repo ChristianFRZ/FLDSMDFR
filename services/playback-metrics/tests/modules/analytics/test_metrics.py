@@ -230,7 +230,7 @@ async def test_catalog_sources(client, admin, make_song):
 async def test_health_reports_db_and_jamendo(client, admin):
     r = await client.get("/api/admin/health", headers=admin.headers)
     states = {s["name"]: s["status"] for s in r.json()["services"]}
-    assert states == {"app": "up", "database": "up", "jamendo": "up", "aggregates": "up"}
+    assert set(states.values()) == {"up"} and "app" not in states and "database" in states
 
 
 async def test_health_with_catalog_down_is_200(client, admin, fake_catalog):
@@ -238,13 +238,13 @@ async def test_health_with_catalog_down_is_200(client, admin, fake_catalog):
     r = await client.get("/api/admin/health", headers=admin.headers)
     assert r.status_code == 200
     states = {s["name"]: s["status"] for s in r.json()["services"]}
-    assert (states["app"], states["jamendo"]) == ("up", "down")
+    assert (states["playback-metrics"], states["jamendo"]) == ("up", "down")
 
 
 async def test_health_gives_detail_per_service(client, admin):
     r = await client.get("/api/admin/health", headers=admin.headers)
     services = {s["name"]: s for s in r.json()["services"]}
-    assert services["app"]["uptime_seconds"] >= 0
+    assert services["playback-metrics"]["uptime_seconds"] >= 0
     assert services["database"]["ms"] >= 0
 
 

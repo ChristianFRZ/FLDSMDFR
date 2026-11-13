@@ -15,6 +15,7 @@ from playback_metrics.auth import current_user, require_role
 from meloxo_common.db import get_session
 from meloxo_common.errors import AppError
 from meloxo_common.internal import UpstreamError
+from playback_metrics.health import health_report
 from playback_metrics.modules.analytics import service
 from playback_metrics.modules.analytics.aggregates import lag_seconds
 from playback_metrics.clients.catalog import (
@@ -162,29 +163,8 @@ async def inclusions(user: CurrentUser = Depends(is_composer)):
 
 
 @router.get("/admin/health")
-async def health(_: CurrentUser = Depends(is_admin), session: AsyncSession = Depends(get_session)):
-    database = {"name": "database", "status": "down"}
-    try:
-        started = time.perf_counter()
-        await session.execute(text("SELECT 1"))
-        await session.commit()
-        database = {"name": "database", "status": "up", "ms": round((time.perf_counter() - started) * 1000, 1)}
-    except Exception:
-        pass
-    aggregates = {"name": "aggregates", "status": "down"}
-    if database["status"] == "up":
-        lag = await lag_seconds()
-        aggregates = {
-            "name": "aggregates",
-            "status": "up" if lag is None or lag < MAX_LAG_SECONDS else "delayed",
-            "lag_seconds": lag,
-        }
-    app = {"name": "app", "status": "up", "uptime_seconds": service.uptime_seconds()}
-    try:
-        jamendo = await jamendo_status()
-    except UpstreamError:
-        jamendo = "down"  # Sin catálogo no se sabe nada de Jamendo. La Tarea 9 reemplaza esta ruta por la agregada.
-    return {"services": [app, database, {"name": "jamendo", "status": jamendo}, aggregates]}
+async def health(_: CurrentUser = Depends(is_admin)):
+    return {"services": await health_report()}
 
 
 @router.get("/admin/health/system")

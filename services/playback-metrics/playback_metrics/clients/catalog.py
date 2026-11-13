@@ -57,3 +57,11 @@ async def jamendo_status() -> str:
 
 async def songs_owned_by(user_id: UUID) -> list[UUID]:
     return [UUID(i) for i in await _catalog().get(f"/internal/owners/{user_id}/songs")]
+
+
+async def service_health() -> dict:
+    return await _catalog().get("/internal/health")
+
+
+async def drain_latency() -> list[dict]:
+    return await _catalog().post("/internal/latency/drain")
