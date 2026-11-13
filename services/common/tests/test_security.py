@@ -38,3 +38,15 @@ def test_wrong_secret_is_invalid():
 def test_settings_defaults():
     s = BaseServiceSettings()
     assert (s.DISABLE_SCHEDULER, s.INTERNAL_TIMEOUT_SECONDS, s.AUTH_CACHE_SECONDS) == (False, 3.0, 30)
+
+
+@pytest.mark.parametrize("secret", ["", "corto", "x" * 31])
+def test_short_or_empty_jwt_secret_is_rejected(monkeypatch, secret):
+    monkeypatch.setenv("JWT_SECRET", secret)
+    with pytest.raises(ValueError):
+        BaseServiceSettings()
+
+
+def test_jwt_secret_of_32_chars_is_accepted(monkeypatch):
+    monkeypatch.setenv("JWT_SECRET", "x" * 32)
+    assert BaseServiceSettings().JWT_SECRET == "x" * 32

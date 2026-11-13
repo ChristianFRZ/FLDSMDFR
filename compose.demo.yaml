@@ -10,4 +10,4 @@ services:
     extra_hosts:
       - "prod-1.storage.jamendo.com:192.0.2.1"
     ports: !override
-      - "8002"
+      - "127.0.0.1::8002"

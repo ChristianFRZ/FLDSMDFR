@@ -5,11 +5,11 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: meloxo
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
       POSTGRES_DB: meloxo
-      USERS_DB_PASSWORD: ${USERS_DB_PASSWORD}
-      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD}
-      PLAYBACKS_DB_PASSWORD: ${PLAYBACKS_DB_PASSWORD}
+      USERS_DB_PASSWORD: ${USERS_DB_PASSWORD:?Falta USERS_DB_PASSWORD en .env}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Falta CATALOG_DB_PASSWORD en .env}
+      PLAYBACKS_DB_PASSWORD: ${PLAYBACKS_DB_PASSWORD:?Falta PLAYBACKS_DB_PASSWORD en .env}
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
@@ -26,8 +26,8 @@ services:
       context: .
       dockerfile: services/users-playlists/Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://users_playlists:${USERS_DB_PASSWORD}@postgres:5432/users_playlists
-      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql+asyncpg://users_playlists:${USERS_DB_PASSWORD:?Falta USERS_DB_PASSWORD en .env}@postgres:5432/users_playlists
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
       CATALOG_URL: http://catalog-streaming:8002
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
@@ -47,8 +47,8 @@ services:
       context: .
       dockerfile: services/catalog-streaming/Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://catalog:${CATALOG_DB_PASSWORD}@postgres:5432/catalog
-      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql+asyncpg://catalog:${CATALOG_DB_PASSWORD:?Falta CATALOG_DB_PASSWORD en .env}@postgres:5432/catalog
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
       USERS_URL: http://users-playlists:8001
       JAMENDO_CLIENT_ID: ${JAMENDO_CLIENT_ID:-}
       JAMENDO_AUDIO_MODE: ${JAMENDO_AUDIO_MODE:-proxy}
@@ -70,8 +70,8 @@ services:
       context: .
       dockerfile: services/playback-metrics/Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://playbacks:${PLAYBACKS_DB_PASSWORD}@postgres:5432/playbacks
-      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgresql+asyncpg://playbacks:${PLAYBACKS_DB_PASSWORD:?Falta PLAYBACKS_DB_PASSWORD en .env}@postgres:5432/playbacks
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
       CATALOG_URL: http://catalog-streaming:8002
       USERS_URL: http://users-playlists:8001
     depends_on:
@@ -96,7 +96,7 @@ services:
       catalog-streaming:
         condition: service_healthy
       playback-metrics:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1/api/health"]
       interval: 5s
