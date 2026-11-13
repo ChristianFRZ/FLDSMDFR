@@ -105,9 +105,18 @@ def test_health_is_answered_by_edge():
 
 
 def test_unknown_paths_fall_back_to_the_spa():
-    for path in ("/", "/library", "/api/unknown-thing"):
+    for path in ("/", "/library", "/playlists/abc"):
         _, pattern, body = resolve(path)
         assert pattern == "/" and "try_files $uri /index.html" in body
+
+
+def test_unknown_api_paths_are_json_404_not_the_spa():
+    for path in ("/api/unknown-thing", "/api/", "/api/auth"):
+        modifier, pattern, body = resolve(path)
+        assert pattern == "/api/", f"{path} debería caer en /api/, cae en {pattern}"
+        assert re.search(r"return\s+404\s", body)
+        assert "application/json" in body
+        assert '"code":"not_found"' in body and "try_files" not in body
 
 
 def test_audio_routes_are_not_buffered():
