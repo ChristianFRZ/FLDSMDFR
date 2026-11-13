@@ -11,6 +11,7 @@ Paquete de Python con lo que comparten los tres servicios de MELOXO. Aquí no va
 | [`security.py`](meloxo_common/security.py) | `encode_token` y `decode_token` (JWT). El hash de contraseñas queda en `users-playlists` |
 | [`db.py`](meloxo_common/db.py) | `Base`, motor, `session_scope()`, `get_session()` y `load_models(package)` |
 | [`internal.py`](meloxo_common/internal.py) | `InternalClient` para llamar a otro servicio (3 s, sin reintentos, lotes de 200 ids) y `UpstreamError` (503) |
+| [`auth.py`](meloxo_common/auth.py) | `build_auth(fetch)`: `resolve_user`, `current_user` y `require_role`. Guarda rol y estado de cada usuario 30 s; si el origen cae usa el último estado guardado y, sin ninguno, responde 503 |
 | [`contracts.py`](meloxo_common/contracts.py) | Modelos de lo que viaja entre servicios |
 | [`boundaries.py`](meloxo_common/boundaries.py) | Detector de imports prohibidos entre servicios y entre módulos |
 
