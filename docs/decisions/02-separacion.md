@@ -2,6 +2,12 @@
 
 Lo que se decidió durante la construcción sin preguntarlo al equipo, con lo que cuesta si fue un error, y lo que quedó pendiente. El diseño está en [`../specs/`](../specs/README.md) y el plan en [`../plans/`](../plans/README.md).
 
+## Avisos al equipo
+
+- **Posible regresión al agregar a una playlist (por confirmar):** en la fase de preparación de la prueba de carga (50 clientes, `POST /api/playlists/{id}/songs`, 1000 peticiones) salió p50 de 780 ms y p95 de 1400 ms. El valor del monolito por fase se desconoce; solo se registró el p99 acumulado de toda su corrida, entre 240 y 390 ms. Con un solo usuario y sin otra carga, la misma ruta dio p50 26 ms y p95 29 ms (30 agregados seguidos), así que el salto HTTP a catalog-streaming por sí solo no explica los 780 ms; lo más probable (inferencia, no medido) es contención durante la preparación, cuando 50 clientes agregan sin pausa. Conviene medir esa fase por separado, en el monolito y aquí, antes de darla por buena.
+- **`seed all`, la importación de Jamendo y el escenario 3 siguen sin verificar:** `JAMENDO_CLIENT_ID` está vacío en este entorno. Hay que correrlos con una llave real antes de cerrar la rama.
+- **Umbrales de F2.3:** los tres se cumplieron; no hay ninguno sin cumplir.
+
 ## Decisiones
 
 - **Tarea 1:** `services/common` reúne el estado de autenticación, el error `UpstreamError` y el cliente interno `InternalClient`, y el hash de contraseñas queda fuera de él — los tres servicios comparten lo primero y solo users-playlists usa lo segundo — costo si es error: mover un módulo.
@@ -37,9 +43,16 @@ Servicios y common:
 - `history` da 503 si catálogo cae (el monolito fallaba igual); se podría degradar con la pista en `None`.
 - `inclusions` con más de 200 ids suma por lote (cota superior; solo importa si `COMPOSER_MAX_TRACKS` supera 200).
 - `health._aggregates` llama `lag_seconds()` sin `try/except`: 500 posible con la BD arriba, contra F7.3.
-- seed repetido sin `clear` da 500 por `IntegrityError` en vez de 409; `demo/social` no es atómico y `growth days` no tiene límites; los campos demo no se validan (rol libre, `KeyError` → 500 si el catálogo no conoce la pista); el demo de playlists/social exige el catálogo sembrado antes.
+- seed repetido sin `clear` da 500 por `IntegrityError` en vez de 409; `demo/social` no es atómico (un reintento debe llamar antes a `/clear`) y `growth days` no tiene límites; los campos demo no se validan (rol libre, `KeyError` → 500 si el catálogo no conoce la pista); el demo de playlists/social exige el catálogo sembrado antes.
 - `test_metrics_return_503_when_catalog_down` tiene un nombre engañoso y `test_health_reports_db_and_jamendo` quedó con una aserción más débil.
 - sin pruebas de: id mal formado, tope en `upcoming/published-since`, POST demo import, exactamente 200 ids, batching de `get_display_names`, auth-state 404 → `None`, `lifespan`.
+
+Servicios y common (cierre de tareas 4, 9 y 10, verificadas en el código):
+
+- los `main.py` de los servicios no corren alembic; lo hacen las imágenes con el `CMD` del Dockerfile (`alembic upgrade head && uvicorn ...`), así que arrancarlos a mano exige migrar antes.
+- `playback_metrics/modules/analytics/routes.py` quedó con imports sin uso tras reescribir health (`time`, `text`, `UpstreamError`, `lag_seconds`, `jamendo_status`).
+- el middleware de latencia de common no tiene prueba de respuesta en streaming ni de doble conteo.
+- `.dockerignore` no excluye `frontend/` (por ejemplo `frontend/dist` y `frontend/e2e`), que entran al contexto de build aunque los servicios no los usen.
 
 Infraestructura y edge:
 
@@ -84,9 +97,9 @@ Los tres umbrales se cumplen; no se tocó el locustfile ni se relajó ningún um
 
 Diferencias con el monolito:
 
-- Catálogo y audio salen más rápidos que en el monolito (un servicio solo con su base). `GET /api/playlists/{id}` tiene p50 de 31 ms contra 27 ms: es la ruta con salto extra (users-playlists pide canciones a catalog-streaming por HTTP), aunque el p95 igual bajó.
+- Catálogo y audio salen más rápidos que en el monolito; la causa no se midió (inferencia: probablemente cada servicio atiende solo su parte). `GET /api/playlists/{id}` tiene p50 de 31 ms contra 27 ms; probablemente (inferencia, no medido) porque es la ruta con salto extra, ya que users-playlists pide canciones a catalog-streaming por HTTP, aunque el p95 igual bajó.
 - Todas las peticiones pasan ahora por nginx y la validación de cuenta consulta a users-playlists (con caché), saltos que el monolito no tenía.
-- La fase de preparación es más lenta que la de uso: `preparar: agregar` tuvo p50 de 780 ms y p95 de 1400 ms (1000 peticiones), porque cada agregado valida la pista contra catalog-streaming por HTTP y se hace sin pausa durante los primeros segundos. No es un criterio de F2.3, pero es el costo visible del salto extra; la cifra del monolito para esa fase no se registró y no se compara. Los percentiles de Locust son acumulados, como en la corrida anterior, y mezclan las dos fases.
+- La fase de preparación es más lenta que la de uso: `preparar: agregar` tuvo p50 de 780 ms y p95 de 1400 ms (1000 peticiones). Medición aparte, un usuario y sin otra carga, 30 `POST /api/playlists/{id}/songs` seguidos por el edge: p50 26 ms, p95 29 ms, máximo 41 ms (script temporal fuera del repositorio; la playlist se borró al terminar, respuesta 204). Eso muestra que el salto HTTP cuesta decenas de milisegundos, no cientos; no muestra la causa de los 780 ms, que probablemente es contención con 50 clientes agregando sin pausa (inferencia, no medido). No es un criterio de F2.3. La cifra del monolito para esa fase no se registró, así que no se compara; ver Avisos al equipo. Los percentiles de Locust son acumulados y mezclan las dos fases.
 - Siguen sin ser 50 conexiones de audio abiertas todo el tiempo (ver `demo/README.md`).
 
 ### Pruebas
