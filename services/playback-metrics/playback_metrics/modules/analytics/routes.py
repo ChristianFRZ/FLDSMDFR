@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from meloxo_common import cache
 from meloxo_common.auth import CurrentUser
 from playback_metrics.auth import current_user, require_role
 from meloxo_common.db import get_session
@@ -35,6 +36,7 @@ is_composer = require_role("composer")
 
 Days = Query(30, ge=1, le=366)
 MAX_LAG_SECONDS = 30
+AGGREGATE_TTL_SECONDS = 15  # se suma al retraso de los agregados: no se nota
 ACTIVITY_MINUTES = 30
 
 
@@ -48,6 +50,13 @@ def _time_zone(tz: str = Query("UTC", max_length=64)) -> str:
     except (ZoneInfoNotFoundError, ValueError) as exc:
         raise AppError(422, "invalid_timezone", "Zona horaria desconocida") from exc
     return tz
+
+
+async def _cached(route: str, params: dict, loader, should_store=lambda _: True):
+    """Lectura de agregados con caché de 15 s, sin invalidación explícita. `params` lleva todo lo que cambia la respuesta."""
+    return await cache.cached(
+        "metrics", {"route": route, **params}, AGGREGATE_TTL_SECONDS, loader, should_store=should_store
+    )
 
 
 def _personal(scope: str, user: CurrentUser) -> UUID | None:
@@ -68,7 +77,15 @@ async def top(
     user: CurrentUser = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    return {"items": await service.top(session, kind, limit, days, _personal(scope, user))}
+    owner = _personal(scope, user)
+
+    async def load():
+        return {"items": await service.top(session, kind, limit, days, owner)}
+
+    # Con una pista que catálogo no conoce la etiqueta es «No disponible»: eso no se guarda.
+    complete = lambda body: all(item["label"] != service.UNAVAILABLE for item in body["items"])  # noqa: E731
+    params = {"scope": scope, "kind": kind, "limit": limit, "days": days, "user": str(owner) if owner else None}
+    return await _cached("top", params, load, complete)
 
 
 @router.get("/metrics/genres")
@@ -78,7 +95,12 @@ async def genres(
     user: CurrentUser = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    return {"items": await service.genres(session, days, _personal(scope, user))}
+    owner = _personal(scope, user)
+
+    async def load():
+        return {"items": await service.genres(session, days, owner)}
+
+    return await _cached("genres", {"scope": scope, "days": days, "user": str(owner) if owner else None}, load)
 
 
 @router.get("/metrics/plays")
@@ -92,8 +114,13 @@ async def plays(
 ):
     if (scope == "global" and user.role != "admin") or (scope == "composer" and user.role != "composer"):
         raise _forbidden()
-    song_ids = await songs_owned_by(user.id) if scope == "composer" else None
-    return {"items": await service.plays(session, group, days, tz, song_ids)}
+
+    async def load():
+        song_ids = await songs_owned_by(user.id) if scope == "composer" else None
+        return {"items": await service.plays(session, group, days, tz, song_ids)}
+
+    params = {"scope": scope, "group": group, "days": days, "tz": tz, "user": str(user.id) if scope == "composer" else None}
+    return await _cached("plays", params, load)
 
 
 @router.get("/metrics/heatmap")
@@ -103,7 +130,11 @@ async def heatmap(
     _: CurrentUser = Depends(is_admin),
     session: AsyncSession = Depends(get_session),
 ):
-    return {"items": await service.heatmap(session, days, tz)}
+
+    async def load():
+        return {"items": await service.heatmap(session, days, tz)}
+
+    return await _cached("heatmap", {"days": days, "tz": tz}, load)
 
 
 @router.get("/metrics/catalog-sources")

@@ -20,6 +20,10 @@ Cada 2 s, `refresh_aggregates` lee los eventos nuevos con `events_since`, del m�
 - **Género:** cada reproducción cuenta solo en el primer género de la pista, para no sumarla dos veces.
 - **Horas:** se guardan en UTC. Las gráficas `plays` y `heatmap` reciben en `tz` la zona horaria del navegador.
 
+## Caché de lectura
+
+`GET /api/metrics/top`, `genres`, `plays` y `heatmap` se guardan 15 s en `redis-cache` (`AGGREGATE_TTL_SECONDS` en [`routes.py`](routes.py)), sin invalidación explícita: los agregados ya van hasta 30 s por detrás de las reproducciones, así que esos 15 s no cambian lo que se puede observar. El rol se comprueba antes de mirar la caché, y la clave lleva `scope`, `kind`, `limit`, `days`, `group`, `tz` y, en lecturas personales o de Compositor, el usuario. `top` no guarda una respuesta con etiquetas «No disponible» (pista que catálogo no conoce); un error `503` por catálogo caído tampoco se guarda. Sin `redis-cache` se consulta PostgreSQL como siempre.
+
 ## Latencia
 
 La medición la hace `LatencyMiddleware` de `meloxo_common` (ver [`main.py`](../../main.py)). Esta tabla, `request_metrics`, solo se lee en `GET /api/metrics/latency`; quien la llena es la tarea de recolección de latencia, que no está en este paso del traslado.
