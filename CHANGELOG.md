@@ -1,8 +1,33 @@
 # Cambios
 
-Historial de las ramas `05-mensajeria`, `04-resiliencia-concurrencia`, `03-gateway-balanceo`, `02-separacion` y `01-monolito`, ordenado del más reciente al más antiguo y agrupado por fecha. Cada línea corresponde a un commit. Las decisiones de diseño tomadas durante la construcción están en [`docs/decisions/05-mensajeria.md`](docs/decisions/05-mensajeria.md), [`docs/decisions/04-resiliencia-concurrencia.md`](docs/decisions/04-resiliencia-concurrencia.md), [`docs/decisions/03-gateway-balanceo.md`](docs/decisions/03-gateway-balanceo.md), [`docs/decisions/02-separacion.md`](docs/decisions/02-separacion.md) y [`docs/decisions/01-monolito.md`](docs/decisions/01-monolito.md).
+Historial de las ramas `06-poliglota`, `05-mensajeria`, `04-resiliencia-concurrencia`, `03-gateway-balanceo`, `02-separacion` y `01-monolito`, ordenado del más reciente al más antiguo y agrupado por fecha. Cada línea corresponde a un commit. Las decisiones de diseño tomadas durante la construcción están en [`docs/decisions/06-poliglota.md`](docs/decisions/06-poliglota.md), [`docs/decisions/05-mensajeria.md`](docs/decisions/05-mensajeria.md), [`docs/decisions/04-resiliencia-concurrencia.md`](docs/decisions/04-resiliencia-concurrencia.md), [`docs/decisions/03-gateway-balanceo.md`](docs/decisions/03-gateway-balanceo.md), [`docs/decisions/02-separacion.md`](docs/decisions/02-separacion.md) y [`docs/decisions/01-monolito.md`](docs/decisions/01-monolito.md).
 
-## 2026-11-14
+## 2026-11-14 (rama 06)
+
+Rama `06-poliglota`: las lecturas frecuentes del catálogo y de las gráficas, y el estado de cuenta, salen de una caché en Redis que vive en una instancia aparte; si la caché cae, se lee de PostgreSQL y se responde igual. MongoDB quedó fuera por decisión del equipo.
+
+### Agregado
+- **Diseño y plan:** diseño y plan de la rama, con la decisión del equipo de dejar fuera MongoDB y de usar una instancia de Redis aparte. (`03613e6`, `fda3eed`)
+- **Módulo de caché:** `meloxo_common.cache` con `cached`, `bump`, `get_json` y `set_json`, timeouts de 0,2 s y 0,3 s, salto de 5 s tras un fallo y `CACHE_REDIS_URL`. (`a0cfc69`)
+- **`redis-cache`:** servicio de Compose con `allkeys-lru`, 64 MB y sin persistencia, separado del Redis durable. (`435ba82`)
+- **Caché del catálogo:** lista, detalle, artistas y géneros, con una versión que sube al escribir (ocultar, restaurar, programadas, edición del Compositor, importación de Jamendo). (`55a517c`)
+- **Caché de agregados:** `top`, `genres`, `plays` y `heatmap` con TTL de 15 s, claves por usuario y zona horaria, y sin guardar etiquetas «No disponible». (`75aa36f`)
+- **Estado de cuenta compartido:** segundo nivel en `redis-cache` para `AuthStateCache`, sin pasar por encima de la revocación. (`10a88f4`)
+- **Demo:** escenario 13 (caché llena y que se invalida, caída de `redis-cache`, aislamiento del Redis durable). (`00d5f4f`)
+
+### Cambiado
+- `APP_VERSION` de `playback-metrics` y `gateway-auth` pasa a `06-poliglota`.
+- El PRD anota `redis-cache` y que la caché no es dueña de ningún dato.
+
+### Documentación
+- README, `docs/ramas.md`, decisiones de la rama con las latencias medidas, y los READMEs de infra, común, catálogo, analíticas, gateway y demo.
+
+### Avisos
+- Con la misma carga, `GET /api/songs` pasó de p50 38 ms y p95 70 ms a 13 ms y 28 ms; `/api/metrics/top` de 31,6 ms a 7,1 ms (p50). La búsqueda de Locust usa seis palabras, así que casi todo son aciertos.
+- Una pista ocultada tarda en dejar de verse lo que dura la entrada solo si falla la invalidación (hasta 300 s); en el camino normal desaparece en la siguiente lectura. Los agregados pueden ir 15 s más atrás.
+- No se repitieron las pruebas de frontend ni de Playwright, ni `seed all`.
+
+## 2026-11-14 (rama 05)
 
 Rama `05-mensajeria`: catálogo publica `track_published` en un stream de Redis cuando una pista se publica y `users-playlists` lo guarda en su base, así que los avisos de lanzamientos ya no dependen de que catálogo responda.
 

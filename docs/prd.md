@@ -222,7 +222,7 @@ Convención: los umbrales de rendimiento se miden con el script de carga (secci�
 2. **`users-playlists-service`**: usuarios, roles, auditoría, playlists, módulo `social`.
 3. **`catalog-streaming-service`** (2+ réplicas): catálogo, importación, subida, streaming.
 4. **`playback-metrics-service`**: eventos, contadores, agregados para gráficas.
-5. **Infraestructura de apoyo:** `postgres` (una instancia, bases lógicas separadas con usuarios distintos) y `redis` (Streams para eventos).
+5. **Infraestructura de apoyo:** `postgres` (una instancia, bases lógicas separadas con usuarios distintos) y `redis` (Streams para eventos). Desde la rama 06 se suma `redis-cache`, una caché de lectura aparte.
 
 > Cuenta aclarada: **3 servicios de negocio + 1 gateway + 2 componentes de infraestructura**.
 
@@ -238,6 +238,7 @@ Convención: los umbrales de rendimiento se miden con el script de carga (secci�
 | Jobs de importación | `catalog-streaming-service` | DB `catalog` |
 | Eventos de reproducción y contadores | `playback-metrics-service` | DB `playbacks` |
 | Agregados para gráficas | `playback-metrics-service` | DB `playbacks` (tablas de resumen) |
+| Caché de lectura (rama 06) | Nadie: es una copia que se puede perder y reconstruir desde PostgreSQL | `redis-cache`, sin persistencia |
 
 Regla: ningún servicio lee la base de otro; solo por API o eventos.
 
@@ -315,7 +316,7 @@ Privacidad: el Compositor solo ve agregados anónimos; el Oyente solo sus propio
 | **API Gateway** | Contenedor frontal `:8080`, `restart: always` | El sistema queda inaccesible desde fuera; mitigación con reinicio automático. |
 | **DNS/Directorio** | Red `sd-net` de Docker Compose | Docker administra el DNS embebido. |
 | **Balanceo** | Gateway/Nginx con round-robin hacia `catalog_1`, `catalog_2` y *health checks* | Si una réplica cae, se redirige a la sana. |
-| **Datos** | PostgreSQL con bases lógicas y usuarios separados por servicio; Redis para eventos | Caída de una DB afecta solo al servicio dueño. |
+| **Datos** | PostgreSQL con bases lógicas y usuarios separados por servicio; Redis para eventos y, aparte, `redis-cache` para la caché de lectura (rama 06) | Caída de una DB afecta solo al servicio dueño. |
 | **Eventos asíncronos** | **Redis Streams** con grupos de consumidores | Los eventos quedan en el stream y se procesan al volver el consumidor. |
 | **Jamendo (externo)** | Proxy y job de importación | Metadatos en caché local; pistas `local` intactas. |
 | **Avisos** | `social` en `users-playlists-service`; cliente consulta cada 30 s | Si catálogo no responde, solo se muestran invitaciones. |
@@ -347,7 +348,7 @@ Privacidad: el Compositor solo ve agregados anónimos; el Oyente solo sus propio
 ## 13. Stack y despliegue
 
 - **Python 3.11+**, FastAPI (servicios), Nginx o gateway FastAPI.
-- **PostgreSQL** (separación por base y usuario) y **Redis** (Streams + revocación).
+- **PostgreSQL** (separación por base y usuario) y **Redis** (Streams + revocación; en la rama 06, una instancia aparte para la caché).
 - **Chart.js** para el panel web.
 - **Docker y Docker Compose.**
 - *Nota:* con réplicas de catálogo y escrituras de subida/importación, SQLite deja de ser adecuado para catálogo y métricas; por eso se adopta PostgreSQL.

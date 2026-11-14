@@ -1,6 +1,6 @@
 # Ramas del proyecto y qué falta
 
-Este documento junta las seis ramas del recorrido del curso. Las cinco primeras ya están construidas; la `06` es la propuesta de qué traería en MELOXO. El plan aprobado en el [PRD](prd.md#plan-de-ramas) llegaba hasta la `04`: lo de las ramas `05` y `06` sale de la guía del recorrido del curso, que lo cuenta con el caso de Mexi Banco. La `05` ya pasó por el equipo y se construyó; la `06` necesita su aprobación antes de convertirse en diseño.
+Este documento junta las seis ramas del recorrido del curso. Las seis están construidas. El plan aprobado en el [PRD](prd.md#plan-de-ramas) llegaba hasta la `04`: lo de las ramas `05` y `06` sale de la guía del recorrido del curso, que lo cuenta con el caso de Mexi Banco. Las dos pasaron por el equipo antes de construirse.
 
 ## Mapa
 
@@ -11,9 +11,9 @@ Este documento junta las seis ramas del recorrido del curso. Las cinco primeras 
 | `03-gateway-balanceo` | Hecha | Gateway que valida sesión y rol, dos réplicas de catálogo con failover | `03-gateway-discovery-balanceo` |
 | `04-resiliencia-concurrencia` | Hecha | Timeouts, reintentos, circuit breaker, Redis para revocación y cola | `04-saga-circuit-breaker` |
 | `05-mensajeria` | Hecha | `track_published` sobre Redis Streams con acuse manual, cola de mensajes muertos y outbox | `05-mensajeria-base` |
-| `06-poliglota` | Propuesta | Caché en Redis y un almacén documental para lo que no es relacional | `06-poliglota-base` |
+| `06-poliglota` | Hecha | Caché de lectura en un Redis aparte; sin almacén documental | `06-poliglota-base` |
 
-El nombre de la `06` es provisional. Cada rama nueva sigue el [flujo de siempre](README.md#cómo-se-nombran-las-cosas): diseño en [`specs/`](specs/README.md), plan en [`plans/`](plans/README.md) y decisiones en [`decisions/`](decisions/README.md).
+Cada rama nueva sigue el [flujo de siempre](README.md#cómo-se-nombran-las-cosas): diseño en [`specs/`](specs/README.md), plan en [`plans/`](plans/README.md) y decisiones en [`decisions/`](decisions/README.md).
 
 ## Diferencias que ya existen con Mexi Banco
 
@@ -58,6 +58,8 @@ Estado tras la rama: la columna «Lo que ya hay en el código» describe el punt
 
 ## Rama 06: persistencia políglota
 
+Estado tras la rama: se hizo la caché de lectura y se dejó fuera MongoDB, por decisión del equipo. La tabla describe el punto de partida; las [decisiones de la rama](decisions/06-poliglota.md) dicen cómo quedó cada cosa, con las latencias medidas.
+
 | Función del documento de referencia | ¿Cabe en MELOXO? | Cómo sería aquí | Lo que ya hay en el código |
 | --- | --- | --- | --- |
 | PostgreSQL como fuente de verdad | Sí, no cambia | Usuarios, roles, casetes, catálogo y reproducciones siguen ahí | Una base y un rol por servicio |
@@ -75,6 +77,6 @@ Estado tras la rama: la columna «Lo que ya hay en el código» describe el punt
 
 1. ~~**Broker de la rama 05:**~~ Resuelta: Redis Streams, sin panel ni enrutamiento pero sin un componente nuevo. Lo decidió el equipo en el [diseño de la rama](specs/2026-11-14-05-mensajeria-design.md#4-decisiones-del-equipo).
 2. ~~**Dónde entra Redis:**~~ Resuelta: entró en la `04`, con la cola de reproducciones y la revocación. La `06` solo agrega la caché.
-3. **MongoDB:** si el equipo lo quiere en la `06`, hay que actualizar el PRD (dueño de cada dato) y la regla de "una base por servicio".
-4. **Nombre de la rama `06`.**
+3. ~~**MongoDB:**~~ Resuelta: queda fuera. La bitácora de auditoría y los avisos siguen en PostgreSQL y el PRD no cambia su regla de una base por servicio.
+4. ~~**Nombre de la rama `06`.**~~ Resuelta: `06-poliglota`, porque siguen siendo dos motores con papeles distintos (PostgreSQL para lo durable, Redis para lo que se puede perder).
 5. ~~**Alcance de la saga en la `04`:**~~ Resuelta: sin saga, solo timeouts, breaker, reintentos, cola y revocación.

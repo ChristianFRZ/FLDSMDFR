@@ -9,5 +9,6 @@ Un documento por rama, ya aprobado por el equipo, que dice qué se construye y q
 | [`2026-11-13-03-gateway-balanceo-design.md`](2026-11-13-03-gateway-balanceo-design.md) | `03-gateway-balanceo` | Gateway nginx con validador de JWT y roles, dos réplicas de catálogo con failover |
 | [`2026-11-14-04-resiliencia-concurrencia-design.md`](2026-11-14-04-resiliencia-concurrencia-design.md) | `04-resiliencia-concurrencia` | Timeouts, reintentos y circuit breaker; cola de reproducciones en Redis Streams; revocación de sesiones |
 | [`2026-11-14-05-mensajeria-design.md`](2026-11-14-05-mensajeria-design.md) | `05-mensajeria` | `track_published` sobre Redis Streams: outbox, consumidor idempotente, cola de mensajes muertos y avisos desde una tabla local |
+| [`2026-11-14-06-poliglota-design.md`](2026-11-14-06-poliglota-design.md) | `06-poliglota` | Caché de lectura en un Redis aparte: catálogo con invalidación por versión, agregados con TTL y estado de cuenta compartido |
 
 Para una rama nueva, agrega aquí su diseño con el nombre `AAAA-MM-DD-<rama>-design.md`.

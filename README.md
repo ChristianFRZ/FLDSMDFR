@@ -4,7 +4,7 @@ Tu Casetera de Confianza. MELOXO es un servicio de streaming musical que gira al
 
 Es el proyecto de la materia de Sistemas Distribuidos del equipo FLDSMDFR: Christian Franco Ramírez, Miriam Amisadai López Hernández, Erick Nava Santiago y Brent Armando Pérez Paitán.
 
-Esta rama, `05-mensajeria`, parte de las llamadas con timeouts, breaker y cola en Redis de `04-resiliencia-concurrencia` y agrega el primer evento entre servicios: cuando una pista se publica, catálogo publica `track_published` en un stream de Redis y `users-playlists` lo guarda en su propia base. Los avisos de lanzamientos se leen de esa tabla, así que ya no se degradan si catálogo cae, y un lanzamiento que ocurre con `users-playlists` caído espera en el stream hasta que vuelva. El producto es el mismo; cambia cómo está armado por dentro. La rama siguiente, `06-poliglota`, es una propuesta.
+Esta rama, `06-poliglota`, parte del evento `track_published` y los avisos locales de `05-mensajeria` y agrega una caché de lectura en Redis, en una instancia aparte (`redis-cache`, con desalojo LRU y sin persistencia) para que sacar lo menos usado nunca toque las colas ni la revocación. El catálogo, las gráficas y el estado de cuenta se leen de ahí, y si la caché cae se lee de PostgreSQL y se responde igual. PostgreSQL sigue siendo la única fuente de verdad. MongoDB quedó fuera por decisión del equipo. El producto es el mismo; cambia cómo está armado por dentro.
 
 ## Con qué está hecho
 
@@ -20,7 +20,7 @@ Esta rama, `05-mensajeria`, parte de las llamadas con timeouts, breaker y cola e
 
 ## Arquitectura
 
-Ocho contenedores de larga vida (seis servicios, con `catalog-streaming` en dos réplicas): `edge`, `gateway-auth`, los tres servicios de negocio, `postgres` y `redis`, más `seed`, que solo corre cuando se le pide. Solo `edge` y, en `127.0.0.1:5433`, PostgreSQL publican puertos al host; los servicios se hablan por la red interna de Compose.
+Nueve contenedores de larga vida (seis servicios, con `catalog-streaming` en dos réplicas): `edge`, `gateway-auth`, los tres servicios de negocio, `postgres`, `redis` y `redis-cache`, más `seed`, que solo corre cuando se le pide. Solo `edge` y, en `127.0.0.1:5433`, PostgreSQL publican puertos al host; los servicios se hablan por la red interna de Compose.
 
 ```text
 Navegador ──► edge :8080 (nginx)
@@ -33,7 +33,8 @@ Navegador ──► edge :8080 (nginx)
                 └──► playback-metrics :8003  ──► base playbacks ◄── consume ───┘
 
 Entre servicios: HTTP por /internal/* (1.5 s de espera, reintentos en lecturas y circuit breaker; sin autenticación, no publicadas por nginx)
-Redis: la cola de reproducciones y la lista de revocación de sesiones (sin puerto publicado)
+Redis: la cola de reproducciones, `track_published` y la lista de revocación de sesiones (sin puerto publicado)
+redis-cache: la caché de lectura del catálogo, de las gráficas y del estado de cuenta (LRU, sin persistencia, sin puerto publicado)
 ```
 
 | Servicio | Responsabilidad | Puerto interno |
@@ -44,7 +45,7 @@ Redis: la cola de reproducciones y la lista de revocación de sesiones (sin puer
 | [`gateway-auth`](services/gateway-auth/README.md) | Valida el JWT y el rol que nginx le consulta con `auth_request`; no tiene base de datos | 8004 |
 | [`edge`](edge/README.md) | Entrada única: valida sesión y rol, reparte rutas y reintenta con la otra réplica de catálogo; si un servicio no responde, devuelve el error JSON de la API | 80 (8080 en el host) |
 
-Lo que ya no pasa dentro de un proceso ahora es una llamada HTTP: users-playlists pide pistas a catalog-streaming, y playback-metrics pide pistas a catalog-streaming y el estado de cada cuenta a users-playlists. Cada servicio guarda 30 s el estado de las cuentas, y si el origen cae usa el último conocido. Un cambio de rol o una suspensión, en cambio, se ve en la siguiente petición: `users-playlists` escribe una revocación en Redis y `gateway-auth` y los servicios la consultan antes de la caché (si Redis cae, manda la caché de 30 s). Las reproducciones entran por `catalog-streaming`, que las valida y las encola en Redis; `playback-metrics` las aplica al volver, así que no se pierden si cae. Lo compartido (errores, JWT, cliente interno, autenticación) vive en [`services/common`](services/common/README.md).
+Lo que ya no pasa dentro de un proceso ahora es una llamada HTTP: users-playlists pide pistas a catalog-streaming, y playback-metrics pide pistas a catalog-streaming y el estado de cada cuenta a users-playlists. Cada servicio guarda 30 s el estado de las cuentas, y si el origen cae usa el último conocido. Un cambio de rol o una suspensión, en cambio, se ve en la siguiente petición: `users-playlists` escribe una revocación en Redis y `gateway-auth` y los servicios la consultan antes de la caché (si Redis cae, manda la caché de 30 s). Las reproducciones entran por `catalog-streaming`, que las valida y las encola en Redis; `playback-metrics` las aplica al volver, así que no se pierden si cae. Las lecturas frecuentes (lista, detalle y artistas del catálogo, géneros, las gráficas) y el estado de cuenta salen de `redis-cache`: el catálogo invalida al escribir y las gráficas vencen a los 15 s, y sin la caché se lee de PostgreSQL como siempre. Lo compartido (errores, JWT, cliente interno, autenticación) vive en [`services/common`](services/common/README.md).
 
 ## Cómo levantarlo
 
@@ -120,10 +121,11 @@ Estas otras tienen un valor por defecto y casi nunca hay que tocarlas. Cada una 
 | `UPLOAD_MAX_MINUTES` | `10` | catalog-streaming | Duración máxima de una pista |
 | `JAMENDO_API_URL` | `https://api.jamendo.com/v3.0` | catalog-streaming | API de Jamendo. El escenario 3 la cambia para simular la caída |
 | `MEDIA_DIR` | `/media` | catalog-streaming, playback-metrics | Dónde se guardan el audio y las portadas |
-| `APP_VERSION` | `04-resiliencia-concurrencia` | playback-metrics, gateway-auth | Versión que muestra la sección de Salud |
+| `APP_VERSION` | `06-poliglota` | playback-metrics, gateway-auth | Versión que muestra la sección de Salud |
 | `AUTH_CACHE_SECONDS` | `30` | los tres y gateway-auth | Cuánto se recuerda el estado de una cuenta |
 | `USERS_URL` | `http://users-playlists:8001` | gateway-auth | Dónde pide el estado de la cuenta. Compose lo pasa |
-| `REDIS_URL` | `redis://redis:6379/0` | los cuatro servicios | Redis de la cola y la revocación. Compose lo pasa; vacío lo desactiva (así corren las pruebas) |
+| `REDIS_URL` | `redis://redis:6379/0` | los cuatro servicios | Redis de la cola, `track_published` y la revocación. Compose lo pasa; vacío lo desactiva (así corren las pruebas) |
+| `CACHE_REDIS_URL` | `redis://redis-cache:6379/0` | catalog-streaming, playback-metrics y gateway-auth | `redis-cache`, la caché de lectura. Compose lo pasa; vacío la desactiva y se lee siempre de PostgreSQL (así corren las pruebas) |
 | `INTERNAL_TIMEOUT_SECONDS` | `1.5` | los tres y gateway-auth | Espera de lectura por llamada entre servicios (la de conexión es de 1 s) |
 | `DISABLE_SCHEDULER` | `false` | los tres | Apaga las tareas periódicas. Lo usan las pruebas |
 
@@ -235,7 +237,7 @@ Los resultados y sus límites están en [`demo/`](demo/README.md#prueba-de-carga
 
 ## Estado de los criterios
 
-Verificado el 2026-11-14 sobre el stack en marcha: 98 pruebas de `common`, 195 de `users-playlists`, 176 de `catalog-streaming`, 110 de `playback-metrics`, 14 de `gateway-auth`, 101 de `edge` sin stack, 17 de `demo`, 18 de `seed/tests`, 7 de `infra/tests` y 2 de `tests`. Los escenarios 1 a 8, 10, 11 y 12 pasan; el 9 es la prueba de carga. No se repitieron en esta rama las pruebas de `edge` contra el stack, las de frontend (Vitest), las de navegador (Playwright), la prueba de carga ni `seed all`: sus cifras (14 de `edge` con stack, 144 de frontend, la carga y las mediciones de F3.4 y F2.5, entre ellas el 503 de 12,1 s de una pista de Jamendo, que sigue sin breaker) son de la rama `04`. Los criterios completos están en la [sección 6 del PRD](docs/prd.md#6-historias-de-usuario-y-criterios-de-aceptación), y los resultados y avisos de la rama, en [`docs/decisions/05-mensajeria.md`](docs/decisions/05-mensajeria.md#resultados-de-la-verificación).
+Verificado el 2026-11-14 sobre el stack en marcha: 124 pruebas de `common`, 195 de `users-playlists`, 194 de `catalog-streaming`, 122 de `playback-metrics`, 14 de `gateway-auth`, 101 de `edge` sin stack, 17 de `demo`, 18 de `seed/tests`, 11 de `infra/tests` y 2 de `tests`. Los escenarios 1 a 8 y 10 a 13 pasan; el 9 es la prueba de carga, que en esta rama se corrió dos veces, sin y con `redis-cache` (ver las decisiones de la rama). No se repitieron en esta rama las pruebas de `edge` contra el stack, las de frontend (Vitest), las de navegador (Playwright) ni `seed all`: sus cifras (14 de `edge` con stack, 144 de frontend y las mediciones de F3.4 y F2.5, entre ellas el 503 de 12,1 s de una pista de Jamendo, que sigue sin breaker) son de la rama `04`. Los criterios completos están en la [sección 6 del PRD](docs/prd.md#6-historias-de-usuario-y-criterios-de-aceptación), y los resultados y avisos de la rama, en [`docs/decisions/06-poliglota.md`](docs/decisions/06-poliglota.md#resultados-de-la-verificación).
 
 La columna Evidencia dice dónde se comprueba cada criterio; las mediciones marcadas con 01 salen de la corrida del monolito (2026-11-06) y no se repitieron.
 
@@ -286,7 +288,7 @@ El recorrido completo, con lo que cabe en MELOXO de cada rama y lo que está pen
 
 - `04-resiliencia-concurrencia` (hecha): tiempos de espera, reintentos con backoff, circuit breaker por servicio destino, la cola de reproducciones en Redis Streams (F3.3) y la lista de revocación de sesiones en Redis. Sin saga con estados ni cola de mensajes muertos. [Diseño](docs/specs/2026-11-14-04-resiliencia-concurrencia-design.md) y [decisiones](docs/decisions/04-resiliencia-concurrencia.md).
 - `05-mensajeria` (hecha): `track_published` sobre Redis Streams con outbox, consumidor idempotente con acuse tras el commit y cola de mensajes muertos; los avisos de lanzamientos se leen de una tabla local y no dependen de catálogo. Una pista ocultada después de publicarse sigue en los avisos ya guardados (falta `track_hidden`). [Diseño](docs/specs/2026-11-14-05-mensajeria-design.md) y [decisiones](docs/decisions/05-mensajeria.md).
-- `06-poliglota` (propuesta): caché de lectura en Redis y, si el equipo lo aprueba, un almacén documental para la bitácora y los avisos.
+- `06-poliglota` (hecha): caché de lectura en `redis-cache`, aparte del Redis durable: catálogo con invalidación por versión, agregados de las gráficas con TTL de 15 s y estado de cuenta compartido entre réplicas. Sin MongoDB. [Diseño](docs/specs/2026-11-14-06-poliglota-design.md) y [decisiones](docs/decisions/06-poliglota.md).
 
 ## Documentación
 
@@ -467,7 +469,7 @@ Los códigos de respuesta que más aparecen en este proyecto:
 | python-multipart | Lee las subidas de archivos en FastAPI |
 | React | Biblioteca de la interfaz |
 | React Router | Rutas de la interfaz |
-| Redis | Almacén en memoria para la cola de reproducciones y la revocación (rama 04) y para el stream `track_published` (rama 05); en la 06 servirá también de caché |
+| Redis | Almacén en memoria para la cola de reproducciones y la revocación (rama 04) y para el stream `track_published` (rama 05). En la 06 hay además una instancia aparte, `redis-cache`, que sirve de caché de lectura |
 | Redis Streams | La cola de eventos de Redis. Desde la rama 04 guarda las reproducciones hasta que `playback-metrics` las aplica, y desde la 05 los lanzamientos (`track_published`) hasta que `users-playlists` los guarda |
 | respx | Simula las respuestas de Jamendo en las pruebas |
 | SQLAlchemy | ORM de los servicios |
