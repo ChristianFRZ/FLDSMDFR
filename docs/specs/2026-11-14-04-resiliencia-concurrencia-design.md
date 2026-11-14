@@ -66,7 +66,7 @@ Hoy, cuando un servicio cae, cada llamada de otro servicio espera 3 s y devuelve
 | Revocación: contenido | `revoked_after:<user_id>` guarda la hora de la revocación. Un token es inválido si su `iat` es anterior. `encode_token` pasa a incluir `iat`. Un token sin `iat` (emitido antes de la rama) se trata como emitido en la hora cero. TTL de 15 min, más un margen. | Si la clave solo dijera «revocado», un cambio de rol dejaría al usuario fuera hasta que venza el TTL. Con la hora puede entrar enseguida con un token nuevo. |
 | Revocación: quién escribe | `users-playlists`, en los mismos puntos donde ya cambia el rol o el estado, después del commit. Si Redis falla, registra un aviso y la acción del admin se completa. | Una caída de Redis no debe bloquear una suspensión. El respaldo es la caché de 30 s. |
 | Revocación: quién lee | Un método de `meloxo_common.auth` consulta Redis antes de usar la caché de estado. `gateway-auth` y todos los servicios lo heredan. Con Redis caído se omite. | Los servicios internos revalidan, como pide el PRD §12. |
-| Refrescar sesión | Un refresh token emitido antes de la revocación también se rechaza por rol cambiado; el cliente vuelve a iniciar sesión. Detalle exacto a criterio del constructor, con una prueba. | Evita que un refresh viejo reviva una sesión con el rol anterior. |
+| Refrescar sesión | Sin cambios. El refresh token es opaco y vive en la base; `refresh` emite un access token con el rol vigente y un `iat` nuevo, así que tras un cambio de rol se puede renovar sin volver a escribir la contraseña. Una cuenta suspendida ya no renueva. | El usuario no queda fuera tras un cambio de rol, y una suspensión corta de verdad. |
 
 ## 6. Enfoques considerados
 
@@ -116,7 +116,7 @@ cada servicio ──InternalClient (timeouts + reintentos + breaker)──► el
 
 - **Latencia de F3.4**: el consumidor debe leer con bloqueo corto para que el evento se vea en segundos. Si no llega a 5 s, el primer ajuste es el tiempo de bloqueo.
 - **Orden y progreso**: si el consumidor se vuelve más de uno, el orden entre `record` y `progress` de un mismo `playback_id` puede perderse. Hoy es un solo consumidor; si cambia, hay que fijar el `progress` huérfano con un reintento corto.
-- **`iat` y relojes**: la comparación usa la hora del servidor que emite y la del que valida, que comparten host en Compose. Un margen de unos segundos queda a criterio del constructor.
+- **`iat` y relojes**: `iat` y `revoked_after` son segundos con decimales (`time.time()`), y el token es inválido si `iat < revoked_after`. Emisor y validador comparten host en Compose, así que sus relojes coinciden.
 - **Crecimiento del stream** si el consumidor está caído mucho tiempo: lo acota `MAXLEN ~`. Con el recorte, lo más viejo se pierde; se anota en el README.
 - **Variables de entorno**: se agrega `REDIS_URL` y se actualizan `.env.example`, `compose.yaml` y el README raíz.
 - Los nombres de archivo, la forma exacta del módulo de cola y el texto de los mensajes de error quedan a criterio del constructor, siguiendo el estilo de los otros servicios.
