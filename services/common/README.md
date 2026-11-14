@@ -4,7 +4,7 @@ Paquete de Python con lo que comparten los tres servicios de MELOXO. Aquí no va
 
 | Archivo | Para qué sirve |
 | --- | --- |
-| [`config.py`](meloxo_common/config.py) | `BaseServiceSettings`: `DATABASE_URL`, `JWT_SECRET`, `DISABLE_SCHEDULER`, `INTERNAL_TIMEOUT_SECONDS` y `AUTH_CACHE_SECONDS` |
+| [`config.py`](meloxo_common/config.py) | `BaseServiceSettings`: `DATABASE_URL`, `JWT_SECRET`, `DISABLE_SCHEDULER`, `INTERNAL_TIMEOUT_SECONDS`, `AUTH_CACHE_SECONDS` y `REDIS_URL` |
 | [`errors.py`](meloxo_common/errors.py) | `AppError` y el formato de error `{"error": {"code", "message", "detail"}}` |
 | [`pagination.py`](meloxo_common/pagination.py) | Paginación de resultados |
 | [`scheduler.py`](meloxo_common/scheduler.py) | Tareas periódicas dentro del proceso |
@@ -13,6 +13,7 @@ Paquete de Python con lo que comparten los tres servicios de MELOXO. Aquí no va
 | [`internal.py`](meloxo_common/internal.py) | `InternalClient` para llamar a otro servicio (3 s, sin reintentos, lotes de 200 ids) y `UpstreamError` (503) |
 | [`auth.py`](meloxo_common/auth.py) | `build_auth(fetch)`: `resolve_user`, `current_user` y `require_role`. Guarda rol y estado de cada usuario 30 s; si el origen cae usa el último estado guardado y, sin ninguno, responde 503 |
 | [`latency.py`](meloxo_common/latency.py) | `LatencyRecorder` (tiempos por módulo y minuto en memoria), `LatencyMiddleware` e `internal_router`, que expone `POST /internal/latency/drain` para que `playback-metrics` recoja y vacíe los buckets |
+| [`redis_client.py`](meloxo_common/redis_client.py) | `get_redis()`: cliente de Redis compartido (`REDIS_URL`; vacío devuelve `None`) y `override_redis()` para las pruebas |
 | [`contracts.py`](meloxo_common/contracts.py) | Modelos de lo que viaja entre servicios |
 | [`boundaries.py`](meloxo_common/boundaries.py) | Detector de imports prohibidos entre servicios y entre módulos |
 
