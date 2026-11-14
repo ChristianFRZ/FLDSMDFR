@@ -1,6 +1,6 @@
 # Ramas del proyecto y qué falta
 
-Este documento junta las seis ramas del recorrido del curso. Las tres primeras ya están construidas; las otras tres (`04`, `05` y `06`) son la propuesta de qué traería cada una en MELOXO. El plan aprobado en el [PRD](prd.md#plan-de-ramas) llega hasta la `04`: lo de las ramas `05` y `06` sale de la guía del recorrido del curso, que lo cuenta con el caso de Mexi Banco, y necesita que el equipo lo apruebe antes de convertirse en diseño.
+Este documento junta las seis ramas del recorrido del curso. Las cuatro primeras ya están construidas; las otras dos (`05` y `06`) son la propuesta de qué traería cada una en MELOXO. El plan aprobado en el [PRD](prd.md#plan-de-ramas) llegaba hasta la `04`, ya hecha: lo de las ramas `05` y `06` sale de la guía del recorrido del curso, que lo cuenta con el caso de Mexi Banco, y necesita que el equipo lo apruebe antes de convertirse en diseño.
 
 ## Mapa
 
@@ -9,7 +9,7 @@ Este documento junta las seis ramas del recorrido del curso. Las tres primeras y
 | `01-monolito` | Hecha | Una aplicación con módulos y una base de datos | `01-monolito` |
 | `02-separacion` | Hecha | Tres servicios, una base por servicio, nginx de entrada | `02-separacion` |
 | `03-gateway-balanceo` | Hecha | Gateway que valida sesión y rol, dos réplicas de catálogo con failover | `03-gateway-discovery-balanceo` |
-| `04-resiliencia-concurrencia` | En el PRD | Timeouts, reintentos, circuit breaker, Redis para revocación y cola | `04-saga-circuit-breaker` |
+| `04-resiliencia-concurrencia` | Hecha | Timeouts, reintentos, circuit breaker, Redis para revocación y cola | `04-saga-circuit-breaker` |
 | `05-mensajeria` | Propuesta | Eventos entre servicios con acuse manual, cola de mensajes muertos y outbox | `05-mensajeria-base` |
 | `06-poliglota` | Propuesta | Caché en Redis y un almacén documental para lo que no es relacional | `06-poliglota-base` |
 
@@ -37,6 +37,8 @@ Los nombres de `05` y `06` son provisionales. Cada rama nueva sigue el [flujo de
 | Reintento en segundo plano de lo pendiente | Sí | Misma tarea periódica que ya usa la publicación programada | [`scheduler.py`](../services/common/meloxo_common/scheduler.py) |
 | Lista de revocación en Redis | Sí | Está en el PRD y se difirió desde la rama 03 por decisión del equipo | El gateway tarda hasta 30 s en ver un cambio de rol o una suspensión |
 | Cola cuando `playback-metrics` no responde (F3.3) | Sí | Redis Streams, que el PRD ya eligió | Hoy el navegador reintenta; la cola real está marcada como parcial en el README |
+
+Estado tras la rama: la columna «Lo que ya hay en el código» describe el punto de partida. Se hicieron los timeouts, los reintentos (solo `get` y `post` idempotente), el breaker por destino, la cola con Redis Streams y la revocación en Redis. La saga con estados quedó fuera por decisión del equipo, y tampoco se hicieron el breaker de Jamendo ni una clave de idempotencia genérica. Las [decisiones de la rama](decisions/04-resiliencia-concurrencia.md) dicen cómo quedó cada cosa.
 
 ## Rama 05: mensajería
 
@@ -70,7 +72,7 @@ La referencia usa RabbitMQ. El PRD de MELOXO ya eligió Redis Streams, que tiene
 ## Decisiones pendientes
 
 1. **Broker de la rama 05:** Redis Streams (ya aprobado en el PRD, un contenedor menos, pero sin panel ni enrutamiento) o RabbitMQ (como la referencia, con panel y colas de mensajes muertos nativas, pero un componente nuevo).
-2. **Dónde entra Redis:** el PRD lo trae en la `04`. Si se mantiene así, la `06` solo agrega la caché; si no, Redis llega en la `05` o la `06` y la revocación se atrasa.
+2. ~~**Dónde entra Redis:**~~ Resuelta: entró en la `04`, con la cola de reproducciones y la revocación. La `06` solo agrega la caché.
 3. **MongoDB:** si el equipo lo quiere en la `06`, hay que actualizar el PRD (dueño de cada dato) y la regla de "una base por servicio".
 4. **Nombres de las ramas `05` y `06`.**
-5. **Alcance de la saga en la `04`:** si se hace como saga con estados o se queda en timeouts, breaker y reintentos.
+5. ~~**Alcance de la saga en la `04`:**~~ Resuelta: sin saga, solo timeouts, breaker, reintentos, cola y revocación.

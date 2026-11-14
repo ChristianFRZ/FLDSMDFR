@@ -10,7 +10,7 @@ from meloxo_common.config import BaseServiceSettings  # noqa: E402
 
 class Settings(BaseServiceSettings):
     USERS_URL: str = "http://users-playlists:8001"
-    APP_VERSION: str = "03-gateway-balanceo"
+    APP_VERSION: str = "04-resiliencia-concurrencia"
 
 
 @lru_cache

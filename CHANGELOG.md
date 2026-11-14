@@ -1,6 +1,35 @@
 # Cambios
 
-Historial de las ramas `03-gateway-balanceo`, `02-separacion` y `01-monolito`, ordenado del más reciente al más antiguo y agrupado por fecha. Cada línea corresponde a un commit. Las decisiones de diseño tomadas durante la construcción están en [`docs/decisions/03-gateway-balanceo.md`](docs/decisions/03-gateway-balanceo.md), [`docs/decisions/02-separacion.md`](docs/decisions/02-separacion.md) y [`docs/decisions/01-monolito.md`](docs/decisions/01-monolito.md).
+Historial de las ramas `04-resiliencia-concurrencia`, `03-gateway-balanceo`, `02-separacion` y `01-monolito`, ordenado del más reciente al más antiguo y agrupado por fecha. Cada línea corresponde a un commit. Las decisiones de diseño tomadas durante la construcción están en [`docs/decisions/04-resiliencia-concurrencia.md`](docs/decisions/04-resiliencia-concurrencia.md), [`docs/decisions/03-gateway-balanceo.md`](docs/decisions/03-gateway-balanceo.md), [`docs/decisions/02-separacion.md`](docs/decisions/02-separacion.md) y [`docs/decisions/01-monolito.md`](docs/decisions/01-monolito.md).
+
+## 2026-11-14
+
+Rama `04-resiliencia-concurrencia`: las llamadas entre servicios tienen timeouts, reintentos y circuit breaker; las reproducciones pasan por una cola en Redis Streams; y un cambio de rol o una suspensión revoca la sesión al instante.
+
+### Agregado
+- **Diseño y plan:** diseño y plan de la rama. (`b4187b9`, `73851c2`)
+- **Redis:** contenedor con AOF y volumen, y cliente compartido en `meloxo_common`. (`7cba6fb`)
+- **Circuit breaker:** abre tras 5 llamadas fallidas en 30 s y prueba a los 15 s. (`9d584b4`)
+- **Revocación de sesiones:** `revoked_after:<user_id>` en Redis, `iat` en los tokens, y `users-playlists` la escribe al cambiar un rol, suspender o aprobar una solicitud. (`6f20b87`, `a761634`)
+- **Cola de reproducciones:** `catalog-streaming` valida y encola `POST` y `PATCH` de `/api/playbacks` (`202`); `playback-metrics` las consume con grupo de consumidores y `XACK` tras el commit. (`46d948b`, `2551f2e`)
+- **Demo y pruebas:** escenarios 10 (breaker) y 11 (revocación), y `wait_until`. (`d0933a0`)
+
+### Cambiado
+- `InternalClient`: conexión 1 s y lectura 1.5 s (antes 3 s), 2 reintentos con 0.2 y 0.4 s en lecturas y un breaker por destino. (`577fb2e`)
+- `POST /api/playbacks` responde `202` sin `counted` y lo atiende catálogo; un progreso ajeno o inexistente se descarta en el consumidor en vez de dar `403`/`404`. (`2551f2e`)
+- Un cambio de rol o una suspensión se ve en la siguiente petición, no hasta 30 s después. Reactivar una cuenta no devuelve el token anterior. (`a761634`)
+- Escenarios 1 y 4 comprueban la cola: `202` y el resultado ya aplicado. (`d0933a0`)
+- `APP_VERSION` de playback-metrics y gateway-auth pasa a `04-resiliencia-concurrencia`.
+
+### Corregido
+- Un token emitido justo después de un cambio de rol seguía viendo el rol viejo hasta 30 s; la revocación ahora descarta el estado de cuenta guardado antes de ella. (`952cb23`)
+
+### Documentación
+- README, decisiones, `docs/ramas.md` y CHANGELOG de la rama.
+
+### Avisos
+- Sin saga con estados, sin cola de mensajes muertos y sin breaker para Jamendo.
+- El escenario 3 y `seed all` siguen sin verificar: falta `JAMENDO_CLIENT_ID`. Tampoco se repitieron las pruebas de Playwright.
 
 ## 2026-11-13
 

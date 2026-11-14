@@ -47,7 +47,7 @@ Cada escenario termina con código `0` si pasa, `1` si falla y `2` si no se cump
 - **Cortar Jamendo requiere dos cambios.** `JAMENDO_API_URL` solo cubre la API. El audio sale directo de `prod-1.storage.jamendo.com`, por eso el overlay también apunta ese host a una dirección que no responde.
 - **El escenario 6 suspende a los demás administradores** para quedar como único activo, y los reactiva al terminar.
 - **El escenario 8 vence las pistas con SQL**, con `catalog-streaming` apagado, porque la API rechaza fechas pasadas. Así, las dos réplicas las encuentran al arrancar. Comprueba el resultado, pero no garantiza que ambas hayan consultado en el mismo instante.
-- **Un ascenso a Compositor tarda hasta 30 s en verse en el gateway**, por la caché de estado de cuenta. `new_composer` espera a que `/api/composer/` deje de dar `403`, así que los escenarios 3, 7 y 8, que crean un Compositor, tardan unos 30 s más.
+- **Un ascenso a Compositor se ve de inmediato** con Redis arriba: la revocación vacía lo que la caché de estado de cuenta sabía de esa persona. Sin Redis tardaría hasta 30 s, y `new_composer` sigue esperando a que `/api/composer/` deje de dar `403` por si acaso.
 - **Quedan usuarios en la base de datos.** Las cuentas `*@escenarios.meloxo.dev` no tienen `is_demo`, así que `seed clear` no las borra. Las pistas que crean los escenarios sí se eliminan al terminar.
 
 ## Prueba de carga
