@@ -12,7 +12,7 @@ Servicio de catálogo y streaming de MELOXO. Es el módulo `catalog` del monolit
 
 ## Variables
 
-`DATABASE_URL` y `JWT_SECRET` (compartidas, ver [`meloxo_common`](../common/README.md)), `USERS_URL` (por defecto `http://users-playlists:8001`), `REDIS_URL` (la cola de reproducciones), `MEDIA_DIR`, `JAMENDO_CLIENT_ID`, `JAMENDO_API_URL`, `JAMENDO_AUDIO_MODE`, `COMPOSER_MAX_TRACKS`, `UPLOAD_MAX_MP3_MB`, `UPLOAD_MAX_COVER_MB` y `UPLOAD_MAX_MINUTES`.
+`DATABASE_URL` y `JWT_SECRET` (compartidas, ver [`meloxo_common`](../common/README.md)), `USERS_URL` (por defecto `http://users-playlists:8001`), `REDIS_URL` (la cola de reproducciones y el stream `track_published`), `MEDIA_DIR`, `JAMENDO_CLIENT_ID`, `JAMENDO_API_URL`, `JAMENDO_AUDIO_MODE`, `COMPOSER_MAX_TRACKS`, `UPLOAD_MAX_MP3_MB`, `UPLOAD_MAX_COVER_MB` y `UPLOAD_MAX_MINUTES`.
 
 ## Preparar el entorno y probar
 

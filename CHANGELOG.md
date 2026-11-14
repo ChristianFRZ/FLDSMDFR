@@ -1,8 +1,30 @@
 # Cambios
 
-Historial de las ramas `04-resiliencia-concurrencia`, `03-gateway-balanceo`, `02-separacion` y `01-monolito`, ordenado del más reciente al más antiguo y agrupado por fecha. Cada línea corresponde a un commit. Las decisiones de diseño tomadas durante la construcción están en [`docs/decisions/04-resiliencia-concurrencia.md`](docs/decisions/04-resiliencia-concurrencia.md), [`docs/decisions/03-gateway-balanceo.md`](docs/decisions/03-gateway-balanceo.md), [`docs/decisions/02-separacion.md`](docs/decisions/02-separacion.md) y [`docs/decisions/01-monolito.md`](docs/decisions/01-monolito.md).
+Historial de las ramas `05-mensajeria`, `04-resiliencia-concurrencia`, `03-gateway-balanceo`, `02-separacion` y `01-monolito`, ordenado del más reciente al más antiguo y agrupado por fecha. Cada línea corresponde a un commit. Las decisiones de diseño tomadas durante la construcción están en [`docs/decisions/05-mensajeria.md`](docs/decisions/05-mensajeria.md), [`docs/decisions/04-resiliencia-concurrencia.md`](docs/decisions/04-resiliencia-concurrencia.md), [`docs/decisions/03-gateway-balanceo.md`](docs/decisions/03-gateway-balanceo.md), [`docs/decisions/02-separacion.md`](docs/decisions/02-separacion.md) y [`docs/decisions/01-monolito.md`](docs/decisions/01-monolito.md).
 
 ## 2026-11-14
+
+Rama `05-mensajeria`: catálogo publica `track_published` en un stream de Redis cuando una pista se publica y `users-playlists` lo guarda en su base, así que los avisos de lanzamientos ya no dependen de que catálogo responda.
+
+### Agregado
+- **Diseño y plan:** diseño y plan de la rama, con la decisión del equipo sobre el broker y las pistas ocultas. (`2615575`, `f642d97`, `41eb046`, `807da02`)
+- **Contrato del stream:** `track_events.py` en `meloxo_common` (streams `track_published` y `track_published:dlq`, `MAX_ATTEMPTS` 5), columna `published_events.relayed_at` (migración `0005` de catálogo) y tabla `release_events` (migración `0006` de `users-playlists`). (`c21c006`)
+- **Relevo del outbox:** cada 2 s catálogo publica con `SKIP LOCKED` los eventos sin relevar y marca `relayed_at` solo si el `XADD` salió bien; las pistas de Jamendo, ocultas o borradas solo se marcan. (`962775c`)
+- **Consumidor idempotente:** `users-playlists` guarda cada evento por `song_id`, acusa tras el commit, reclama lo pendiente con `XAUTOCLAIM` y manda lo inválido o agotado a `track_published:dlq` con el motivo. (`3d5184b`)
+- **Demo y pruebas:** escenario 12 (catálogo caído, `users-playlists` caído y mensaje inválido). (`3d5695c`)
+
+### Cambiado
+- `GET /api/notices` lee los lanzamientos de `release_events` y no llama a catálogo: con catálogo caído responde `degraded: false` y con los lanzamientos (antes `degraded: true` y sin ellos). (`1354e8d`)
+
+### Documentación
+- README, `docs/ramas.md`, decisiones de la rama y los READMEs de los módulos y las pruebas afectados.
+
+### Avisos
+- Una pista ocultada o editada después de publicarse sigue apareciendo, con sus datos de entonces, en los avisos ya guardados (falta `track_hidden`).
+- Solo existe el evento `track_published`; no hay panel del stream.
+- No se repitieron las pruebas de frontend ni de Playwright, la prueba de carga ni `seed all`.
+
+## 2026-11-14 (rama 04)
 
 Rama `04-resiliencia-concurrencia`: las llamadas entre servicios tienen timeouts, reintentos y circuit breaker; las reproducciones pasan por una cola en Redis Streams; y un cambio de rol o una suspensión revoca la sesión al instante.
 

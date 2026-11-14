@@ -12,7 +12,7 @@ Servicio de usuarios y playlists de MELOXO (puerto 8001), con su propia base de 
 
 ## Variables
 
-`DATABASE_URL` y `JWT_SECRET` (compartidas, ver [`meloxo_common`](../common/README.md)), `CATALOG_URL` (por defecto `http://catalog-streaming:8002`), `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `DEMO_PASSWORD`, `TAPE_MAX_TRACKS` (12) y `TAPE_MAX_MEMBERS` (8).
+`DATABASE_URL` y `JWT_SECRET` (compartidas, ver [`meloxo_common`](../common/README.md)), `CATALOG_URL` (por defecto `http://catalog-streaming:8002`), `REDIS_URL` (el stream `track_published`), `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `DEMO_PASSWORD`, `TAPE_MAX_TRACKS` (12) y `TAPE_MAX_MEMBERS` (8).
 
 ## Preparar el entorno y probar
 

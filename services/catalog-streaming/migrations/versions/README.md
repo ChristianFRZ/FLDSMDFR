@@ -8,5 +8,6 @@ Los archivos de migración, en orden. No edites uno que ya se aplicó en otra m�
 | `0002_catalog_jobs` | Tabla `import_jobs` |
 | `0003_catalog_publishing` | Tabla `published_events` |
 | `0004_status_before_hide` | Columna `songs.status_before_hide` |
+| `0005_published_relayed` | Columna `published_events.relayed_at` (nula: el evento aún no se publicó en Redis) |
 
-Son las migraciones `0003`, `0004`, `0005` y `0011` del monolito, renumeradas desde `0001`.
+Las cuatro primeras son las migraciones `0003`, `0004`, `0005` y `0011` del monolito, renumeradas desde `0001`; la `0005` es nueva de la rama `05-mensajeria`.

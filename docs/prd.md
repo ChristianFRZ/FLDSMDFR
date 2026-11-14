@@ -214,7 +214,7 @@ Convención: los umbrales de rendimiento se miden con el script de carga (secci�
 - `modules/playlists`: playlists y asociaciones.
 - `modules/catalog`: metadatos, importación de Jamendo, subidas, archivos.
 - `modules/playback`: eventos, contadores, historial.
-- `modules/social`: favoritas, artistas seguidos, casetes, invitaciones y avisos (se calculan al leer).
+- `modules/social`: favoritas, artistas seguidos, casetes, invitaciones y avisos (se calculan al leer, de los lanzamientos guardados al recibir `track_published`).
 - `modules/analytics`: agregados para el panel.
 
 ### Servicios resultantes
