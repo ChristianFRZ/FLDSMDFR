@@ -2,6 +2,7 @@
 import inspect
 import sys
 import unittest
+from unittest import mock
 
 import common
 
@@ -61,8 +62,27 @@ class WaitComposerTest(unittest.TestCase):
             common.wait_composer_role(api, seconds=40, sleep=sleep, clock=lambda: now[0])
         self.assertGreaterEqual(now[0], 40)
 
+    def test_other_statuses_fail_at_once(self):
+        for status in (401, 503):
+            api = FakeApi([status])
+            with self.assertRaisesRegex(common.Failure, str(status)):
+                common.wait_composer_role(api, seconds=40, sleep=lambda s: None, clock=lambda: 0)
+            self.assertEqual(len(api.paths), 1)
+
     def test_new_composer_waits_for_the_role(self):
-        self.assertIn("wait_composer_role", inspect.getsource(common.new_composer))
+        composer, promoted = FakeApi([403, 200]), []
+
+        class Admin:
+            def ok(self, method, path, body=None):
+                promoted.append((method, path, body))
+
+        user = {"id": "u1", "email": "c@x"}
+        with mock.patch.object(common, "new_user", return_value=(object(), user)), mock.patch.object(
+            common, "login", return_value=composer
+        ), mock.patch.object(common.time, "sleep"):
+            self.assertEqual(common.new_composer("c", Admin()), (composer, user))
+        self.assertEqual(promoted, [("POST", "/api/admin/users/u1/role", {"role": "composer"})])
+        self.assertEqual(len(composer.paths), 2)
 
 
 if __name__ == "__main__":
