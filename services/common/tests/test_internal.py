@@ -174,3 +174,42 @@ async def test_reset_all_breakers_closes_every_client(respx_mock, client):
     assert client.breaker.state == "open"
     internal.reset_all_breakers()
     assert client.breaker.state == "closed"
+
+
+async def _open_then_half_open(client, respx_mock):
+    clock = [1000.0]
+    client.breaker._clock = lambda: clock[0]
+    route = respx_mock.get(f"{BASE}/x").mock(return_value=httpx.Response(503))
+    for _ in range(5):
+        with pytest.raises(UpstreamError):
+            await client.get("/x")
+    clock[0] += 15
+    return route, clock
+
+
+async def _recovers(client, route, clock):
+    clock[0] += 15
+    route.mock(return_value=httpx.Response(200, json={"ok": True}))
+    assert await client.get("/x") == {"ok": True}  # el breaker no se quedó en medio abierto
+
+
+async def test_breaker_recovers_after_a_cancelled_probe(respx_mock, client):
+    import asyncio
+
+    route, clock = await _open_then_half_open(client, respx_mock)
+
+    async def hang(request):
+        await asyncio.sleep(30)
+
+    route.mock(side_effect=hang)
+    with pytest.raises(asyncio.TimeoutError):
+        await asyncio.wait_for(client.get("/x"), 0.05)  # cancela la llamada de prueba
+    await _recovers(client, route, clock)
+
+
+async def test_breaker_recovers_after_a_probe_that_raises_a_non_http_error(respx_mock, client):
+    route, clock = await _open_then_half_open(client, respx_mock)
+    route.mock(side_effect=RuntimeError("cliente cerrado"))
+    with pytest.raises(RuntimeError):
+        await client.get("/x")
+    await _recovers(client, route, clock)

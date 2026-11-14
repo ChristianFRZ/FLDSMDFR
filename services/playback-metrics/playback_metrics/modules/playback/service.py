@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -64,6 +65,7 @@ async def apply_event(session: AsyncSession, event: QueuedEvent) -> Literal["cre
                 user_id=event.user_id,
                 song_id=event.song_id,
                 listened_seconds=event.listened_seconds,
+                started_at=datetime.fromisoformat(event.received_at),  # cuándo se escuchó, no cuándo se aplicó
             )
             .on_conflict_do_nothing(index_elements=[Playback.playback_id])
             .returning(Playback.seq)

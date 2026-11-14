@@ -55,26 +55,34 @@ class InternalClient:
     async def _request(self, method: str, path: str, retry: bool = False, **kwargs: Any) -> Any:
         if not self.breaker.allow():
             raise UpstreamError(detail="circuit_open")
-        attempts = 1 + (len(RETRY_DELAYS) if retry else 0)
-        error: UpstreamError | None = None
-        for attempt in range(attempts):
-            if attempt:
-                await asyncio.sleep(RETRY_DELAYS[attempt - 1])
-            try:
-                response = await self._client.request(method, path, **kwargs)
-            except httpx.HTTPError as exc:
-                error = UpstreamError(detail=type(exc).__name__)
-                error.__cause__ = exc
-                continue
-            if response.status_code >= 500:
-                error = UpstreamError(detail=response.status_code)
-                continue
-            self.breaker.record_success()  # un 4xx es una respuesta del servicio, no una falla
-            if response.status_code >= 400:
-                raise _app_error(response)
-            return response.json() if response.content else None
-        self.breaker.record_failure()
-        raise error
+        settled = False
+        try:
+            attempts = 1 + (len(RETRY_DELAYS) if retry else 0)
+            error: UpstreamError | None = None
+            for attempt in range(attempts):
+                if attempt:
+                    await asyncio.sleep(RETRY_DELAYS[attempt - 1])
+                try:
+                    response = await self._client.request(method, path, **kwargs)
+                except httpx.HTTPError as exc:
+                    error = UpstreamError(detail=type(exc).__name__)
+                    error.__cause__ = exc
+                    continue
+                if response.status_code >= 500:
+                    error = UpstreamError(detail=response.status_code)
+                    continue
+                settled = True
+                self.breaker.record_success()  # un 4xx es una respuesta del servicio, no una falla
+                if response.status_code >= 400:
+                    raise _app_error(response)
+                return response.json() if response.content else None
+            settled = True
+            self.breaker.record_failure()
+            raise error
+        finally:
+            if not settled:
+                # Cancelada o con un error que no es de HTTP: sin esto, una llamada de prueba dejaría el breaker en medio abierto para siempre.
+                self.breaker.record_failure()
 
 
 def _app_error(response: httpx.Response) -> AppError:

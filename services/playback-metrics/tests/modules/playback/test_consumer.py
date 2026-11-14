@@ -156,3 +156,17 @@ async def test_consumer_does_not_check_catalog(fake_redis, fake_catalog):
     await q.enqueue(fake_redis, event())
     await run(fake_redis)
     assert await plays() == 1
+
+
+async def test_play_keeps_the_time_it_was_received_not_the_time_it_was_applied(fake_redis):
+    """Tras una caída de playback-metrics, lo escuchado durante ella no debe parecer escuchado al volver."""
+    from datetime import timedelta
+
+    await q.ensure_group(fake_redis)
+    earlier = datetime.now(UTC) - timedelta(hours=3)
+    ev = event(received_at=earlier.isoformat())
+    await q.enqueue(fake_redis, ev)
+    await run(fake_redis)
+    async with session_scope() as session:
+        started = await session.scalar(select(Playback.started_at).where(Playback.playback_id == ev.playback_id))
+    assert abs((started - earlier).total_seconds()) < 1

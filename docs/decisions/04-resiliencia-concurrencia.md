@@ -26,6 +26,8 @@ Lo que se decidió durante la construcción sin preguntarlo al equipo, con lo qu
 - **Tarea 7:** el registro de latencia de catálogo no cubre `/api/playbacks` — no se pidió y las métricas de latencia de reproducciones se miden hoy por otro camino — costo si es error: el módulo no aparece en las gráficas de latencia de catálogo.
 - **Tarea 8:** al construir apareció que un token emitido justo después de un cambio de rol seguía viendo el rol viejo hasta 30 s, porque la caché de estado de cuenta no sabía de la revocación. `AuthStateCache.get` ahora descarta lo guardado antes de la revocación (`not_before`) — sin esto el objetivo «se ve en la siguiente petición» no se cumplía para quien vuelve a entrar — costo si es error: una consulta más a `users-playlists` por cada revocación.
 - **Tarea 8:** el escenario 10 usa `docker compose pause` y no `stop` — con `stop` la conexión se rechaza al instante y no hay espera que el breaker evite; con `pause` la llamada aguarda el timeout de lectura — costo si es error: el escenario dura cerca de un minuto.
+- **Revisión final:** el breaker se quedaba en medio abierto para siempre si la llamada de prueba terminaba cancelada o con un error que no es de HTTP; `InternalClient` ahora registra un fallo en ese caso — costo si es error: una llamada cancelada cuenta como fallo del destino.
+- **Revisión final:** el consumidor guarda la reproducción con la hora en que se recibió (`received_at`) y no la de cuando se aplica — tras una caída de `playback-metrics`, lo escuchado durante ella aparecía como un pico al volver — costo si es error: ninguno.
 - **Tarea 9:** no se corrió `docker compose down -v`, aunque el plan lo pedía — esta rama no cambia el esquema ni las migraciones, así que bastó `up --build -d` y se conservaron los datos — costo si es error: ninguno.
 
 ## Resultados de la verificación
@@ -36,10 +38,10 @@ Corrida del 2026-11-14 en la misma laptop de `02` y `03` (Intel i7-1165G7, 8 hil
 
 | Suite | Resultado |
 | --- | --- |
-| `meloxo_common` | 85 pasaron |
+| `meloxo_common` | 87 pasaron |
 | `users-playlists` | 182 pasaron |
 | `catalog-streaming` | 169 pasaron |
-| `playback-metrics` | 109 pasaron |
+| `playback-metrics` | 110 pasaron |
 | `gateway-auth` | 14 pasaron |
 | `edge` (sin stack y con stack) | 115 pasaron |
 | `demo/test_common.py` y `tests/` | 17 y 2 pasaron |
@@ -76,6 +78,7 @@ La carga con la cola no empeoró los tiempos de `03`. La fase de preparación al
 
 ## Pendientes
 
+- Hallazgos menores de la revisión final que no se arreglaron: la hora de la caché de estado se toma después del `fetch` (carrera de milisegundos), el ticket de streaming no consulta la revocación (una cuenta suspendida sigue abriendo audio hasta 30 s), un mensaje que falla siempre con algo que no es `ValueError` bloquea la cola, reactivar no invalida el estado «suspendido» guardado, el nombre del consumidor es fijo (hay que cambiarlo si `playback-metrics` pasa a más de una réplica), el `lifespan` no espera las tareas ni cierra el cliente de Redis, `redis>=5.0` sin tope y respuestas leídas por posición, y gateway-auth no tiene prueba propia de revocación.
 - Correr el escenario 3 y `seed all` con una `JAMENDO_CLIENT_ID` real, y las pruebas de Playwright.
 - Si el consumidor de reproducciones pasa a ser más de uno, fijar el orden entre `record` y `progress` de un mismo `playback_id` (hoy lo da tener un solo consumidor).
 - `MAXLEN ~ 100000` recorta lo más viejo si `playback-metrics` pasa mucho tiempo caído; con unas 7 reproducciones por segundo en la carga, eso son más de 4 horas.

@@ -24,8 +24,11 @@ Rama `04-resiliencia-concurrencia`: las llamadas entre servicios tienen timeouts
 ### Corregido
 - Un token emitido justo después de un cambio de rol seguía viendo el rol viejo hasta 30 s; la revocación ahora descarta el estado de cuenta guardado antes de ella. (`952cb23`)
 
+- El breaker de `InternalClient` ya no se queda en medio abierto si la llamada de prueba se cancela o falla con un error que no es de HTTP.
+- El consumidor guarda cada reproducción con la hora en que se recibió, no la de cuando se aplica: tras una caída, lo escuchado durante ella ya no aparece como un pico al volver.
+
 ### Documentación
-- README, decisiones, `docs/ramas.md` y CHANGELOG de la rama.
+- README, decisiones, `docs/ramas.md` y CHANGELOG de la rama, y [`infra/redis/README.md`](infra/redis/README.md).
 
 ### Avisos
 - Sin saga con estados, sin cola de mensajes muertos y sin breaker para Jamendo.
