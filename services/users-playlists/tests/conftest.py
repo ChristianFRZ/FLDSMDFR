@@ -20,6 +20,7 @@ _base = f"postgresql+asyncpg://meloxo:{_postgres_password()}@localhost:5433"
 os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", f"{_base}/{TEST_DB}")
 os.environ["JWT_SECRET"] = "secreto-de-pruebas-con-longitud-suficiente-para-hs256"
 os.environ["DISABLE_SCHEDULER"] = "1"
+os.environ["REDIS_URL"] = ""  # sin Redis real: el fixture fake_redis instala fakeredis
 os.environ["ADMIN_EMAIL"] = ""
 os.environ["ADMIN_PASSWORD"] = ""
 os.environ["CATALOG_URL"] = "http://catalog.test"  # el mismo que usa tests/fake_catalog.py
@@ -73,6 +74,21 @@ async def fake_catalog():
 
 
 @pytest.fixture(autouse=True)
+async def fake_redis():
+    from fakeredis import aioredis as fakeredis
+
+    from meloxo_common import revocation
+    from meloxo_common.redis_client import override_redis
+
+    client = fakeredis.FakeRedis(decode_responses=True)
+    override_redis(client)
+    revocation._skip_until = 0.0
+    yield client
+    override_redis(None)
+    revocation._skip_until = 0.0
+
+
+@pytest.fixture(autouse=True)
 async def db_clean():
     tables = ", ".join(f'"{t.name}"' for t in Base.metadata.sorted_tables)
     if tables:
@@ -123,6 +139,18 @@ def make_user(client):
         return TestUser(me["id"], email, token, password)
 
     return _make
+
+
+@pytest.fixture
+def relogin(client):
+    """Token nuevo de alguien cuya sesión fue revocada (cambio de rol o suspensión)."""
+
+    async def _relogin(user):
+        r = await client.post("/api/auth/login", json={"email": user.email, "password": user.password})
+        assert r.status_code == 200, r.text
+        return {"Authorization": f"Bearer {r.json()['access_token']}"}
+
+    return _relogin
 
 
 @pytest.fixture

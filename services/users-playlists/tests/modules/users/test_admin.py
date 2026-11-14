@@ -52,10 +52,11 @@ async def test_suspended_admin_does_not_count_as_active(client, make_user):
     assert (await demote(client, a, a)).status_code == 409
 
 
-async def test_promote_to_admin_and_audit(client, admin, listener):
+async def test_promote_to_admin_and_audit(client, admin, listener, relogin):
     r = await client.post(f"/api/admin/users/{listener.id}/role", json={"role": "admin"}, headers=admin.headers)
     assert r.status_code == 200
-    assert (await client.get("/api/users/me", headers=listener.headers)).json()["role"] == "admin"
+    assert (await client.get("/api/users/me", headers=listener.headers)).status_code == 401  # sesión revocada
+    assert (await client.get("/api/users/me", headers=await relogin(listener))).json()["role"] == "admin"
     row = (await client.get("/api/admin/audit", headers=admin.headers)).json()["items"][0]
     assert row["action"] == "role_change"
     assert row["target_id"] == listener.id
@@ -67,12 +68,13 @@ async def test_invalid_role_422(client, admin, listener):
     assert r.status_code == 422
 
 
-async def test_suspend_blocks_at_once_and_reactivate_restores(client, admin, listener):
+async def test_suspend_blocks_at_once_and_reactivate_restores(client, admin, listener, relogin):
     r = await client.post(f"/api/admin/users/{listener.id}/suspend", json={"reason": "spam"}, headers=admin.headers)
     assert r.status_code == 200
     assert (await client.get("/api/users/me", headers=listener.headers)).status_code == 401
     await client.post(f"/api/admin/users/{listener.id}/reactivate", headers=admin.headers)
-    assert (await client.get("/api/users/me", headers=listener.headers)).status_code == 200
+    assert (await client.get("/api/users/me", headers=listener.headers)).status_code == 401  # el token viejo sigue revocado
+    assert (await client.get("/api/users/me", headers=await relogin(listener))).status_code == 200
 
 
 async def test_admin_routes_403_for_others(client, make_user):

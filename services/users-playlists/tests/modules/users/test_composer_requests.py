@@ -27,12 +27,12 @@ async def test_composer_cannot_request(client, composer):
     assert r.json()["error"]["code"] == "already_composer"
 
 
-async def test_role_changes_only_on_approval(client, admin, listener):
+async def test_role_changes_only_on_approval(client, admin, listener, relogin):
     rid = (await request_role(client, listener)).json()["id"]
     assert (await client.get("/api/users/me", headers=listener.headers)).json()["role"] == "listener"
     r = await client.post(f"/api/admin/composer-requests/{rid}/approve", json={}, headers=admin.headers)
     assert r.status_code == 200
-    assert (await client.get("/api/users/me", headers=listener.headers)).json()["role"] == "composer"
+    assert (await client.get("/api/users/me", headers=await relogin(listener))).json()["role"] == "composer"
     row = (await client.get("/api/admin/audit?action=composer_approved", headers=admin.headers)).json()["items"][0]
     assert row["target_id"] == listener.id
 

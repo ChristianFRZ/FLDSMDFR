@@ -5,6 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from meloxo_common import revocation
 from meloxo_common.db import session_scope
 from meloxo_common.errors import AppError
 from meloxo_common.pagination import PageParams
@@ -67,6 +68,7 @@ async def set_role(session: AsyncSession, actor_id: UUID, user_id: UUID, role: s
         await _ensure_not_last_admin(session, user, actor_id, "role_change", detail)
     user.role = role
     await session.commit()
+    await revocation.revoke(user.id)
     await write_audit(actor_id, "role_change", "user", str(user.id), detail)
     return user
 
@@ -77,6 +79,7 @@ async def suspend(session: AsyncSession, actor_id: UUID, user_id: UUID, reason: 
     await _ensure_not_last_admin(session, user, actor_id, "suspend", detail)
     user.status = "suspended"
     await session.commit()
+    await revocation.revoke(user.id)
     await write_audit(actor_id, "suspend", "user", str(user.id), detail)
     return user
 
@@ -188,6 +191,7 @@ async def approve_request(session: AsyncSession, actor_id: UUID, request_id: UUI
     request.reason = reason
     request.reviewed_by = actor_id
     await session.commit()
+    await revocation.revoke(user.id)
     await write_audit(actor_id, "composer_approved", "user", str(user.id), {"reason": reason})
     return request
 
