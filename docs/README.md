@@ -9,6 +9,7 @@ Aquí está todo lo que explica el proyecto y no es código. Si llegas por prime
 | Planes de implementación que salen de esos diseños | [`plans/`](plans/README.md) |
 | Lo que se decidió sobre la marcha y lo que quedó pendiente | [`decisions/`](decisions/README.md) |
 | Las seis ramas del recorrido, lo que cabe en cada una y lo pendiente | [`ramas.md`](ramas.md) |
+| Diseño y plan de las animaciones del logo, hechos fuera de las seis ramas | [`superpowers/specs/`](superpowers/specs/2026-11-14-animaciones-logo-design.md) y [`superpowers/plans/`](superpowers/plans/2026-11-14-animaciones-logo.md) |
 | Maqueta de la interfaz | [`design/`](design/README.md) |
 | Logo, colores y guía de marca | [`brand/`](brand/README.md) |
 

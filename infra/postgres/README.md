@@ -5,7 +5,7 @@ Inicialización de PostgreSQL para los tres servicios.
 `init.sh` lo ejecuta la imagen oficial de `postgres` una sola vez, cuando el volumen `pgdata` está vacío (se monta en `/docker-entrypoint-initdb.d`). Crea:
 
 | Base | Rol (mismo nombre) | Servicio | Clave |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `users_playlists` | `users_playlists` | users-playlists | `USERS_DB_PASSWORD` |
 | `catalog` | `catalog` | catalog-streaming | `CATALOG_DB_PASSWORD` |
 | `playbacks` | `playbacks` | playback-metrics | `PLAYBACKS_DB_PASSWORD` |
