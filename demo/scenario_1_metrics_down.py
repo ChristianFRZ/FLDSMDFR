@@ -1,8 +1,8 @@
-"""Con playback-metrics detenido, escuchar y navegar sigue; solo fallan las métricas, con el error de la API."""
+"""Con playback-metrics detenido, escuchar y navegar sigue, las reproducciones se encolan (202) y se aplican al volver; solo fallan las métricas."""
 import time
 import uuid
 
-from common import COMPOSE, Api, admin, check, compose, error_code, new_user, published_songs, run, wait_edge
+from common import COMPOSE, Api, admin, check, compose, error_code, new_user, published_songs, run, wait_edge, wait_until
 
 METRICS = "playback-metrics"
 WAIT_SECONDS = 60
@@ -30,7 +30,7 @@ def scenario() -> None:
     boss = admin()
     listener, _ = new_user("metricas")
     song = published_songs(boss, 1)[0]
-    playback = {"playback_id": str(uuid.uuid4()), "song_id": song["id"], "listened_seconds": 30}
+    plays = [{"playback_id": str(uuid.uuid4()), "song_id": song["id"], "listened_seconds": 30} for _ in range(3)]
 
     def everything_works() -> None:
         check(listener.call("GET", "/api/songs")[0] == 200, "GET /api/songs responde 200")
@@ -43,12 +43,21 @@ def scenario() -> None:
     try:
         compose(COMPOSE, "stop", METRICS)
         everything_works()
-        check_unavailable(listener, "POST", "/api/playbacks", playback, "POST /api/playbacks")
+        for play in plays:
+            status, data = listener.call("POST", "/api/playbacks", play)
+            check(status == 202, f"POST /api/playbacks responde {status}: se encola, no falla")
+        check(listener.call("POST", "/api/playbacks", plays[0])[0] == 202, "reenviar la primera también responde 202")
         check_unavailable(boss, "GET", "/api/metrics/top", None, "GET /api/metrics/top")
     finally:
         compose(COMPOSE, "start", METRICS)
     wait_metrics(boss)
     wait_edge()
+    wait_until(
+        lambda: listener.ok("GET", "/api/playbacks/history")["total"] >= len(plays),
+        30,
+        "las reproducciones encoladas no se aplicaron en 30 s",
+    )
+    check(listener.ok("GET", "/api/playbacks/history")["total"] == len(plays), "se aplicaron las 3, sin duplicar la reenviada")
     everything_works()
     check(boss.call("GET", "/api/metrics/top")[0] == 200, "tras arrancar de nuevo, GET /api/metrics/top responde 200")
 

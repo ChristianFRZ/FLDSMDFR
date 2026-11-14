@@ -51,6 +51,21 @@ def run(name: str, scenario: Callable[[], None]) -> None:
     print("PASA")
 
 
+def wait_until(
+    predicate: Callable[[], bool],
+    seconds: float,
+    message: str,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> None:
+    """Repite `predicate` cada 0.5 s hasta que sea verdadero; si pasan `seconds`, falla con `message`."""
+    deadline = clock() + seconds
+    while not predicate():
+        if clock() >= deadline:
+            raise Failure(message)
+        sleep(0.5)
+
+
 def read_env(name: str) -> str:
     for line in (ROOT / ".env").read_text().splitlines():
         if line.startswith(f"{name}="):

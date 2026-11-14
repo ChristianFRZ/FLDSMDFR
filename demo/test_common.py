@@ -145,5 +145,26 @@ class ProbeTest(unittest.TestCase):
         self.assertEqual(common.failed([200, 0, 200, 502, 404]), 3)
 
 
+
+
+class WaitUntilTest(unittest.TestCase):
+
+    def test_returns_when_the_predicate_turns_true(self):
+        answers, slept = [False, False, True], []
+        common.wait_until(lambda: answers.pop(0), 10, "nunca", sleep=slept.append, clock=lambda: 0)
+        self.assertEqual(answers, [])
+        self.assertEqual(slept, [0.5, 0.5])
+
+    def test_raises_failure_with_the_message_on_timeout(self):
+        now = [0.0]
+
+        def sleep(seconds):
+            now[0] += seconds
+
+        with self.assertRaisesRegex(common.Failure, "el contador no llegó"):
+            common.wait_until(lambda: False, 5, "el contador no llegó", sleep=sleep, clock=lambda: now[0])
+        self.assertGreaterEqual(now[0], 5)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -25,20 +25,23 @@ Cada escenario termina con código `0` si pasa, `1` si falla y `2` si no se cump
 
 | Archivo | Qué comprueba |
 | --- | --- |
-| [`scenario_1_metrics_down.py`](scenario_1_metrics_down.py) | Con `playback-metrics` detenido, el catálogo, el audio con `Range` y las playlists siguen respondiendo; `POST /api/playbacks` y `GET /api/metrics/top` dan un error de la API (`upstream_unavailable`), y al arrancarlo todo vuelve a `200` |
+| [`scenario_1_metrics_down.py`](scenario_1_metrics_down.py) | Con `playback-metrics` detenido, el catálogo, el audio con `Range` y las playlists siguen respondiendo; `POST /api/playbacks` responde `202` (se encola en Redis) y `GET /api/metrics/top` da un error de la API (`upstream_unavailable`). Al arrancarlo, las reproducciones encoladas se aplican, sin duplicar |
 | [`scenario_2_failover.py`](scenario_2_failover.py) | Con una réplica de `catalog-streaming` detenida en pleno tráfico (20 peticiones por segundo durante 15 s), el nginx de entrada reintenta con la otra: a lo sumo 1 petición fallida, las últimas 50 dan `200` y la réplica restante recibe el tráfico |
 | [`scenario_3_jamendo_down.py`](scenario_3_jamendo_down.py) | Con Jamendo cortado, las pistas locales y los metadatos guardados siguen disponibles, y el audio de Jamendo da `503 jamendo_unavailable` |
-| [`scenario_4_idempotency.py`](scenario_4_idempotency.py) | 100 envíos del mismo `playback_id` cuentan una reproducción y suman 99 a `duplicates_discarded` |
+| [`scenario_4_idempotency.py`](scenario_4_idempotency.py) | 100 envíos del mismo `playback_id` responden `202` y, ya aplicados por el consumidor, cuentan una reproducción y suman 99 a `duplicates_discarded` |
 | [`scenario_5_tape_full.py`](scenario_5_tape_full.py) | Dos miembros agregan a la vez la pista 12: uno recibe `201` y el otro `409 tape_full`, en 5 rondas |
 | [`scenario_6_last_admin.py`](scenario_6_last_admin.py) | Degradar al único administrador activo da `409`, no cambia nada y queda auditado |
 | [`scenario_7_permissions.py`](scenario_7_permissions.py) | Un Compositor recibe `403` en pistas ajenas y en `/api/admin/*` |
 | [`scenario_8_double_publish.py`](scenario_8_double_publish.py) | Con dos réplicas y pistas vencidas, hay un solo evento `track_published` y un solo aviso por pista |
+| [`scenario_10_circuit_breaker.py`](scenario_10_circuit_breaker.py) | Con catálogo congelado (`docker compose pause`), el detalle de una playlist tarda al principio más de 1.4 s y sale degradado; tras unas pocas llamadas el circuit breaker abre y responde en menos de 0.5 s. Al volver catálogo y pasar 15 s, la playlist vuelve completa |
+| [`scenario_11_revocation.py`](scenario_11_revocation.py) | Un cambio de rol o una suspensión invalida el token anterior en la siguiente petición (menos de 2 s, antes hasta 30 s); un token nuevo trae el rol nuevo de inmediato, y la cuenta suspendida no puede entrar |
 
 [`common.py`](common.py) reúne lo que comparten los escenarios: el cliente de la API, las cuentas de prueba y el arranque del overlay. Ese overlay es [`compose.demo.yaml`](../compose.demo.yaml), en la raíz del repositorio, y lo usan los escenarios 3 y 8: aplica a `catalog-streaming` el corte de Jamendo y un puerto de host libre por réplica (el 8002 interno), de modo que las réplicas se pueden consultar directo. El nginx de entrada las alcanza por el DNS de Docker. `sql()` recibe la base a consultar (`catalog` por defecto, también `users_playlists` y `playbacks`).
 
 ### Lo que hay que saber
 
 - **El escenario 1 detiene `playback-metrics`** y siempre lo arranca de nuevo, aunque falle.
+- **El escenario 10 congela `catalog-streaming`** con `docker compose pause`, siempre lo reanuda y lo devuelve a sus dos réplicas, aunque falle. Tarda cerca de un minuto: cada llamada con catálogo colgado espera más de 1.5 s antes de que abra el breaker, y luego espera 15 s a que se cierre.
 - **El escenario 2 detiene una réplica de `catalog-streaming`** y siempre la restaura (vuelve a las dos réplicas sanas), aunque falle. Para ello usa `restore_catalog`, que también espera a que el 8080 responda.
 - **Los escenarios 3 y 8 recrean los contenedores de `catalog-streaming`.** Lo devuelven a sus dos réplicas detrás del 8080 aunque fallen, pero no los corras mientras alguien usa la app.
 - **Cortar Jamendo requiere dos cambios.** `JAMENDO_API_URL` solo cubre la API. El audio sale directo de `prod-1.storage.jamendo.com`, por eso el overlay también apunta ese host a una dirección que no responde.
