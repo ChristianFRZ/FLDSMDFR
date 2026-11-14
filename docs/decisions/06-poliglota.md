@@ -23,6 +23,7 @@ Lo que se decidió durante la construcción sin preguntarlo al equipo, con lo qu
 - **Tarea 4:** `top` no guarda una respuesta con alguna etiqueta «No disponible», es decir, una pista que catálogo no conoce — para que esa etiqueta no dure 15 s más cuando catálogo vuelva a conocerla — costo si es error: las lecturas de `top` con una pista borrada en los agregados nunca salen de la caché y siempre consultan PostgreSQL. Con catálogo caído `top` devuelve `503`, que tampoco se guarda.
 - **Tarea 5:** una entrada compartida más vieja que el TTL se descarta aunque a Redis le quede vida (`age < ttl`), y la réplica que la toma hereda esa edad — sin esto el redondeo del TTL de Redis y la edad heredada podían sumar más de 30 s — costo si es error: ninguno visible.
 - **Tarea 6:** `/api/metrics/top` no está en `locustfile.py`, que solo busca, abre listas y descarga audio. Se midió aparte, con 300 lecturas seguidas del administrador — costo si es error: esa cifra es de una sola persona y no de 50 clientes.
+- **Revisión final (hecha por quien construyó, sin revisor independiente):** `bump` ya no respeta la ventana de salto de 5 s de las lecturas, porque saltárselo dejaba entradas viejas vivas hasta 300 s si la caché había fallado un instante antes de una escritura; y un valor corrupto o con otra forma en la caché, tanto en `cached` como en el estado de cuenta compartido, se trata como ausente en vez de lanzar una excepción. Cada uno tiene su prueba, vista fallar antes de corregir — costo si es error: un `bump` con la caché caída tarda hasta el timeout de conexión (0,2 s) en cada escritura del catálogo.
 
 ## Resultados de la verificación
 
@@ -32,7 +33,7 @@ Corrida del 2026-11-14 en la misma laptop de `02` a `05` (Intel i7-1165G7, 8 hil
 
 | Suite | Resultado |
 | --- | --- |
-| `meloxo_common` | 124 pasaron (98 en `05`) |
+| `meloxo_common` | 133 pasaron (98 en `05`) |
 | `users-playlists` | 195 pasaron |
 | `catalog-streaming` | 194 pasaron (176) |
 | `playback-metrics` | 122 pasaron (110) |
@@ -74,4 +75,5 @@ Conviene decir dos cosas al presentarlos. La búsqueda de Locust usa solo seis p
 - Caché de otras lecturas (`GET /api/playlists/{id}`, historial) y de contadores, que quedaron fuera.
 - La tasa de aciertos de la caché en la sección Salud del admin: hoy solo se ve con `redis-cli INFO stats`.
 - `track_hidden` y `track_restored`, y una forma de revisar y reinyectar lo que cae en `track_published:dlq`, heredados de la rama `05`.
+- `redis-cache` no tiene contraseña y ahora guarda roles de cuenta, como el Redis durable no tenía clave para la revocación. Solo lo alcanzan los contenedores de la red de Compose, que ya comparten `JWT_SECRET`; si algún día la red deja de ser de confianza, hay que ponerle contraseña a los dos Redis.
 - Con la caché vacía tras un reinicio, todas las lecturas van a PostgreSQL a la vez; no hay protección contra esa estampida porque con este volumen no hizo falta.

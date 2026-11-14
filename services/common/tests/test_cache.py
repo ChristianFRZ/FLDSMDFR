@@ -168,3 +168,26 @@ async def test_get_json_y_set_json_no_lanzan_con_cache_rota():
     override_cache(Broken(error=ConnectionError("caída")))
     await set_json("cache:x", 1, 30)
     assert await get_json("cache:x") is None
+
+
+async def test_bump_se_intenta_aunque_la_cache_este_en_la_ventana_de_salto(fake):
+    """Saltar la caché al leer es seguro; saltar el bump no: dejaría entradas viejas vivas hasta su TTL."""
+    cache._skip_until = time.monotonic() + 5
+    await bump("catalog")
+    assert await fake.get("cache:ver:catalog") == "1"
+
+
+async def test_valor_que_no_es_json_se_trata_como_fallo_de_lectura(fake):
+    loader = Counter()
+    await cached("catalog", {"a": 1}, 60, loader)
+    key = await anext(fake.scan_iter("cache:catalog:*"))
+    await fake.set(key, "{no es json")
+    assert await cached("catalog", {"a": 1}, 60, loader) == {"n": 1}
+    assert loader.calls == 2
+    assert await cached("catalog", {"a": 1}, 60, loader) == {"n": 1}  # se volvió a guardar bien
+    assert loader.calls == 2
+
+
+async def test_get_json_con_valor_corrupto_da_none(fake):
+    await fake.set("cache:x", "{no es json")
+    assert await get_json("cache:x") is None

@@ -21,6 +21,7 @@ _skip_until = 0.0
 _client: Redis | None = None
 _override: Redis | None = None
 _FAILED = object()
+_BAD = object()
 
 
 def get_cache() -> Redis | None:
@@ -59,6 +60,14 @@ async def _run(operation: Awaitable[Any], timeout: float) -> Any:
         return _FAILED
 
 
+def _decode(raw: str) -> Any:
+    """Un valor corrupto o de otra forma se trata como ausente: la caché nunca debe romper una lectura."""
+    try:
+        return json.loads(raw)
+    except ValueError:
+        return _BAD
+
+
 def _version_key(namespace: str) -> str:
     return f"cache:ver:{namespace}"
 
@@ -70,8 +79,11 @@ def _key(namespace: str, params: dict, version: str | None) -> str:
 
 
 async def bump(namespace: str) -> None:
-    """Sube la versión del espacio: lo guardado antes deja de consultarse. Nunca lanza."""
-    client = _available()
+    """Sube la versión del espacio: lo guardado antes deja de consultarse. Nunca lanza.
+
+    No respeta la ventana de salto de las lecturas: saltarse un `bump` dejaría vivas, hasta su TTL, entradas
+    que una escritura ya dejó viejas, y otra réplica sin salto las seguiría sirviendo."""
+    client = get_cache()
     if client is not None:
         await _run(client.incr(_version_key(namespace)), WRITE_TIMEOUT_SECONDS)
 
@@ -101,7 +113,9 @@ async def cached(
     key = _key(namespace, params, version)
     hit = await _run(client.get(key), READ_TIMEOUT_SECONDS)
     if hit is not _FAILED and hit is not None:
-        return json.loads(hit)
+        value = _decode(hit)
+        if value is not _BAD:
+            return value
     value = await loader()
     if hit is not _FAILED and should_store(value) and _available() is not None:
         await _run(client.set(key, json.dumps(jsonable_encoder(value)), ex=ttl), WRITE_TIMEOUT_SECONDS)
@@ -113,7 +127,10 @@ async def get_json(key: str) -> Any | None:
     if client is None:
         return None
     raw = await _run(client.get(key), READ_TIMEOUT_SECONDS)
-    return None if raw is _FAILED or raw is None else json.loads(raw)
+    if raw is _FAILED or raw is None:
+        return None
+    value = _decode(raw)
+    return None if value is _BAD else value
 
 
 async def set_json(key: str, value: Any, ttl: int) -> None:

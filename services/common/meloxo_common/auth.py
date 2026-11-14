@@ -44,6 +44,20 @@ class AuthStateCache:
     def clear(self) -> None:
         self._entries.clear()
 
+    async def _from_shared(self, user_id: UUID, not_before: float | None) -> tuple[AuthState | None, float] | None:
+        """Estado y hora de la entrada compartida si sirve; `None` si falta, venció, es anterior a `not_before` o está malformada."""
+        shared = await cache.get_json(_shared_key(user_id))
+        if shared is None:
+            return None
+        try:
+            at = float(shared["at"])
+            state = AuthState.model_validate(shared["state"]) if shared["state"] is not None else None
+        except (KeyError, TypeError, ValueError):
+            return None
+        if time.time() - at >= self._ttl or (not_before is not None and at < not_before):
+            return None
+        return state, at
+
     async def get(self, user_id: UUID, not_before: float | None = None) -> AuthState | None:
         """`not_before` (hora de pared) descarta lo guardado antes de esa hora: así un cambio de rol ya revocado se ve al instante."""
         entry = self._entries.get(user_id)
@@ -51,11 +65,10 @@ class AuthStateCache:
         if entry is not None and now - entry[0] < self._ttl and (not_before is None or entry[2] >= not_before):
             return entry[1]
         if self._ttl > 0:
-            shared = await cache.get_json(_shared_key(user_id))
-            age = max(0.0, time.time() - shared["at"]) if shared is not None else None
-            if shared is not None and age < self._ttl and (not_before is None or shared["at"] >= not_before):
-                state = AuthState.model_validate(shared["state"]) if shared["state"] is not None else None
-                self._entries[user_id] = (now - age, state, shared["at"])  # hereda la edad: no vive 30 s más
+            found = await self._from_shared(user_id, not_before)
+            if found is not None:
+                state, at = found
+                self._entries[user_id] = (now - max(0.0, time.time() - at), state, at)  # hereda la edad: no vive 30 s más
                 return state
         try:
             state = await self._fetch(user_id)

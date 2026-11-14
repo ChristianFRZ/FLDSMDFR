@@ -431,3 +431,16 @@ async def test_resolve_user_rechaza_un_token_revocado_con_estado_compartido(shar
         with pytest.raises(AppError) as exc:
             await Auth(replica).resolve_user(token)
         assert exc.value.status == 401 and exc.value.code == "invalid_token"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ['{"at": 1}', '{"state": null}', '{"at": "ayer", "state": null}', '{"at": %s, "state": {"id": "no-uuid"}}', "[1, 2]", "no es json"],
+)
+async def test_estado_compartido_malformado_se_ignora_y_se_consulta_el_origen(shared, raw):
+    state = _state()
+    origin = Origin(state)
+    await shared.set(f"cache:auth:{state.id}", raw.replace("%s", str(time.time())), ex=60)
+    (replica,) = _replicas(origin, 1)
+    assert await replica.get(state.id) == state
+    assert origin.calls == 1
