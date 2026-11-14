@@ -12,6 +12,7 @@ from meloxo_common.errors import AppError
 from meloxo_common.internal import UpstreamError
 from meloxo_common.pagination import PageParams
 from catalog_streaming.clients.users import record_audit
+from catalog_streaming.modules.catalog.cache import invalidate
 from catalog_streaming.modules.catalog.models import Artist, PublishedEvent, Song
 from catalog_streaming.modules.catalog.schemas import SongSummary
 from catalog_streaming.modules.catalog.service import to_summary
@@ -38,6 +39,8 @@ async def publish_due_tracks() -> int:
             song.status = "published"
             song.published_at = now
             await record_published(session, song_id)
+    if ids:
+        await invalidate()
     return len(ids)
 
 
@@ -56,6 +59,7 @@ async def _audit_and_commit(session: AsyncSession, entry: AuditEntry) -> None:
         await session.rollback()
         raise
     await session.commit()
+    await invalidate()
 
 
 async def hide_song(session: AsyncSession, actor_id: UUID, song_id: UUID, reason: str) -> SongSummary:

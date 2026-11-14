@@ -16,8 +16,15 @@ Estos son los archivos del módulo:
 | [`import_jobs.py`](import_jobs.py) | Importación por lotes |
 | [`uploads.py`](uploads.py) | Validación y guardado de archivos |
 | [`publishing.py`](publishing.py) | Publicación y moderación |
+| [`cache.py`](cache.py) | Caché de lectura de `GET /api/songs`, `/api/songs/{id}`, `/api/artists/{id}` y `/api/genres`; `invalidate()` sube la versión |
 | [`outbox.py`](outbox.py) | `relay_published_events`: publica en Redis los `track_published` pendientes |
 | [`composer.py`](composer.py), [`composer_routes.py`](composer_routes.py) | Reglas y rutas del Compositor |
+
+## Caché de lectura
+
+Las cuatro lecturas públicas del catálogo salen de `redis-cache` (300 s de respaldo). La clave lleva una versión (`cache:ver:catalog`): al escribir, `invalidate()` la sube y lo guardado antes deja de consultarse; el LRU lo desaloja después. Un 404 no se guarda, y sin `redis-cache` se lee de PostgreSQL como siempre.
+
+**Al agregar una escritura que cambie lo que se ve en esas rutas**, llama `await invalidate()` **después** del commit. Hoy invalidan: ocultar y restaurar (`publishing.py`), publicar programadas, editar, ocultar, publicar y borrar pista, editar perfil y foto, crear álbum (`composer.py`) y `upsert_tracks` (importación y refresco de Jamendo). Crear una pista (nace borrador o programada) y `get_profile` no invalidan: no cambian nada visible, y un artista nuevo da 404, que no se guarda.
 
 ## Streaming
 

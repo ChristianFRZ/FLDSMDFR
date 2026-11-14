@@ -13,6 +13,7 @@ from meloxo_common.errors import AppError
 from catalog_streaming.clients.users import get_display_names
 from catalog_streaming.config import get_settings
 from catalog_streaming.modules.catalog import uploads
+from catalog_streaming.modules.catalog.cache import invalidate
 from catalog_streaming.modules.catalog.models import Album, Artist, Song
 from catalog_streaming.modules.catalog.publishing import record_published
 from catalog_streaming.modules.catalog.schemas import ProfileIn, TrackPatch
@@ -149,6 +150,7 @@ async def update_track(session: AsyncSession, user: CurrentUser, song_id: UUID, 
         song.publish_at = _check_future(moment) if moment else None
         song.status = "scheduled" if moment else "draft"
     await session.commit()
+    await invalidate()
     return await track_out(session, song.id)
 
 
@@ -156,6 +158,7 @@ async def hide_track(session: AsyncSession, user: CurrentUser, song_id: UUID) ->
     song = await _load_owned(session, user, song_id)
     song.status = "hidden"
     await session.commit()
+    await invalidate()
     return await track_out(session, song.id)
 
 
@@ -168,6 +171,7 @@ async def publish_track(session: AsyncSession, user: CurrentUser, song_id: UUID)
     song.publish_at = None
     await record_published(session, song.id)
     await session.commit()
+    await invalidate()
     return await track_out(session, song.id)
 
 
@@ -176,6 +180,7 @@ async def delete_track(session: AsyncSession, user: CurrentUser, song_id: UUID) 
     paths = (song.audio_path, song.cover_path)
     await session.delete(song)
     await session.commit()
+    await invalidate()
     uploads.delete_media(*paths)
 
 
@@ -191,6 +196,7 @@ async def update_profile(session: AsyncSession, user: CurrentUser, data: Profile
     artist.bio = data.bio
     artist.links = data.links
     await session.commit()
+    await invalidate()
     return to_artist_summary(artist)
 
 
@@ -199,6 +205,7 @@ async def update_photo(session: AsyncSession, user: CurrentUser, photo: UploadFi
     path = await uploads.store_cover(photo)
     previous, artist.photo_path = artist.photo_path, path
     await session.commit()
+    await invalidate()
     uploads.delete_media(previous)
     return to_artist_summary(artist)
 
@@ -215,6 +222,7 @@ async def create_album(
     album = Album(title=title, kind=kind, artist_id=artist.id, cover_path=path)
     session.add(album)
     await session.commit()
+    await invalidate()
     return _album_out(album)
 
 

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from meloxo_common.db import session_scope
 from meloxo_common.errors import AppError
+from catalog_streaming.modules.catalog.cache import invalidate
 from catalog_streaming.modules.catalog.jamendo import MAX_PAGE, JamendoClient, JamendoError, JamendoTrack
 from catalog_streaming.modules.catalog.models import Album, Artist, ImportJob, Song
 
@@ -142,6 +143,7 @@ async def upsert_tracks(tracks: list[JamendoTrack]) -> None:
     async with session_scope() as session:
         for start in range(0, len(unique), UPSERT_ROWS):
             await _upsert_batch(session, unique[start : start + UPSERT_ROWS], now)
+    await invalidate()
 
 
 async def _save(job_id: UUID, **values) -> None:

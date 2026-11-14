@@ -15,6 +15,7 @@ from meloxo_common.security import decode_token, encode_token
 
 from catalog_streaming.auth import auth, auth_state_cache
 from catalog_streaming.modules.catalog import import_jobs, publishing, service, streaming
+from catalog_streaming.modules.catalog.cache import cached
 from catalog_streaming.modules.catalog.schemas import HideIn, ImportIn, ImportJobOut
 from catalog_streaming.clients.users import record_audit
 
@@ -36,23 +37,30 @@ async def songs(
     _: CurrentUser = Depends(current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    items, total = await service.search_songs(session, params, q, genre, artist, tag, source)
-    return page_body(items, total, params)
+    async def load():
+        items, total = await service.search_songs(session, params, q, genre, artist, tag, source)
+        return page_body(items, total, params)
+
+    filters = {"q": q, "genre": genre, "artist": artist, "tag": tag, "source": source}
+    return await cached("songs", {**filters, "offset": params.offset, "size": params.size}, load)
 
 
 @router.get("/songs/{song_id}")
 async def song(song_id: UUID, _: CurrentUser = Depends(current_user), session: AsyncSession = Depends(get_session)):
-    return service.to_summary(await service.get_published_song(session, song_id))
+    async def load():
+        return service.to_summary(await service.get_published_song(session, song_id))
+
+    return await cached("song", {"id": str(song_id)}, load)
 
 
 @router.get("/artists/{artist_id}")
 async def artist(artist_id: UUID, _: CurrentUser = Depends(current_user), session: AsyncSession = Depends(get_session)):
-    return await service.artist_page(session, artist_id)
+    return await cached("artist", {"id": str(artist_id)}, lambda: service.artist_page(session, artist_id))
 
 
 @router.get("/genres")
 async def genres(_: CurrentUser = Depends(current_user), session: AsyncSession = Depends(get_session)):
-    return await service.list_genres(session)
+    return await cached("genres", {}, lambda: service.list_genres(session))
 
 
 @router.post("/songs/{song_id}/stream-ticket")
