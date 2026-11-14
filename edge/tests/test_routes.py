@@ -4,6 +4,7 @@ No necesita el stack: importa las aplicaciones de los tres servicios y aplica a 
 de selección de ``location`` de nginx (exacta, ``^~``, prefijo más largo, expresión regular).
 """
 import importlib
+import json
 import re
 from pathlib import Path
 
@@ -140,7 +141,7 @@ def test_upstream_errors_are_json():
     assert re.search(r"error_page\s+502\s+503\s+504", text)
     assert "application/json" in text
     errors = CONF.parent / "errors"
-    body = next(errors.glob("*.json")).read_text()
+    body = (errors / "upstream_unavailable.json").read_text()
     assert '"code":"upstream_unavailable"' in body.replace(" ", "")
 
 
@@ -149,3 +150,144 @@ def test_dns_is_resolved_per_request():
     text = CONF.read_text()
     assert re.search(r"resolver\s+127\.0\.0\.11", text)
     assert not re.search(r"proxy_pass\s+http://", text)
+
+
+# --- Sesión y rol en el gateway ---
+
+ERRORS = CONF.parent / "errors"
+STREAM = r"^/api/songs/[^/]+/stream$"
+PUBLIC_LOCATIONS = {"/api/auth/", "/api/health", STREAM, "/api/media/", "/api/", "/"}
+AUTH_ROUTES = {"/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout"}
+
+
+def strip_comments(text: str) -> str:
+    return re.sub(r"#.*", "", text)
+
+
+def server_level() -> str:
+    """El texto del ``server`` sin los cuerpos de sus ``location``."""
+    text = strip_comments(CONF.read_text())
+    kept, start = [], 0
+    for match in LOCATION.finditer(text):
+        depth, end = 1, match.end()
+        while depth:
+            depth += {"{": 1, "}": -1}.get(text[end], 0)
+            end += 1
+        kept.append(text[start : match.start()])
+        start = end
+    return "".join(kept) + text[start:]
+
+
+def auth_off(body: str) -> bool:
+    return re.search(r"auth_request\s+off\s*;", body) is not None
+
+
+def is_internal(pattern: str, body: str) -> bool:
+    return re.search(r"\binternal\s*;", body) is not None or pattern == "/internal/"
+
+
+def route_security() -> dict[str, bool]:
+    """Ruta (con ``{x}`` como ``x``) → si su OpenAPI declara ``security`` en alguna operación."""
+    secured: dict[str, bool] = {}
+    for module in UPSTREAMS.values():
+        app = importlib.import_module(module).create_app()
+        for path, operations in app.openapi()["paths"].items():
+            if path.startswith("/api/"):
+                key = re.sub(r"\{[^}]+\}", "x", path)
+                has = any(op.get("security") for op in operations.values() if isinstance(op, dict))
+                secured[key] = secured.get(key, False) or has
+    return secured
+
+
+def required_roles(uri: str) -> str:
+    """Evalúa ``map $uri $required_roles`` como nginx: la primera regex que coincide, si no ``default``."""
+    text = strip_comments(CONF.read_text())
+    match = re.search(r"map\s+\$uri\s+\$required_roles\s*\{(.*?)\}", text, re.S)
+    assert match, "falta map $uri $required_roles"
+    default = ""
+    for line in match.group(1).split(";"):
+        parts = line.split(None, 1)
+        if len(parts) != 2:
+            continue
+        key, value = parts[0], parts[1].strip().strip('"')
+        if key == "default":
+            default = value
+        elif key.startswith("~") and re.search(key[1:], uri):
+            return value
+    return default
+
+
+def test_auth_request_is_on_by_default():
+    assert re.search(r"auth_request\s+/_auth\s*;", server_level())
+    _, pattern, body = resolve("/_auth")
+    assert pattern == "/_auth" and is_internal(pattern, body)
+    assert "http://gateway-auth:8004" in body
+
+
+def test_public_locations_are_exactly_the_documented_ones():
+    public = {pattern for _, pattern, body in blocks() if auth_off(body) and not is_internal(pattern, body)}
+    assert public == PUBLIC_LOCATIONS
+    for path in AUTH_ROUTES | {"/api/health", "/api/songs/x/stream", "/api/media/a/b.mp3", "/api/nope", "/", "/library"}:
+        assert auth_off(resolve(path)[2]), f"{path} debería pasar sin sesión"
+
+
+def test_public_set_matches_the_services():
+    """Lo que el servicio deja sin ``security`` (más el stream, que usa ticket) es lo único sin auth_request."""
+    for path, secured in route_security().items():
+        public = not secured or path == "/api/songs/x/stream"
+        assert auth_off(resolve(path)[2]) == public, f"{path}: pública={public} en el servicio, no en nginx"
+
+
+def test_role_map():
+    assert required_roles("/api/admin/users") == "admin"
+    assert required_roles("/api/admin/composer-requests/x") == "admin"
+    assert required_roles("/api/composer/tracks") == "composer,admin"
+    assert required_roles("/api/composer-requests/mine") == ""
+    assert required_roles("/api/playlists") == ""
+
+
+def test_identity_headers_are_always_set_by_the_gateway():
+    server = server_level()
+    identity = (r"proxy_set_header\s+X-User-Id\s+\$auth_user_id\s*;", r"proxy_set_header\s+X-User-Role\s+\$auth_user_role\s*;")
+    for _, pattern, body in blocks():
+        if "proxy_pass" not in body or pattern == "/_auth":
+            continue
+        source = body if "proxy_set_header" in body else server
+        for header in identity:
+            assert re.search(header, source), f"{pattern} no fija {header}"
+    text = strip_comments(CONF.read_text())
+    assert text.count("X-Required-Roles") == 1
+    assert "X-Required-Roles" in resolve("/_auth")[2]
+
+
+def test_auth_failures_return_json():
+    server = server_level()
+    assert re.search(r"error_page\s+401\s+/errors/unauthorized\.json\s*;", server)
+    assert re.search(r"error_page\s+403\s+/errors/forbidden\.json\s*;", server)
+    assert re.search(r"error_page\s+500\s+=503\s+/errors/upstream_unavailable\.json\s*;", server)
+    for name, code in (("unauthorized", "invalid_token"), ("forbidden", "forbidden")):
+        _, _, body = resolve(f"/errors/{name}.json")
+        assert is_internal("", body) and "application/json" in body and auth_off(body)
+        error = json.loads((ERRORS / f"{name}.json").read_text())["error"]
+        assert error["code"] == code and error["detail"] == {"source": "gateway"} and error["message"]
+    error = json.loads((ERRORS / "upstream_unavailable.json").read_text())["error"]
+    assert error["code"] == "upstream_unavailable"
+
+
+def test_auth_subrequest_does_not_overwrite_the_main_upstream():
+    """Una subpetición comparte las variables con la principal: si /_auth hiciera ``set $upstream``,
+    la petición protegida acabaría en gateway-auth en vez de en su servicio."""
+    body = resolve("/_auth")[2]
+    assert not re.search(r"\$upstream\b", body)
+
+
+def test_required_roles_are_computed_from_the_main_request_uri():
+    """En la subpetición ``$uri`` vale ``/_auth``: el ``map`` evaluado ahí siempre daría vacío.
+    El rol se fija en el ``server`` para la petición principal y /_auth solo lo reenvía."""
+    body = resolve("/_auth")[2]
+    sent = re.search(r"proxy_set_header\s+X-Required-Roles\s+(\$\w+)\s*;", body)
+    assert sent and sent.group(1) != "$required_roles"
+    assert re.search(
+        r"if\s*\(\s*\$uri\s*!=\s*/_auth\s*\)\s*\{\s*set\s+" + re.escape(sent.group(1)) + r"\s+\$required_roles\s*;\s*\}",
+        server_level(),
+    )

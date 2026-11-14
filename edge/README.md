@@ -13,6 +13,16 @@ nginx elige el `location` con el prefijo más largo. Los prefijos que terminan e
 | `playback-metrics` (:8003) | `/api/playbacks`, `/api/metrics`, `/api/admin/health`, `/api/admin/reports` |
 | edge | `/internal/` responde 404; `/api/health` responde `{"status":"ok"}`; el resto de `/api/` responde 404 JSON (`not_found`); todo lo demás es la SPA (`try_files $uri /index.html`) |
 
+## Sesión y rol
+
+Toda ruta pasa por `auth_request /_auth`, que consulta `GET /auth` de `gateway-auth` (:8004) antes de enrutar. Una ruta nueva queda protegida salvo que su `location` lleve `auth_request off;`.
+
+- Sin sesión: `/api/auth/` (register, login, refresh, logout), `/api/health`, `/api/songs/{id}/stream` (usa el ticket de streaming, que valida catálogo), `/api/media/`, el 404 JSON de `/api/` y la SPA.
+- Rol por prefijo (`map $uri $required_roles`): `/api/admin/*` exige `admin`; `/api/composer/*` exige `composer` o `admin`; el resto, cualquier sesión válida. El rol se calcula en la petición principal (`$auth_required_roles`), porque dentro de la subpetición `$uri` vale `/_auth`.
+- El gateway reenvía `X-User-Id` y `X-User-Role` con lo que respondió `gateway-auth`. En las rutas sin sesión esas variables quedan vacías y nginx no envía la cabecera, así que la que mande el cliente nunca llega al servicio.
+- `401` y `403` del gateway responden `edge/errors/unauthorized.json` y `forbidden.json`, con `detail.source = "gateway"`. Si `gateway-auth` no responde, `auth_request` da 500 y edge lo devuelve como `503` `upstream_unavailable`.
+- Un cambio de rol o una suspensión tarda hasta 30 s en verse (caché de `gateway-auth`, `AUTH_CACHE_SECONDS`).
+
 ## Audio y subidas
 
 - `/api/songs/{id}/stream` y `/api/media/`: `proxy_buffering off`, `proxy_request_buffering off`, `proxy_read_timeout 3600s`, `Range` e `If-Range` reenviados y sin gzip.
