@@ -11,7 +11,8 @@ ALGORITHM = "HS256"
 
 
 def encode_token(claims: dict, ttl: timedelta) -> str:
-    payload = {**claims, "exp": int(time.time() + ttl.total_seconds())}
+    now = time.time()
+    payload = {**claims, "iat": now, "exp": int(now + ttl.total_seconds())}
     return jwt.encode(payload, get_base_settings().JWT_SECRET, algorithm=ALGORITHM)
 
 

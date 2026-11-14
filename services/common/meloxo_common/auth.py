@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from meloxo_common import revocation
 from meloxo_common.contracts import AuthState
 from meloxo_common.errors import AppError
 from meloxo_common.internal import UpstreamError
@@ -58,7 +59,11 @@ class Auth:
         claims = decode_token(token)
         if claims.get("scope"):
             raise AppError(401, "invalid_token", "La sesión no es válida o ya venció")
-        state = await self._cache.get(UUID(claims["sub"]))
+        user_id = UUID(claims["sub"])
+        revoked = await revocation.revoked_after(user_id)
+        if revoked is not None and claims.get("iat", 0) < revoked:
+            raise AppError(401, "invalid_token", "La sesión no es válida o ya venció")
+        state = await self._cache.get(user_id)
         if state is None or state.status != "active":
             raise AppError(401, "invalid_token", "La sesión no es válida o ya venció")
         return CurrentUser(id=state.id, role=state.role)

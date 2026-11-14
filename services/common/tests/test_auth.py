@@ -166,3 +166,81 @@ async def test_clear_forgets_stored_states():
     cache.clear()
     await cache.get(uid)
     assert len(calls) == 2
+
+
+@pytest.fixture
+def fake_redis():
+    from fakeredis import aioredis as fakeredis
+
+    from meloxo_common import revocation
+    from meloxo_common.redis_client import override_redis
+
+    client = fakeredis.FakeRedis(decode_responses=True)
+    override_redis(client)
+    revocation._skip_until = 0.0
+    yield client
+    override_redis(None)
+    revocation._skip_until = 0.0
+
+
+def _raw_token(state: AuthState, **claims) -> str:
+    import jwt
+
+    from meloxo_common.config import get_base_settings
+
+    return jwt.encode({"sub": str(state.id), "exp": 9999999999, **claims}, get_base_settings().JWT_SECRET, algorithm="HS256")
+
+
+async def test_token_issued_before_revocation_is_rejected(fake_redis):
+    from meloxo_common import revocation
+
+    state = _state()
+    auth, _, _ = _setup(state)
+    token = _token(state)
+    await revocation.revoke(state.id)
+    with pytest.raises(AppError) as exc:
+        await auth.resolve_user(token)
+    assert (exc.value.status, exc.value.code) == (401, "invalid_token")
+
+
+async def test_token_issued_after_revocation_passes(fake_redis):
+    from meloxo_common import revocation
+
+    state = _state()
+    auth, _, _ = _setup(state)
+    await revocation.revoke(state.id)
+    token = _token(state)  # emitido de inmediato, en el mismo segundo
+    assert (await auth.resolve_user(token)).id == state.id
+
+
+async def test_token_without_iat_is_rejected_when_key_exists(fake_redis):
+    from meloxo_common import revocation
+
+    state = _state()
+    auth, _, _ = _setup(state)
+    await revocation.revoke(state.id)
+    with pytest.raises(AppError):
+        await auth.resolve_user(_raw_token(state))
+
+
+async def test_token_without_iat_passes_when_no_key(fake_redis):
+    state = _state()
+    auth, _, _ = _setup(state)
+    assert (await auth.resolve_user(_raw_token(state))).id == state.id
+
+
+async def test_redis_down_falls_back_to_cache(fake_redis):
+    from meloxo_common import revocation
+    from meloxo_common.redis_client import override_redis
+
+    state = _state()
+    auth, _, _ = _setup(state)
+    token = _token(state)
+    await revocation.revoke(state.id)
+
+    class Down:
+        async def get(self, *a, **k):
+            raise ConnectionError("caído")
+
+    override_redis(Down())
+    assert (await auth.resolve_user(token)).id == state.id

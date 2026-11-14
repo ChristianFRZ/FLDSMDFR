@@ -1,3 +1,4 @@
+import time
 from datetime import timedelta
 
 import jwt
@@ -50,3 +51,10 @@ def test_short_or_empty_jwt_secret_is_rejected(monkeypatch, secret):
 def test_jwt_secret_of_32_chars_is_accepted(monkeypatch):
     monkeypatch.setenv("JWT_SECRET", "x" * 32)
     assert BaseServiceSettings().JWT_SECRET == "x" * 32
+
+
+def test_token_carries_float_iat():
+    before = time.time()
+    claims = decode_token(encode_token({"sub": "u1"}, timedelta(minutes=5)))
+    assert isinstance(claims["iat"], float)
+    assert before - 1 <= claims["iat"] <= time.time() + 1
