@@ -35,6 +35,7 @@ Cada escenario termina con código `0` si pasa, `1` si falla y `2` si no se cump
 | [`scenario_8_double_publish.py`](scenario_8_double_publish.py) | Con dos réplicas y pistas vencidas, hay un solo evento `track_published` y un solo aviso por pista |
 | [`scenario_10_circuit_breaker.py`](scenario_10_circuit_breaker.py) | Con catálogo congelado (`docker compose pause`), el detalle de una playlist tarda al principio más de 1.4 s y sale degradado; tras unas pocas llamadas el circuit breaker abre y responde en menos de 0.5 s. Al volver catálogo y pasar 15 s, la playlist vuelve completa |
 | [`scenario_11_revocation.py`](scenario_11_revocation.py) | Un cambio de rol o una suspensión invalida el token anterior en la siguiente petición (menos de 2 s, antes hasta 30 s); un token nuevo trae el rol nuevo de inmediato, y la cuenta suspendida no puede entrar |
+| [`scenario_12_track_published.py`](scenario_12_track_published.py) | Con catálogo detenido, los avisos de lanzamientos ya guardados siguen completos y sin `degraded`. Con `users-playlists` detenido, el lanzamiento espera en el stream `track_published` y el aviso aparece al volver. Un mensaje inválido va a `track_published:dlq` y no atasca a los siguientes |
 
 [`common.py`](common.py) reúne lo que comparten los escenarios: el cliente de la API, las cuentas de prueba y el arranque del overlay. Ese overlay es [`compose.demo.yaml`](../compose.demo.yaml), en la raíz del repositorio, y lo usan los escenarios 3 y 8: aplica a `catalog-streaming` el corte de Jamendo y un puerto de host libre por réplica (el 8002 interno), de modo que las réplicas se pueden consultar directo. El nginx de entrada las alcanza por el DNS de Docker. `sql()` recibe la base a consultar (`catalog` por defecto, también `users_playlists` y `playbacks`).
 
@@ -42,6 +43,7 @@ Cada escenario termina con código `0` si pasa, `1` si falla y `2` si no se cump
 
 - **El escenario 1 detiene `playback-metrics`** y siempre lo arranca de nuevo, aunque falle.
 - **El escenario 10 congela `catalog-streaming`** con `docker compose pause`, siempre lo reanuda y lo devuelve a sus dos réplicas, aunque falle. Tarda cerca de un minuto: cada llamada con catálogo colgado espera más de 1.5 s antes de que abra el breaker, y luego espera 15 s a que se cierre.
+- **El escenario 12 detiene `catalog-streaming` y `users-playlists`** (cada uno por separado) y los devuelve sanos aunque falle; también deja un mensaje inválido en `track_published:dlq`.
 - **El escenario 2 detiene una réplica de `catalog-streaming`** y siempre la restaura (vuelve a las dos réplicas sanas), aunque falle. Para ello usa `restore_catalog`, que también espera a que el 8080 responda.
 - **Los escenarios 3 y 8 recrean los contenedores de `catalog-streaming`.** Lo devuelven a sus dos réplicas detrás del 8080 aunque fallen, pero no los corras mientras alguien usa la app.
 - **Cortar Jamendo requiere dos cambios.** `JAMENDO_API_URL` solo cubre la API. El audio sale directo de `prod-1.storage.jamendo.com`, por eso el overlay también apunta ese host a una dirección que no responde.
