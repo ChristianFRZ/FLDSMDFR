@@ -2,6 +2,7 @@ import os
 
 os.environ["JWT_SECRET"] = "secreto-de-pruebas-con-longitud-suficiente-para-hs256"
 os.environ["REDIS_URL"] = ""  # sin Redis real
+os.environ["CACHE_REDIS_URL"] = ""  # sin caché real: las pruebas instalan fakeredis con override_cache
 os.environ["USERS_URL"] = "http://users.test"  # el mismo que usa tests/fake_users.py
 # DATABASE_URL no se fija: este servicio no tiene base de datos.
 

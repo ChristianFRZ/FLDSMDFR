@@ -21,6 +21,7 @@ _base = f"postgresql+asyncpg://meloxo:{_postgres_password()}@localhost:5433"
 os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", f"{_base}/{TEST_DB}")
 os.environ["JWT_SECRET"] = "secreto-de-pruebas-con-longitud-suficiente-para-hs256"
 os.environ["REDIS_URL"] = ""  # sin Redis real
+os.environ["CACHE_REDIS_URL"] = ""  # sin caché real: las pruebas instalan fakeredis con override_cache
 os.environ["DISABLE_SCHEDULER"] = "1"
 os.environ["MEDIA_DIR"] = tempfile.mkdtemp(prefix="meloxo-media-")
 os.environ["CATALOG_URL"] = "http://catalog.test"  # el mismo que usa tests/fake_catalog.py

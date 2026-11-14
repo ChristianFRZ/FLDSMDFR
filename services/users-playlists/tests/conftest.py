@@ -21,6 +21,7 @@ os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", f"{_base}/{TEST
 os.environ["JWT_SECRET"] = "secreto-de-pruebas-con-longitud-suficiente-para-hs256"
 os.environ["DISABLE_SCHEDULER"] = "1"
 os.environ["REDIS_URL"] = ""  # sin Redis real: el fixture fake_redis instala fakeredis
+os.environ["CACHE_REDIS_URL"] = ""  # sin caché real: las pruebas instalan fakeredis con override_cache
 os.environ["ADMIN_EMAIL"] = ""
 os.environ["ADMIN_PASSWORD"] = ""
 os.environ["CATALOG_URL"] = "http://catalog.test"  # el mismo que usa tests/fake_catalog.py

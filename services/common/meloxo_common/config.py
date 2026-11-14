@@ -17,6 +17,8 @@ class BaseServiceSettings(BaseSettings):
     AUTH_CACHE_SECONDS: int = 30
     # Vacío desactiva Redis: la cola y la revocación se omiten.
     REDIS_URL: str = "redis://redis:6379/0"
+    # Redis aparte para la caché de lectura (LRU, sin persistencia). Vacío desactiva la caché.
+    CACHE_REDIS_URL: str = "redis://redis-cache:6379/0"
 
 
 @lru_cache
