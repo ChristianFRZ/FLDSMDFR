@@ -237,13 +237,21 @@ def restore_catalog(run_compose: Callable[..., str] = compose, wait: Callable[[]
 
 
 def wait_edge() -> None:
-    """Espera a que el nginx de entrada vuelva a repartir tráfico a catalog-streaming por el 8080."""
+    """Espera a que el nginx de entrada vuelva a repartir tráfico a catalog-streaming por el 8080.
+
+    Sin token, el 401 lo da el gateway sin llegar al catálogo, así que el sondeo usa una sesión de
+    administrador y pide cinco 200 seguidos (tras recrear las réplicas, nginx puede tener todavía
+    en caché las direcciones viejas hasta 10 s)."""
     limit = time.monotonic() + START_SECONDS
+    api = None
+    streak = 0
     while time.monotonic() < limit:
         try:
-            if Api().send("GET", "/api/songs?size=1", None, {})[0] == 401:  # sin token: llegó al servicio
-                return
+            api = api or admin()
+            streak = streak + 1 if probe_status(api, "/api/songs?size=1") == 200 else 0
         except Exception:
-            pass
+            streak = 0
+        if streak >= 5:
+            return
         time.sleep(0.5)
     raise Failure(f"{BASE_URL} no respondió en {START_SECONDS} s")
