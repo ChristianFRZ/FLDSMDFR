@@ -13,6 +13,7 @@ Paquete de Python con lo que comparten los tres servicios de MELOXO. Aquí no va
 | [`internal.py`](meloxo_common/internal.py) | `InternalClient` para llamar a otro servicio (3 s, sin reintentos, lotes de 200 ids) y `UpstreamError` (503) |
 | [`auth.py`](meloxo_common/auth.py) | `build_auth(fetch)`: `resolve_user`, `current_user` y `require_role`. Guarda rol y estado de cada usuario 30 s; si el origen cae usa el último estado guardado y, sin ninguno, responde 503 |
 | [`latency.py`](meloxo_common/latency.py) | `LatencyRecorder` (tiempos por módulo y minuto en memoria), `LatencyMiddleware` e `internal_router`, que expone `POST /internal/latency/drain` para que `playback-metrics` recoja y vacíe los buckets |
+| [`breaker.py`](meloxo_common/breaker.py) | `CircuitBreaker`: abre tras 5 llamadas fallidas en 30 s, pasa a medio abierto a los 15 s y deja pasar una sola llamada de prueba |
 | [`redis_client.py`](meloxo_common/redis_client.py) | `get_redis()`: cliente de Redis compartido (`REDIS_URL`; vacío devuelve `None`) y `override_redis()` para las pruebas |
 | [`contracts.py`](meloxo_common/contracts.py) | Modelos de lo que viaja entre servicios |
 | [`boundaries.py`](meloxo_common/boundaries.py) | Detector de imports prohibidos entre servicios y entre módulos |
