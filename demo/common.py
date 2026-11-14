@@ -124,10 +124,30 @@ def new_user(label: str) -> tuple[Api, dict]:
     return api, api.ok("GET", "/api/users/me")
 
 
+def wait_composer_role(
+    api: Api,
+    seconds: float = 40,
+    sleep: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
+) -> None:
+    """Espera a que el gateway vea el rol nuevo: guarda el estado de cada usuario hasta 30 s
+    (AUTH_CACHE_SECONDS), así que justo tras la promoción /api/composer/* aún puede dar 403."""
+    deadline = clock() + seconds
+    while True:
+        status, _ = api.call("GET", "/api/composer/tracks")
+        if status != 403:
+            return
+        if clock() >= deadline:
+            raise Failure(f"El rol de compositor no llegó al gateway en {seconds:.0f} s")
+        sleep(1)
+
+
 def new_composer(label: str, by: Api) -> tuple[Api, dict]:
     api, user = new_user(label)
     by.ok("POST", f"/api/admin/users/{user['id']}/role", {"role": "composer"})
-    return login(user["email"], PASSWORD), user
+    composer = login(user["email"], PASSWORD)
+    wait_composer_role(composer)
+    return composer, user
 
 
 def upload_track(composer: Api, title: str, publish_at: str | None = None) -> dict:
