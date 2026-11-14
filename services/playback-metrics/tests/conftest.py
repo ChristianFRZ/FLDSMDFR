@@ -158,3 +158,15 @@ def fast_resilience(monkeypatch):
     internal.reset_all_breakers()
     yield
     internal.reset_all_breakers()
+
+
+@pytest.fixture
+async def fake_redis():
+    from fakeredis import aioredis as fakeredis
+
+    from meloxo_common.redis_client import override_redis
+
+    client = fakeredis.FakeRedis(decode_responses=True)
+    override_redis(client)
+    yield client
+    override_redis(None)

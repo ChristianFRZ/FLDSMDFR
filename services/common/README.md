@@ -15,6 +15,7 @@ Paquete de Python con lo que comparten los tres servicios de MELOXO. Aquí no va
 | [`latency.py`](meloxo_common/latency.py) | `LatencyRecorder` (tiempos por módulo y minuto en memoria), `LatencyMiddleware` e `internal_router`, que expone `POST /internal/latency/drain` para que `playback-metrics` recoja y vacíe los buckets |
 | [`breaker.py`](meloxo_common/breaker.py) | `CircuitBreaker`: abre tras 5 llamadas fallidas en 30 s, pasa a medio abierto a los 15 s y deja pasar una sola llamada de prueba |
 | [`revocation.py`](meloxo_common/revocation.py) | `revoke(user_id)` y `revoked_after(user_id)`: clave `revoked_after:<user_id>` en Redis con TTL de 960 s. `auth.py` rechaza el token cuyo `iat` es anterior. Si Redis falla o tarda más de 0.3 s, se ignora y manda la caché de 30 s |
+| [`playback_queue.py`](meloxo_common/playback_queue.py) | El contrato de la cola de reproducciones: stream `playbacks`, `QueuedEvent`, `to_fields`/`from_fields`, `enqueue` y `ensure_group` |
 | [`redis_client.py`](meloxo_common/redis_client.py) | `get_redis()`: cliente de Redis compartido (`REDIS_URL`; vacío devuelve `None`) y `override_redis()` para las pruebas |
 | [`contracts.py`](meloxo_common/contracts.py) | Modelos de lo que viaja entre servicios |
 | [`boundaries.py`](meloxo_common/boundaries.py) | Detector de imports prohibidos entre servicios y entre módulos |

@@ -5,3 +5,4 @@ Pruebas del módulo [`playback`](../../../playback_metrics/modules/playback/READ
 | Archivo | Qué cubre |
 | --- | --- |
 | [`test_playbacks.py`](test_playbacks.py) | Idempotencia, progreso, historial, eventos y retención. Los metadatos de las pistas salen de `fake_catalog` |
+| [`test_consumer.py`](test_consumer.py) | El consumidor de la cola: aplica y acusa, conserva el orden, reintenta lo transitorio, descarta lo inválido y no cuenta dos veces una entrega repetida |

@@ -13,6 +13,7 @@ from playback_metrics.internal_routes import router as internal
 from playback_metrics.latency_pull import pull_latency, recorder
 from playback_metrics.modules.analytics.public import refresh_aggregates
 from playback_metrics.modules.analytics.routes import router as analytics_router
+from playback_metrics.modules.playback.public import run_consumer
 from playback_metrics.modules.playback.routes import router as playback_router
 
 PORT = 8003
@@ -25,6 +26,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         tasks = [
             periodic("actualizar_agregados", 2, refresh_aggregates),
             periodic("volcar_latencia", 30, pull_latency),
+            asyncio.create_task(run_consumer(), name="consumidor_reproducciones"),
         ]
     yield
     for task in tasks:

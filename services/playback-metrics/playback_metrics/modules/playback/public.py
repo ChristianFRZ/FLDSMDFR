@@ -7,10 +7,11 @@ from sqlalchemy import func, select
 from meloxo_common.db import session_scope
 from playback_metrics.modules.playback.models import Playback, PlaybackCounter
 from playback_metrics.modules.playback.schemas import PlaybackEvent, RetentionStats
+from playback_metrics.modules.playback.consumer import run_consumer
 from playback_metrics.modules.playback.service import DUPLICATES
 from playback_metrics.modules.playback.demo import DEMO_DUPLICATES, DemoPlay, clear_demo_playbacks, insert_demo_playbacks  # noqa: F401
 
-__all__ = ["PlaybackEvent", "RetentionStats", "duplicates_discarded", "events_since", "recent_activity", "retention_for_songs", "DemoPlay", "clear_demo_playbacks", "insert_demo_playbacks"]
+__all__ = ["run_consumer", "PlaybackEvent", "RetentionStats", "duplicates_discarded", "events_since", "recent_activity", "retention_for_songs", "DemoPlay", "clear_demo_playbacks", "insert_demo_playbacks"]
 
 
 async def recent_activity(minutes: int) -> tuple[int, int]:
