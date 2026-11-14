@@ -85,6 +85,51 @@ class WaitComposerTest(unittest.TestCase):
         self.assertEqual(len(composer.paths), 2)
 
 
+class WaitEdgeTest(unittest.TestCase):
+
+    def test_needs_five_consecutive_200s(self):
+        calls = []
+        with mock.patch.object(common, "admin", lambda: object()), mock.patch.object(
+            common, "probe_status", lambda api, path: calls.append(1) or 200
+        ):
+            common.wait_edge(sleep=lambda s: None, clock=lambda: 0)
+        self.assertEqual(len(calls), 5)
+
+    def test_a_non_200_resets_the_count(self):
+        seq, calls = [200, 200, 200, 200, 502, 200, 200, 200, 200, 200], []
+
+        def probe(api, path):
+            calls.append(1)
+            return seq.pop(0)
+
+        with mock.patch.object(common, "admin", lambda: object()), mock.patch.object(common, "probe_status", probe):
+            common.wait_edge(sleep=lambda s: None, clock=lambda: 0)
+        self.assertEqual(len(calls), 10)
+
+    def test_times_out_with_failure(self):
+        now = [0.0]
+
+        def sleep(seconds):
+            now[0] += seconds
+
+        with mock.patch.object(common, "admin", lambda: object()), mock.patch.object(
+            common, "probe_status", lambda api, path: 502
+        ):
+            with self.assertRaisesRegex(common.Failure, "no respondió"):
+                common.wait_edge(sleep=sleep, clock=lambda: now[0])
+        self.assertGreaterEqual(now[0], common.START_SECONDS)
+
+    def test_admin_login_failure_raises_at_once(self):
+        def broken():
+            raise common.Failure("Falta ADMIN_EMAIL en .env")
+
+        slept = []
+        with mock.patch.object(common, "admin", broken):
+            with self.assertRaisesRegex(common.Failure, "administrador.*ADMIN_EMAIL"):
+                common.wait_edge(sleep=slept.append, clock=lambda: 0)
+        self.assertEqual(slept, [])
+
+
 class ProbeTest(unittest.TestCase):
     def test_returns_the_status(self):
         api = mock.Mock()

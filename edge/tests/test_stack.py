@@ -75,16 +75,6 @@ def test_internal_not_reachable_through_edge():
     assert raw_get("/internal/latency/drain")[0] == 404
 
 
-def test_range_requests_through_edge(track):
-    composer, song_id = track
-    for header, expected in (("bytes=500-", 206), ("bytes=-500", 206), ("bytes=999999999-", 416)):
-        status, headers, body = raw_get(stream_url(composer, song_id), {"Range": header})
-        assert status == expected, f"{header} respondió {status}"
-        if expected == 206:
-            assert "content-range" in headers and body
-            assert headers.get("accept-ranges", "bytes") == "bytes"
-
-
 def test_dead_service_returns_api_error_json(admin_api):
     try:
         docker("stop", METRICS_CONTAINER)
@@ -151,7 +141,7 @@ def test_admin_reaches_admin_routes(admin_api):
     assert raw_get("/api/composer/tracks", bearer(admin_api))[0] == 200
 
 
-def test_stream_ticket_is_rejected_as_a_session(listener, track):
+def test_stream_ticket_is_rejected_as_a_session(track):
     composer, song_id = track
     ticket = composer.ok("POST", f"/api/songs/{song_id}/stream-ticket")["ticket"]
     status, _, body = raw_get("/api/playlists", {"Authorization": f"Bearer {ticket}"})
@@ -163,6 +153,12 @@ def test_fake_identity_headers_do_not_grant_access(listener):
     fake = {"X-User-Id": "00000000-0000-0000-0000-000000000001", "X-User-Role": "admin"}
     assert raw_get("/api/admin/audit", fake)[0] == 401
     status, _, body = raw_get("/api/admin/audit", {**fake, **bearer(listener)})
+    assert status == 403
+    assert error_of(body)["detail"]["source"] == "gateway"
+
+
+def test_empty_required_roles_header_from_client_is_403(listener):
+    status, _, body = raw_get("/api/admin/audit", {**bearer(listener), "X-Required-Roles": ""})
     assert status == 403
     assert error_of(body)["detail"]["source"] == "gateway"
 
@@ -180,8 +176,14 @@ def test_gateway_auth_down_is_503(listener, track):
         assert raw_get("/api/health")[0] == 200
         assert raw_get(url, {"Range": "bytes=0-1023"})[0] == 206
     finally:
-        docker("start", "meloxo-gateway-auth-1")
-        wait_healthy("meloxo-gateway-auth-1")
+        in_error = sys.exc_info()[1] is not None
+        try:
+            docker("start", "meloxo-gateway-auth-1")
+            wait_healthy("meloxo-gateway-auth-1")
+        except Exception as exc:
+            if not in_error:
+                raise
+            print(f"AVISO: no se pudo restaurar gateway-auth: {exc}", file=sys.stderr)
     deadline = time.time() + 30
     while time.time() < deadline:
         status = raw_get("/api/songs", bearer(listener))[0]
@@ -197,6 +199,11 @@ def test_range_still_works_through_the_gateway(track):
     assert status == 206
     assert headers["content-range"].startswith("bytes 0-1023/")
     assert len(body) == 1024
+    assert headers.get("accept-ranges", "bytes") == "bytes"
+    for header in ("bytes=500-", "bytes=-500"):
+        status, headers, body = raw_get(stream_url(composer, song_id), {"Range": header})
+        assert status == 206 and "content-range" in headers and body, header
+    assert raw_get(stream_url(composer, song_id), {"Range": "bytes=999999999-"})[0] == 416
 
 
 def test_replica_failover_loses_at_most_one_request(listener):

@@ -236,22 +236,27 @@ def restore_catalog(run_compose: Callable[..., str] = compose, wait: Callable[[]
         print(f"AVISO: no se pudo restaurar {SERVICE}: {exc}", file=sys.stderr)
 
 
-def wait_edge() -> None:
+def wait_edge(sleep: Callable[[float], None] = time.sleep, clock: Callable[[], float] = time.monotonic) -> None:
     """Espera a que el nginx de entrada vuelva a repartir tráfico a catalog-streaming por el 8080.
 
     Sin token, el 401 lo da el gateway sin llegar al catálogo, así que el sondeo usa una sesión de
     administrador y pide cinco 200 seguidos (tras recrear las réplicas, nginx puede tener todavía
     en caché las direcciones viejas hasta 10 s)."""
-    limit = time.monotonic() + START_SECONDS
+    limit = clock() + START_SECONDS
     api = None
     streak = 0
-    while time.monotonic() < limit:
-        try:
-            api = api or admin()
-            streak = streak + 1 if probe_status(api, "/api/songs?size=1") == 200 else 0
-        except Exception:
-            streak = 0
+    while clock() < limit:
+        if api is None:
+            try:
+                api = admin()
+            except Failure as exc:
+                raise Failure(f"wait_edge no pudo iniciar sesión como administrador: {exc}") from exc
+            except Exception:
+                streak = 0  # el edge aún no responde el login: se reintenta
+                sleep(0.5)
+                continue
+        streak = streak + 1 if probe_status(api, "/api/songs?size=1") == 200 else 0
         if streak >= 5:
             return
-        time.sleep(0.5)
+        sleep(0.5)
     raise Failure(f"{BASE_URL} no respondió en {START_SECONDS} s")
