@@ -30,3 +30,23 @@ docker compose exec redis redis-cli --scan --pattern 'revoked_after:*'
 ```
 
 Con `playback-metrics` detenido, `XLEN` sube con cada reproducción; al volver, baja el número de pendientes hasta 0. Las pruebas usan `fakeredis`, no este contenedor.
+
+## `redis-cache`: la caché de lectura
+
+Un segundo Redis, aparte, definido en el servicio `redis-cache` de [`compose.yaml`](../../compose.yaml). Todo lo de arriba habla de `redis`; la caché no comparte nada con él.
+
+| Qué | Cómo está |
+| --- | --- |
+| Para qué | Caché de lectura del catálogo, de los agregados de las gráficas y del estado de cuenta. Se puede perder sin perder datos: PostgreSQL sigue siendo la fuente de verdad |
+| Memoria | `--maxmemory 64mb` con `--maxmemory-policy allkeys-lru`: al llenarse desaloja lo menos usado |
+| Persistencia | Ninguna (`--save ""`, `--appendonly no`, sin volumen). Reiniciarla la vacía |
+| Dirección | `CACHE_REDIS_URL` (por defecto `redis://redis-cache:6379/0`). Vacía, desactiva la caché en ese servicio. Solo la reciben `catalog-streaming`, `playback-metrics` y `gateway-auth` |
+| Arranque | Ningún servicio espera a que esté sana: si falta, se lee de PostgreSQL |
+
+Por qué es una instancia aparte: el desalojo LRU de una instancia compartida podría expulsar el stream `track_published`, su cola de mensajes muertos, la cola de reproducciones o la revocación, que sí deben conservarse.
+
+```bash
+docker compose exec redis-cache redis-cli DBSIZE
+docker compose exec redis-cache redis-cli --scan --pattern 'cache:*'
+docker compose exec redis-cache redis-cli INFO stats | grep keyspace   # aciertos y fallos
+```

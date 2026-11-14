@@ -33,6 +33,16 @@ services:
       timeout: 3s
       retries: 20
 
+  redis-cache:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru", "--save", "", "--appendonly", "no"]
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
   users-playlists:
     build:
       context: .
@@ -65,6 +75,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://catalog:${CATALOG_DB_PASSWORD:?Falta CATALOG_DB_PASSWORD en .env}@postgres:5432/catalog
       JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
       REDIS_URL: redis://redis:6379/0
+      CACHE_REDIS_URL: redis://redis-cache:6379/0
       USERS_URL: http://users-playlists:8001
       JAMENDO_CLIENT_ID: ${JAMENDO_CLIENT_ID:-}
       JAMENDO_AUDIO_MODE: ${JAMENDO_AUDIO_MODE:-proxy}
@@ -92,6 +103,7 @@ services:
     environment:
       JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
       REDIS_URL: redis://redis:6379/0
+      CACHE_REDIS_URL: redis://redis-cache:6379/0
       USERS_URL: http://users-playlists:8001
     restart: always
     depends_on:
@@ -114,6 +126,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://playbacks:${PLAYBACKS_DB_PASSWORD:?Falta PLAYBACKS_DB_PASSWORD en .env}@postgres:5432/playbacks
       JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
       REDIS_URL: redis://redis:6379/0
+      CACHE_REDIS_URL: redis://redis-cache:6379/0
       CATALOG_URL: http://catalog-streaming:8002
       USERS_URL: http://users-playlists:8001
     depends_on:
