@@ -85,5 +85,20 @@ class WaitComposerTest(unittest.TestCase):
         self.assertEqual(len(composer.paths), 2)
 
 
+class ProbeTest(unittest.TestCase):
+    def test_returns_the_status(self):
+        api = mock.Mock()
+        api.send.return_value = (503, b"")
+        self.assertEqual(common.probe_status(api, "/x"), 503)
+
+    def test_connection_error_counts_as_status_zero(self):
+        api = mock.Mock()
+        api.send.side_effect = OSError("reset")
+        self.assertEqual(common.probe_status(api, "/x"), 0)
+
+    def test_failed_counts_every_non_200(self):
+        self.assertEqual(common.failed([200, 0, 200, 502, 404]), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

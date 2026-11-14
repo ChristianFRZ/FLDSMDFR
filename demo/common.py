@@ -104,6 +104,18 @@ class Api:
         return json.loads(raw)
 
 
+def probe_status(api: Api, path: str) -> int:
+    """GET que nunca lanza: un error de conexión cuenta como estado 0 (una petición fallida)."""
+    try:
+        return api.send("GET", path, None, {})[0]
+    except Exception:
+        return 0
+
+
+def failed(statuses: list[int]) -> int:
+    return sum(1 for status in statuses if status != 200)
+
+
 def error_code(data: dict) -> str | None:
     return data.get("error", {}).get("code")
 

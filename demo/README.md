@@ -2,7 +2,7 @@
 
 Escenarios reproducibles del [PRD](../docs/prd.md#14-pruebas-y-demo-de-fallas) y prueba de carga. Cada escenario corre contra `http://localhost:8080`, imprime `PASA` o `FALLA` y, si falla, termina con un código de error.
 
-El número de cada archivo es el del escenario en la sección 14 del PRD. El escenario 2 llega en una rama posterior. El 9 es la [prueba de carga](#prueba-de-carga).
+El número de cada archivo es el del escenario en la sección 14 del PRD. El 9 es la [prueba de carga](#prueba-de-carga).
 
 ## Antes de empezar
 
@@ -26,6 +26,7 @@ Cada escenario termina con código `0` si pasa, `1` si falla y `2` si no se cump
 | Archivo | Qué comprueba |
 | --- | --- |
 | [`scenario_1_metrics_down.py`](scenario_1_metrics_down.py) | Con `playback-metrics` detenido, el catálogo, el audio con `Range` y las playlists siguen respondiendo; `POST /api/playbacks` y `GET /api/metrics/top` dan un error de la API (`upstream_unavailable`), y al arrancarlo todo vuelve a `200` |
+| [`scenario_2_failover.py`](scenario_2_failover.py) | Con una réplica de `catalog-streaming` detenida en pleno tráfico (20 peticiones por segundo durante 15 s), el nginx de entrada reintenta con la otra: a lo sumo 1 petición fallida, las últimas 50 dan `200` y la réplica restante recibe el tráfico |
 | [`scenario_3_jamendo_down.py`](scenario_3_jamendo_down.py) | Con Jamendo cortado, las pistas locales y los metadatos guardados siguen disponibles, y el audio de Jamendo da `503 jamendo_unavailable` |
 | [`scenario_4_idempotency.py`](scenario_4_idempotency.py) | 100 envíos del mismo `playback_id` cuentan una reproducción y suman 99 a `duplicates_discarded` |
 | [`scenario_5_tape_full.py`](scenario_5_tape_full.py) | Dos miembros agregan a la vez la pista 12: uno recibe `201` y el otro `409 tape_full`, en 5 rondas |
@@ -38,7 +39,8 @@ Cada escenario termina con código `0` si pasa, `1` si falla y `2` si no se cump
 ### Lo que hay que saber
 
 - **El escenario 1 detiene `playback-metrics`** y siempre lo arranca de nuevo, aunque falle.
-- **Los escenarios 3 y 8 recrean los contenedores de `catalog-streaming`.** Lo devuelven a una sola réplica detrás del 8080 aunque fallen, pero no los corras mientras alguien usa la app.
+- **El escenario 2 detiene una réplica de `catalog-streaming`** y siempre la restaura (vuelve a las dos réplicas sanas), aunque falle.
+- **Los escenarios 3 y 8 recrean los contenedores de `catalog-streaming`.** Lo devuelven a sus dos réplicas detrás del 8080 aunque fallen, pero no los corras mientras alguien usa la app.
 - **Cortar Jamendo requiere dos cambios.** `JAMENDO_API_URL` solo cubre la API. El audio sale directo de `prod-1.storage.jamendo.com`, por eso el overlay también apunta ese host a una dirección que no responde.
 - **El escenario 6 suspende a los demás administradores** para quedar como único activo, y los reactiva al terminar.
 - **El escenario 8 vence las pistas con SQL**, con `catalog-streaming` apagado, porque la API rechaza fechas pasadas. Así, las dos réplicas las encuentran al arrancar. Comprueba el resultado, pero no garantiza que ambas hayan consultado en el mismo instante.
