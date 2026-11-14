@@ -255,6 +255,9 @@ def test_identity_headers_are_always_set_by_the_gateway():
         source = body if "proxy_set_header" in body else server
         for header in identity:
             assert re.search(header, source), f"{pattern} no fija {header}"
+    auth = resolve("/_auth")[2]
+    for name in ("X-User-Id", "X-User-Role"):
+        assert re.search(rf'proxy_set_header\s+{name}\s+""\s*;', auth), f"/_auth debe vaciar {name}"
     text = strip_comments(CONF.read_text())
     assert text.count("X-Required-Roles") == 1
     assert "X-Required-Roles" in resolve("/_auth")[2]
