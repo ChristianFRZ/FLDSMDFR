@@ -24,7 +24,7 @@ Servicio de reproducciones y métricas de MELOXO (puerto 8003), con su propia ba
 
 `GET /api/admin/health` devuelve `{"services": [...]}` con `users-playlists`, `catalog-streaming`, `playback-metrics`, `database`, `jamendo` y `aggregates`. Cada servicio ajeno se consulta en su `GET /internal/health` (3 s, todos a la vez); si falla, aparece como `{"name": ..., "status": "down"}`. Este servicio responde en proceso.
 
-La tarea periódica `volcar_latencia` (cada 30 s, `pull_latency` en `latency_pull.py`) pide `POST /internal/latency/drain` a users-playlists y catalog-streaming, drena su propio registro y escribe los buckets en `request_metrics`. Como el drenaje incluye el minuto abierto, un mismo (módulo, minuto) puede llegar dos veces: se suman `count` y `errors` y `p50`/`p95` se ponderan por cantidad. Si un servicio no responde no se escribe nada de él y sus buckets esperan en su memoria.
+La tarea periódica `volcar_latencia` (cada 30 s, `pull_latency` en `latency_pull.py`) pide `POST /internal/latency/drain` a users-playlists y a cada réplica de catalog-streaming (resuelve el nombre de `CATALOG_URL` por DNS y llama a cada IP; si no resuelve, usa el nombre tal cual), drena su propio registro y escribe los buckets en `request_metrics`. Como el drenaje incluye el minuto abierto, un mismo (módulo, minuto) puede llegar dos veces: se suman `count` y `errors` y `p50`/`p95` se ponderan por cantidad. Si un servicio o una réplica no responde no se escribe nada de ella, sus buckets esperan en su memoria y los de las demás se guardan igual.
 
 ## Rutas internas
 

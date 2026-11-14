@@ -1,4 +1,8 @@
 """Llamadas HTTP a catalog-streaming. Si ese servicio no responde, `UpstreamError` (503)."""
+import asyncio
+import logging
+import socket
+from urllib.parse import urlsplit
 from uuid import UUID
 
 from meloxo_common.contracts import ArtistSummary, ReleaseCounts, SongSummary
@@ -6,7 +10,9 @@ from meloxo_common.internal import BATCH_SIZE, InternalClient
 
 from playback_metrics.config import get_settings
 
+log = logging.getLogger(__name__)
 _client: InternalClient | None = None
+_replica_clients: dict[str, InternalClient] = {}
 _client_url: str | None = None
 
 
@@ -63,5 +69,39 @@ async def service_health() -> dict:
     return await _catalog().get("/internal/health")
 
 
-async def drain_latency() -> list[dict]:
-    return await _catalog().post("/internal/latency/drain")
+async def resolve_replicas() -> list[str]:
+    """Direcciones que devuelve el DNS para el host de `CATALOG_URL`. Si el host ya es una IP o la resolución falla, `[host]`."""
+    parts = urlsplit(get_settings().CATALOG_URL)
+    host = parts.hostname or ""
+    try:
+        infos = await asyncio.get_running_loop().getaddrinfo(host, parts.port, type=socket.SOCK_STREAM)
+    except OSError:
+        return [host]
+    return sorted({info[4][0] for info in infos}) or [host]
+
+
+def _replica(address: str) -> InternalClient:
+    """Un cliente por dirección de réplica, con el esquema y el puerto de `CATALOG_URL`."""
+    parts = urlsplit(get_settings().CATALOG_URL)
+    netloc = f"[{address}]" if ":" in address else address
+    if parts.port:
+        netloc += f":{parts.port}"
+    base = f"{parts.scheme}://{netloc}"
+    if base not in _replica_clients:
+        _replica_clients[base] = InternalClient(base, timeout=get_settings().INTERNAL_TIMEOUT_SECONDS)
+    return _replica_clients[base]
+
+
+async def drain_latency_all() -> list[dict]:
+    """Drena cada réplica. Una que falla se omite: sus buckets esperan en su memoria y las demás no se pierden."""
+    addresses = await resolve_replicas()
+
+    async def one(address: str) -> list[dict]:
+        try:
+            return await _replica(address).post("/internal/latency/drain")
+        except Exception as exc:
+            log.warning("No se pudo drenar la latencia de la réplica %s: %s", address, type(exc).__name__)
+            return []
+
+    drained = await asyncio.gather(*(one(address) for address in addresses))
+    return [item for items in drained for item in items]

@@ -1,10 +1,14 @@
 from datetime import UTC, datetime
 
+import httpx
+import pytest
 from sqlalchemy import select
 
 from meloxo_common.db import session_scope
 from meloxo_common.latency import LatencyBucket
 from playback_metrics import latency_pull
+from playback_metrics.clients import catalog
+from playback_metrics.config import get_settings
 from playback_metrics.main import recorder
 from playback_metrics.modules.analytics.models import RequestMetric
 
@@ -67,3 +71,57 @@ async def test_pull_latency_ignores_a_malformed_answer(fake_users, fake_catalog)
     fake_users.buckets = [{"service": "users-playlists", "module": "users"}]
     await latency_pull.pull_latency()
     assert await rows() == {}
+
+
+@pytest.fixture
+def replicas(fake_catalog, monkeypatch):
+    """Dos réplicas de catálogo detrás de un mismo nombre, con el puerto en `CATALOG_URL`."""
+    monkeypatch.setattr(get_settings(), "CATALOG_URL", "http://catalog.test:8002")
+
+    async def resolve():
+        return ["10.0.0.1", "10.0.0.2"]
+
+    monkeypatch.setattr(catalog, "resolve_replicas", resolve)
+    return fake_catalog.add_replica("http://10.0.0.1:8002"), fake_catalog.add_replica("http://10.0.0.2:8002")
+
+
+async def test_pull_latency_drains_every_replica(fake_users, replicas):
+    recorder.drain()
+    first, second = replicas
+    first.buckets = [bucket("catalog-streaming", "catalog", 3, 0, 5.0, 9.0)]
+    second.buckets = [bucket("catalog-streaming", "streaming", 7, 1, 6.0, 8.0)]
+    await latency_pull.pull_latency()
+    found = await rows()
+    assert {module for _, module in found} == {"catalog", "streaming"}
+    assert found[(MINUTE, "streaming")].count == 7
+
+
+async def test_one_replica_down_keeps_the_other_buckets(fake_users, replicas):
+    recorder.drain()
+    first, second = replicas
+    first.buckets = [bucket("catalog-streaming", "catalog", 3, 0, 5.0, 9.0)]
+    second.error = httpx.ConnectError("réplica caída")
+    await latency_pull.pull_latency()
+    assert {module for _, module in await rows()} == {"catalog"}
+
+
+async def test_single_name_still_works(fake_users, fake_catalog, monkeypatch):
+    recorder.drain()
+
+    async def resolve():
+        return ["catalog.test"]
+
+    monkeypatch.setattr(catalog, "resolve_replicas", resolve)
+    fake_catalog.buckets = [bucket("catalog-streaming", "catalog", 2, 0, 1.0, 2.0)]
+    await latency_pull.pull_latency()
+    assert {module for _, module in await rows()} == {"catalog"}
+
+
+async def test_resolve_replicas_returns_the_literal_ip(monkeypatch):
+    monkeypatch.setattr(get_settings(), "CATALOG_URL", "http://10.1.2.3:8002")
+    assert await catalog.resolve_replicas() == ["10.1.2.3"]
+
+
+async def test_resolve_replicas_falls_back_to_the_host_on_dns_error(monkeypatch):
+    monkeypatch.setattr(get_settings(), "CATALOG_URL", "http://catalog.invalid:8002")
+    assert await catalog.resolve_replicas() == ["catalog.invalid"]

@@ -30,6 +30,7 @@ def _summary(song: SimpleNamespace) -> dict:
 
 class FakeCatalog:
     def __init__(self, router):
+        self.router = router
         self.songs: dict[UUID, SimpleNamespace] = {}
         self.artists: dict[str, SimpleNamespace] = {}
         self.calls: list[httpx.Request] = []
@@ -48,6 +49,12 @@ class FakeCatalog:
         router.get(url__regex=rf"{CATALOG_URL}/internal/owners/(?P<user_id>[^/]+)/songs", name="cat_owned").mock(
             side_effect=self._owned
         )
+
+    def add_replica(self, address: str) -> "ReplicaDrain":
+        """Una réplica con su propia dirección y sus propios buckets, para `/internal/latency/drain`."""
+        replica = ReplicaDrain(self, address)
+        self.router.post(f"{address}/internal/latency/drain").mock(side_effect=replica.drain)
+        return replica
 
     # Lo que hacen las pruebas para preparar el catálogo
 
@@ -151,5 +158,22 @@ class FakeCatalog:
 
     async def _drain(self, request):
         await self._gate(request)
+        taken, self.buckets = self.buckets, []
+        return httpx.Response(200, json=taken)
+
+
+class ReplicaDrain:
+    """Una réplica de catálogo que solo atiende el drenaje de latencia."""
+
+    def __init__(self, catalog: FakeCatalog, address: str):
+        self.catalog = catalog
+        self.address = address
+        self.buckets: list[dict] = []
+        self.error: Exception | None = None
+
+    async def drain(self, request):
+        self.catalog.calls.append(request)
+        if self.error:
+            raise self.error
         taken, self.buckets = self.buckets, []
         return httpx.Response(200, json=taken)

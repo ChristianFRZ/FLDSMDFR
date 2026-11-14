@@ -68,7 +68,7 @@ async def _store(buckets: list[LatencyBucket]) -> None:
 async def pull_latency() -> None:
     from_users, from_catalog = await asyncio.gather(
         _remote("users-playlists", users.drain_latency),
-        _remote("catalog-streaming", catalog.drain_latency),
+        _remote("catalog-streaming", catalog.drain_latency_all),
     )
     own = recorder.drain()
     try:
