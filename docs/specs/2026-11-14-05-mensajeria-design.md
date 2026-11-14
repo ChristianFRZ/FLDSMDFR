@@ -44,6 +44,7 @@ Con esta rama, catálogo publica `track_published` en un stream de Redis cuando 
 |---|---|
 | Broker | **Redis Streams.** Ya corre en el stack desde la 04 y el PRD lo aprobó. |
 | Alcance | **Solo `track_published`.** |
+| Pistas ocultas o editadas después de publicarse | **Opción 1 (§6):** se acepta la diferencia y se documenta en las decisiones de la rama. `track_hidden` queda para una rama aparte. |
 
 ## 5. Decisiones del constructor
 
@@ -59,7 +60,9 @@ Con esta rama, catálogo publica `track_published` en un stream de Redis cuando 
 | Reintentos | `MAX_ATTEMPTS = 5`, espera de 1 s entre vueltas, igual que el consumidor de reproducciones. | Cubre una caída breve de la base sin atascar el stream. |
 | Redis caído | El relevo falla y reintenta; `notices()` solo lee Postgres. | Redis no está en el camino de lectura. |
 
-## 6. Para decidir
+## 6. Decidido: pistas ocultas o editadas
+
+El equipo eligió el camino 1. Se conservan los tres caminos como registro.
 
 **Pistas ocultas o editadas después de publicarse.** Hoy `published_since` consulta el estado actual de catálogo: una pista que un administrador oculta deja de aparecer en los avisos. Con la tabla local, la copia queda como estaba al publicarse, así que una pista ocultada seguiría apareciendo hasta que se cambie. Hay tres caminos:
 
@@ -67,7 +70,7 @@ Con esta rama, catálogo publica `track_published` en un stream de Redis cuando 
 2. **Agregar `track_hidden` y `track_restored`** con el mismo mecanismo. Es lo correcto, pero amplía el alcance que fijaste.
 3. **Filtrar al leer:** `users-playlists` consulta a catálogo solo para saber cuáles de las pistas locales siguen visibles y, si catálogo no responde, muestra la copia local. Los avisos nunca quedan vacíos, pero siguen dependiendo de catálogo en el camino feliz.
 
-Recomiendo el 2, en una rama aparte si prefieres no ampliar esta, y por ahora el 1 con la diferencia anotada en las decisiones.
+Elegido: el 1, con la diferencia anotada en `docs/decisions/05-mensajeria.md`. El 2 queda como trabajo futuro.
 
 ## 7. Lo que queda al constructor
 
