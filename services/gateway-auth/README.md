@@ -1,6 +1,6 @@
 # gateway-auth
 
-Servicio pequeño (puerto 8004) que nginx consulta con `auth_request` antes de dejar pasar una petición protegida: valida la sesión y, si hace falta, el rol. No tiene base de datos; el rol y el estado del usuario se piden a `users-playlists` (`/internal/users/{id}/auth-state`) con la caché de 30 s de `meloxo_common.auth`. Antes de usar esa caché consulta la revocación en Redis (`REDIS_URL`): un token emitido antes de un cambio de rol o una suspensión da `401` al instante, y si Redis falla se usa la caché.
+Servicio pequeño (puerto 8004) que nginx consulta con `auth_request` antes de dejar pasar una petición protegida: valida la sesión y, si hace falta, el rol. No tiene base de datos; el rol y el estado del usuario se piden a `users-playlists` (`/internal/users/{id}/auth-state`) con la caché de 30 s de `meloxo_common.auth`, que además se comparte entre réplicas por `redis-cache` (`CACHE_REDIS_URL`). Antes de usar esa caché consulta la revocación en Redis (`REDIS_URL`): un token emitido antes de un cambio de rol o una suspensión da `401` al instante, y si Redis falla se usa la caché.
 
 ## Contrato
 

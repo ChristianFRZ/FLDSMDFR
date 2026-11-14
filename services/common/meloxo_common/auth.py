@@ -1,4 +1,5 @@
 """Autenticación compartida: valida el JWT y consulta rol y estado con una caché de 30 s."""
+import math
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -7,7 +8,7 @@ from uuid import UUID
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from meloxo_common import revocation
+from meloxo_common import cache, revocation
 from meloxo_common.contracts import AuthState
 from meloxo_common.errors import AppError
 from meloxo_common.internal import UpstreamError
@@ -24,8 +25,15 @@ class CurrentUser:
     role: str
 
 
+def _shared_key(user_id: UUID) -> str:
+    return f"cache:auth:{user_id}"
+
+
 class AuthStateCache:
-    """Guarda el estado de cada usuario `ttl` segundos. Si el origen cae, usa el último estado sin importar su edad."""
+    """Guarda el estado de cada usuario `ttl` segundos. Si el origen cae, usa el último estado sin importar su edad.
+
+    Dos niveles: el de proceso y, si `ttl > 0`, uno compartido entre réplicas en `redis-cache`. La caché compartida
+    nunca lanza: si falla, se pasa al origen. Quien tiene `ttl=0` (users-playlists, que lee en proceso) no la usa."""
 
     def __init__(self, fetch: FetchAuthState, ttl: float = 30, clock: Callable[[], float] = time.monotonic):
         self._fetch = fetch
@@ -42,13 +50,24 @@ class AuthStateCache:
         now = self._clock()
         if entry is not None and now - entry[0] < self._ttl and (not_before is None or entry[2] >= not_before):
             return entry[1]
+        if self._ttl > 0:
+            shared = await cache.get_json(_shared_key(user_id))
+            age = max(0.0, time.time() - shared["at"]) if shared is not None else None
+            if shared is not None and age < self._ttl and (not_before is None or shared["at"] >= not_before):
+                state = AuthState.model_validate(shared["state"]) if shared["state"] is not None else None
+                self._entries[user_id] = (now - age, state, shared["at"])  # hereda la edad: no vive 30 s más
+                return state
         try:
             state = await self._fetch(user_id)
         except UpstreamError:
             if entry is None:
                 raise
             return entry[1]
-        self._entries[user_id] = (now, state, time.time())
+        wall = time.time()
+        self._entries[user_id] = (now, state, wall)
+        if self._ttl > 0:
+            payload = {"at": wall, "state": state.model_dump(mode="json") if state is not None else None}
+            await cache.set_json(_shared_key(user_id), payload, math.ceil(self._ttl))
         return state
 
 

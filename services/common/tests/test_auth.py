@@ -279,3 +279,155 @@ async def test_stale_cache_is_used_if_origin_is_down_after_revocation(fake_redis
     await revocation.revoke(state.id)
     origin.down = True
     assert (await auth.resolve_user(_token(state))).id == state.id
+
+
+# --- Nivel compartido en la caché de lectura (redis-cache) ---
+
+import time  # noqa: E402
+
+from fakeredis import aioredis as fakeredis  # noqa: E402
+
+from meloxo_common import cache, revocation  # noqa: E402
+from meloxo_common.cache import override_cache  # noqa: E402
+from meloxo_common.auth import Auth  # noqa: E402
+from meloxo_common.redis_client import override_redis  # noqa: E402
+
+
+@pytest.fixture
+def shared():
+    client = fakeredis.FakeRedis(decode_responses=True)
+    override_cache(client)
+    override_redis(client)
+    cache._skip_until = 0.0
+    revocation._skip_until = 0.0
+    yield client
+    override_cache(None)
+    override_redis(None)
+    cache._skip_until = 0.0
+    revocation._skip_until = 0.0
+
+
+class BrokenCache:
+    async def get(self, *args, **kwargs):
+        raise ConnectionError("caída")
+
+    set = incr = get
+
+
+def _replicas(origin, count=2):
+    """Réplicas del mismo servicio: cada una con su propio nivel de proceso y un origen común."""
+    return [AuthStateCache(origin, clock=Clock()) for _ in range(count)]
+
+
+async def test_segunda_replica_usa_el_nivel_compartido(shared):
+    state = _state()
+    origin = Origin(state)
+    a, b = _replicas(origin)
+    assert await a.get(state.id) == state
+    assert await b.get(state.id) == state
+    assert origin.calls == 1
+
+
+async def test_estado_none_tambien_se_comparte(shared):
+    origin = Origin(None)
+    a, b = _replicas(origin)
+    user_id = uuid4()
+    assert await a.get(user_id) is None
+    assert await b.get(user_id) is None
+    assert origin.calls == 1
+
+
+async def test_nivel_compartido_vence_con_el_ttl(shared):
+    state = _state()
+    a, _ = _replicas(Origin(state))
+    await a.get(state.id)
+    assert 0 < await shared.ttl(f"cache:auth:{state.id}") <= 30
+
+
+async def test_la_replica_hereda_la_edad_del_estado_compartido(shared):
+    """El estado que una réplica toma del nivel compartido no vive 30 s más: conserva su edad."""
+    state = _state()
+    origin, clock = Origin(state), Clock()
+    await shared.set(f"cache:auth:{state.id}", f'{{"at": {time.time() - 25}, "state": {state.model_dump_json()}}}', ex=60)
+    replica = AuthStateCache(origin, clock=clock)
+    await replica.get(state.id)
+    assert origin.calls == 0
+    assert clock() - replica._entries[state.id][0] == pytest.approx(25, abs=1)
+
+
+async def test_estado_compartido_mas_viejo_que_el_ttl_no_vale(shared):
+    state = _state()
+    origin = Origin(state)
+    await shared.set(f"cache:auth:{state.id}", f'{{"at": {time.time() - 31}, "state": {state.model_dump_json()}}}', ex=60)
+    (replica,) = _replicas(origin, 1)
+    await replica.get(state.id)
+    assert origin.calls == 1
+
+
+async def test_revocacion_manda_sobre_el_nivel_compartido(shared):
+    state = _state(role="admin")
+    origin = Origin(state)
+    a, b = _replicas(origin)
+    await a.get(state.id)
+    origin.state = state.model_copy(update={"role": "listener"})
+    revoked = time.time() + 1
+    assert (await b.get(state.id, not_before=revoked)).role == "listener"
+    assert origin.calls == 2
+    stored = await shared.get(f"cache:auth:{state.id}")
+    assert '"listener"' in stored
+
+
+async def test_origen_caido_con_estado_en_el_nivel_compartido(shared):
+    state = _state()
+    origin = Origin(state)
+    a, b = _replicas(origin)
+    await a.get(state.id)
+    origin.down = True
+    assert await b.get(state.id) == state
+
+
+async def test_origen_caido_y_nada_guardado_sigue_dando_503(shared):
+    state = _state()
+    origin = Origin(state)
+    origin.down = True
+    (a,) = _replicas(origin, 1)
+    with pytest.raises(UpstreamError):
+        await a.get(state.id)
+
+
+async def test_cache_caida_se_comporta_como_antes():
+    override_cache(BrokenCache())
+    cache._skip_until = 0.0
+    try:
+        state = _state()
+        origin = Origin(state)
+        (a,) = _replicas(origin, 1)
+        assert await a.get(state.id) == state
+        assert await a.get(state.id) == state  # el nivel de proceso sigue funcionando
+        assert origin.calls == 1
+    finally:
+        override_cache(None)
+        cache._skip_until = 0.0
+
+
+async def test_ttl_cero_no_toca_el_nivel_compartido(shared):
+    state = _state()
+    origin = Origin(state)
+    a, b = AuthStateCache(origin, ttl=0, clock=Clock()), AuthStateCache(origin, ttl=0, clock=Clock())
+    await a.get(state.id)
+    await b.get(state.id)
+    assert origin.calls == 2
+    assert [k async for k in shared.scan_iter("cache:auth:*")] == []
+
+
+async def test_resolve_user_rechaza_un_token_revocado_con_estado_compartido(shared):
+    state = _state()
+    origin = Origin(state)
+    a, b = _replicas(origin)
+    token = _token(state)
+    assert (await Auth(a).resolve_user(token)).id == state.id  # llena el nivel compartido
+    await revocation.revoke(state.id)
+    for replica in (a, b):
+        with pytest.raises(AppError) as exc:
+            await Auth(replica).resolve_user(token)
+        assert exc.value.status == 401 and exc.value.code == "invalid_token"
