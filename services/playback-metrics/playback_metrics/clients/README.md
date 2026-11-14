@@ -1,6 +1,6 @@
 # clients
 
-Llamadas HTTP a otros servicios, con `InternalClient` de `meloxo_common` (3 s de espera y sin reintentos). Si el otro servicio no responde, lanzan `UpstreamError` y la petición termina en `503`, salvo al guardar una reproducción, que se guarda igual.
+Llamadas HTTP a otros servicios, con `InternalClient` de `meloxo_common` (conexión 1 s, lectura 1.5 s, hasta 2 reintentos con espera de 0.2 y 0.4 s solo en lecturas, y un circuit breaker por destino: tras 5 llamadas fallidas en 30 s falla al instante y prueba de nuevo a los 15 s). Si el otro servicio no responde, lanzan `UpstreamError` y la petición termina en `503`, salvo al guardar una reproducción, que se guarda igual.
 
 | Archivo | Para qué sirve |
 | --- | --- |

@@ -13,7 +13,7 @@ class BaseServiceSettings(BaseSettings):
     # Una clave corta o vacía permitiría falsificar sesiones: HS256 pide al menos 32 caracteres.
     JWT_SECRET: str = Field(min_length=32)
     DISABLE_SCHEDULER: bool = False
-    INTERNAL_TIMEOUT_SECONDS: float = 3.0
+    INTERNAL_TIMEOUT_SECONDS: float = 1.5
     AUTH_CACHE_SECONDS: int = 30
     # Vacío desactiva Redis: la cola y la revocación se omiten.
     REDIS_URL: str = "redis://redis:6379/0"

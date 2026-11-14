@@ -4,7 +4,7 @@ Corren contra un PostgreSQL real, en la base `catalog_test`, que se crea sola y 
 
 | Archivo o carpeta | Para qué sirve |
 | --- | --- |
-| [`conftest.py`](conftest.py) | Prepara la base, la app y el fixture `users_service`, que simula `auth-state`, `display-names` y `audit` de `users-playlists` |
+| [`conftest.py`](conftest.py) | Prepara la base, la app y el fixture `users_service`, que simula `auth-state`, `display-names` y `audit` de `users-playlists`. Incluye el fixture automático `fast_resilience` (sin espera entre reintentos y con los breakers cerrados) |
 | [`media.py`](media.py) | Crea MP3, JPG y PNG mínimos |
 | [`test_boundaries.py`](test_boundaries.py) | El servicio solo importa `meloxo_common` y los módulos pasan por `public.py` |
 | [`test_audit_down.py`](test_audit_down.py) | Con la auditoría caída, ocultar, restaurar e importar responden `503` sin cambiar nada |

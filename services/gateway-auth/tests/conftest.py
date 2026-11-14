@@ -1,6 +1,7 @@
 import os
 
 os.environ["JWT_SECRET"] = "secreto-de-pruebas-con-longitud-suficiente-para-hs256"
+os.environ["REDIS_URL"] = ""  # sin Redis real
 os.environ["USERS_URL"] = "http://users.test"  # el mismo que usa tests/fake_users.py
 # DATABASE_URL no se fija: este servicio no tiene base de datos.
 
@@ -42,3 +43,14 @@ def make_token(fake_users):
         return str(user_id), encode_token({"sub": str(user_id)}, timedelta(minutes=5))
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def fast_resilience(monkeypatch):
+    """Sin espera entre reintentos y sin un breaker abierto heredado de otra prueba."""
+    from meloxo_common import internal
+
+    monkeypatch.setattr(internal, "RETRY_DELAYS", (0, 0))
+    internal.reset_all_breakers()
+    yield
+    internal.reset_all_breakers()

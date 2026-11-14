@@ -31,7 +31,7 @@ Navegador ──► edge :8080 (nginx)
                 ├──► catalog-streaming :8002 (×2 réplicas, con failover) ──► base catalog (+ volumen media)
                 └──► playback-metrics :8003  ──► base playbacks
 
-Entre servicios: HTTP por /internal/* (3 s de espera, sin autenticación, no publicadas por nginx)
+Entre servicios: HTTP por /internal/* (1.5 s de espera, sin autenticación, no publicadas por nginx)
 ```
 
 | Servicio | Responsabilidad | Puerto interno |
@@ -121,7 +121,7 @@ Estas otras tienen un valor por defecto y casi nunca hay que tocarlas. Cada una 
 | `APP_VERSION` | `03-gateway-balanceo` | playback-metrics, gateway-auth | Versión que muestra la sección de Salud |
 | `AUTH_CACHE_SECONDS` | `30` | los tres y gateway-auth | Cuánto se recuerda el estado de una cuenta |
 | `USERS_URL` | `http://users-playlists:8001` | gateway-auth | Dónde pide el estado de la cuenta. Compose lo pasa |
-| `INTERNAL_TIMEOUT_SECONDS` | `3.0` | los tres y gateway-auth | Espera máxima por llamada entre servicios |
+| `INTERNAL_TIMEOUT_SECONDS` | `1.5` | los tres y gateway-auth | Espera de lectura por llamada entre servicios (la de conexión es de 1 s) |
 | `DISABLE_SCHEDULER` | `false` | los tres | Apaga las tareas periódicas. Lo usan las pruebas |
 
 Los valores están en [`meloxo_common/config.py`](services/common/meloxo_common/config.py) y en el `config.py` de cada servicio.

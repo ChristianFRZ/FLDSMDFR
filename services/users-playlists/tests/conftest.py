@@ -174,3 +174,14 @@ def make_song(fake_catalog):
         return fake_catalog.add_song(**kw)
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def fast_resilience(monkeypatch):
+    """Sin espera entre reintentos y sin un breaker abierto heredado de otra prueba."""
+    from meloxo_common import internal
+
+    monkeypatch.setattr(internal, "RETRY_DELAYS", (0, 0))
+    internal.reset_all_breakers()
+    yield
+    internal.reset_all_breakers()

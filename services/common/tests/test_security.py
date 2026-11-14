@@ -38,7 +38,7 @@ def test_wrong_secret_is_invalid():
 
 def test_settings_defaults():
     s = BaseServiceSettings()
-    assert (s.DISABLE_SCHEDULER, s.INTERNAL_TIMEOUT_SECONDS, s.AUTH_CACHE_SECONDS) == (False, 3.0, 30)
+    assert (s.DISABLE_SCHEDULER, s.INTERNAL_TIMEOUT_SECONDS, s.AUTH_CACHE_SECONDS) == (False, 1.5, 30)
 
 
 @pytest.mark.parametrize("secret", ["", "corto", "x" * 31])
