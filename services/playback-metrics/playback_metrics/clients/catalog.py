@@ -6,10 +6,14 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from meloxo_common.contracts import ArtistSummary, ReleaseCounts, SongSummary
+from pydantic import TypeAdapter
+
+from meloxo_common.latency import LatencyBucket
 from meloxo_common.internal import BATCH_SIZE, InternalClient
 
 from playback_metrics.config import get_settings
 
+_buckets = TypeAdapter(list[LatencyBucket])
 log = logging.getLogger(__name__)
 _client: InternalClient | None = None
 _replica_clients: dict[str, InternalClient] = {}
@@ -82,23 +86,27 @@ async def resolve_replicas() -> list[str]:
 
 def _replica(address: str) -> InternalClient:
     """Un cliente por dirección de réplica, con el esquema y el puerto de `CATALOG_URL`."""
-    parts = urlsplit(get_settings().CATALOG_URL)
-    netloc = f"[{address}]" if ":" in address else address
-    if parts.port:
-        netloc += f":{parts.port}"
-    base = f"{parts.scheme}://{netloc}"
-    if base not in _replica_clients:
-        _replica_clients[base] = InternalClient(base, timeout=get_settings().INTERNAL_TIMEOUT_SECONDS)
-    return _replica_clients[base]
+    if address not in _replica_clients:
+        parts = urlsplit(get_settings().CATALOG_URL)
+        netloc = f"[{address}]" if ":" in address else address
+        if parts.port:
+            netloc += f":{parts.port}"
+        _replica_clients[address] = InternalClient(
+            f"{parts.scheme}://{netloc}", timeout=get_settings().INTERNAL_TIMEOUT_SECONDS
+        )
+    return _replica_clients[address]
 
 
 async def drain_latency_all() -> list[dict]:
-    """Drena cada réplica. Una que falla se omite: sus buckets esperan en su memoria y las demás no se pierden."""
+    """Drena cada réplica. Una que falla o responde algo inválido se omite: sus buckets esperan en su memoria (o se pierden solo los de esa respuesta) y las demás no se pierden."""
     addresses = await resolve_replicas()
+    for stale in [a for a in _replica_clients if a not in addresses]:
+        await _replica_clients.pop(stale).aclose()
 
     async def one(address: str) -> list[dict]:
         try:
-            return await _replica(address).post("/internal/latency/drain")
+            items = await _replica(address).post("/internal/latency/drain")
+            return [b.model_dump(mode="json") for b in _buckets.validate_python(items)]
         except Exception as exc:
             log.warning("No se pudo drenar la latencia de la réplica %s: %s", address, type(exc).__name__)
             return []

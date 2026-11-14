@@ -107,14 +107,41 @@ async def test_one_replica_down_keeps_the_other_buckets(fake_users, replicas):
 
 async def test_single_name_still_works(fake_users, fake_catalog, monkeypatch):
     recorder.drain()
+    monkeypatch.setattr(get_settings(), "CATALOG_URL", "http://catalog.test:8002")
 
     async def resolve():
-        return ["catalog.test"]
+        return ["10.0.0.1"]
 
     monkeypatch.setattr(catalog, "resolve_replicas", resolve)
-    fake_catalog.buckets = [bucket("catalog-streaming", "catalog", 2, 0, 1.0, 2.0)]
+    only = fake_catalog.add_replica("http://10.0.0.1:8002")
+    only.buckets = [bucket("catalog-streaming", "catalog", 2, 0, 1.0, 2.0)]
     await latency_pull.pull_latency()
     assert {module for _, module in await rows()} == {"catalog"}
+    assert [r.url.host for r in fake_catalog.calls] == ["10.0.0.1"]
+
+
+async def test_invalid_answer_from_one_replica_keeps_the_other_buckets(fake_users, replicas):
+    recorder.drain()
+    first, second = replicas
+    first.buckets = [bucket("catalog-streaming", "catalog", 3, 0, 5.0, 9.0)]
+    second.buckets = [{"service": "catalog-streaming", "module": "streaming"}]
+    await latency_pull.pull_latency()
+    assert {module for _, module in await rows()} == {"catalog"}
+
+
+async def test_stale_replica_clients_are_closed_and_evicted(fake_users, replicas, monkeypatch):
+    first, second = replicas
+    answers = iter([["10.0.0.1", "10.0.0.2"], ["10.0.0.1"]])
+
+    async def resolve():
+        return next(answers)
+
+    monkeypatch.setattr(catalog, "resolve_replicas", resolve)
+    await catalog.drain_latency_all()
+    stale = catalog._replica_clients["10.0.0.2"]
+    await catalog.drain_latency_all()
+    assert set(catalog._replica_clients) == {"10.0.0.1"}
+    assert stale._client.is_closed
 
 
 async def test_resolve_replicas_returns_the_literal_ip(monkeypatch):
