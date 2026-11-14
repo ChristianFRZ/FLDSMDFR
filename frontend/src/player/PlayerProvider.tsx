@@ -9,6 +9,9 @@ import { usePlaybackReporter } from "./usePlaybackReporter";
 
 export type QueueSong = Song & { dedication?: string | null; dedicatedBy?: string | null; side?: string };
 export type PlayContext = { title: string; color: TapeColor; href: string };
+/** `endsAt` es la hora (ms) en que se detiene. "track" espera a que termine la pista que suena. */
+export type SleepTimer = { kind: "minutes"; endsAt: number } | { kind: "track" };
+export type SleepOption = { minutes: number } | "track" | null;
 
 const VOLUME_KEY = "meloxo.volume";
 const MAX_RECOVERIES = 2;
@@ -24,13 +27,20 @@ type Player = {
   shuffle: boolean;
   repeat: Q.Repeat;
   notice: string | null;
+  sleepTimer: SleepTimer | null;
   play: (songs: QueueSong[], startIndex?: number, context?: PlayContext | null) => void;
   toggle: () => void;
   next: () => void;
   prev: () => void;
   seek: (seconds: number) => void;
   jump: (offset: number) => void;
+  playNext: (song: QueueSong) => void;
+  addToQueue: (song: QueueSong) => void;
+  removeFromQueue: (offset: number) => void;
+  moveInQueue: (from: number, to: number) => void;
   setVolume: (value: number) => void;
+  toggleMute: () => void;
+  setSleepTimer: (option: SleepOption) => void;
   setShuffle: (value: boolean) => void;
   setRepeat: (value: Q.Repeat) => void;
   dismissNotice: () => void;
@@ -59,6 +69,13 @@ async function probe(src: string): Promise<number> {
 const isTyping = (target: EventTarget | null) =>
   target instanceof HTMLElement && target.closest("input, textarea, select, button, a, [contenteditable]") !== null;
 
+/** Las flechas las usan los campos y los deslizadores: ahí no son un atajo. */
+const isEditing = (target: EventTarget | null) =>
+  target instanceof HTMLElement && target.closest("input, textarea, select, [contenteditable]") !== null;
+
+const SEEK_STEP = 5;
+const MEDIA_SEEK_STEP = 10;
+
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const reporter = usePlaybackReporter();
@@ -70,6 +87,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const [duration, setDuration] = useState(0);
   const [volume, setVolumeState] = useState(readVolume);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sleepTimer, setSleepTimerState] = useState<SleepTimer | null>(null);
+  const sleepRef = useRef(sleepTimer);
+  sleepRef.current = sleepTimer;
+  const sleepHandle = useRef<ReturnType<typeof setTimeout>>();
   const queueRef = useRef(queue);
   queueRef.current = queue;
   const recoveries = useRef(0);
@@ -182,6 +203,37 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     [reporter, start],
   );
 
+  /** Con la cola vacía no hay "a continuación": la pista simplemente suena. */
+  const enqueue = useCallback(
+    (song: QueueSong, place: typeof Q.enqueueNext, notice: string) => {
+      if (!song.available) {
+        setNotice("Esta pista ya no está disponible.");
+        return;
+      }
+      if (!Q.currentItem(queueRef.current)) {
+        play([song]);
+        return;
+      }
+      setQueue((q) => place(q, song));
+      setNotice(notice);
+    },
+    [play],
+  );
+
+  const playNext = useCallback(
+    (song: QueueSong) => enqueue(song, Q.enqueueNext, `«${song.title}» sonará a continuación.`),
+    [enqueue],
+  );
+
+  const addToQueue = useCallback(
+    (song: QueueSong) => enqueue(song, Q.enqueueLast, `«${song.title}» se agregó a la cola.`),
+    [enqueue],
+  );
+
+  const removeFromQueue = useCallback((offset: number) => setQueue((q) => Q.removeUpcoming(q, offset)), []);
+
+  const moveInQueue = useCallback((from: number, to: number) => setQueue((q) => Q.moveUpcoming(q, from, to)), []);
+
   const setVolume = useCallback((value: number) => {
     setVolumeState(value);
     try {
@@ -190,6 +242,57 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // El volumen simplemente no se recuerda.
     }
   }, []);
+
+  const stopForSleep = useCallback(() => {
+    setSleepTimerState(null);
+    setNotice("La música se detuvo por el temporizador.");
+  }, []);
+
+  const setSleepTimer = useCallback(
+    (option: SleepOption) => {
+      clearTimeout(sleepHandle.current);
+      if (!option) {
+        setSleepTimerState(null);
+      } else if (option === "track") {
+        setSleepTimerState({ kind: "track" });
+      } else {
+        const wait = option.minutes * 60_000;
+        setSleepTimerState({ kind: "minutes", endsAt: Date.now() + wait });
+        sleepHandle.current = setTimeout(() => {
+          audio.current?.pause();
+          stopForSleep();
+        }, wait);
+      }
+    },
+    [stopForSleep],
+  );
+
+  useEffect(() => () => clearTimeout(sleepHandle.current), []);
+
+  const volumeRef = useRef(volume);
+  volumeRef.current = volume;
+  const lastVolume = useRef(volume || 0.8);
+
+  const toggleMute = useCallback(() => {
+    if (volumeRef.current > 0) {
+      lastVolume.current = volumeRef.current;
+      setVolume(0);
+    } else {
+      setVolume(lastVolume.current);
+    }
+  }, [setVolume]);
+
+  const clock = useRef({ position, duration });
+  clock.current = { position, duration };
+
+  /** Busca a `to` sin salirse de la pista. */
+  const seekWithin = useCallback(
+    (to: number) => {
+      const total = clock.current.duration;
+      seek(Math.max(0, total ? Math.min(total, to) : to));
+    },
+    [seek],
+  );
 
   const onError = useCallback(async () => {
     const element = audio.current;
@@ -240,11 +343,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (event.code === "Space" && !isTyping(event.target)) {
         event.preventDefault();
         toggle();
+        return;
+      }
+      // Alt+← es "atrás" del navegador, y Ctrl o Cmd con letras son suyos.
+      if (event.altKey || event.ctrlKey || event.metaKey || isEditing(event.target)) return;
+      if (!Q.currentItem(queueRef.current)) return;
+      if (event.code === "ArrowRight" || event.code === "ArrowLeft") {
+        event.preventDefault();
+        seekWithin(clock.current.position + (event.code === "ArrowRight" ? SEEK_STEP : -SEEK_STEP));
+      } else if (event.code === "KeyM") {
+        toggleMute();
       }
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggle]);
+  }, [toggle, seekWithin, toggleMute]);
 
   useEffect(() => {
     if (!("mediaSession" in navigator) || !current) return;
@@ -260,6 +373,35 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     navigator.mediaSession.setActionHandler("previoustrack", prev);
   }, [current, toggle, advance, prev]);
 
+  // La pantalla de bloqueo y las teclas multimedia también buscan dentro de la pista.
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || !current) return;
+    const session = navigator.mediaSession;
+    session.setActionHandler("seekto", (details) => {
+      if (typeof details.seekTime === "number") seekWithin(details.seekTime);
+    });
+    session.setActionHandler("seekforward", (details) =>
+      seekWithin(clock.current.position + (details.seekOffset ?? MEDIA_SEEK_STEP)),
+    );
+    session.setActionHandler("seekbackward", (details) =>
+      seekWithin(clock.current.position - (details.seekOffset ?? MEDIA_SEEK_STEP)),
+    );
+  }, [current, seekWithin]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.playbackState = current ? (isPlaying ? "playing" : "paused") : "none";
+  }, [current, isPlaying]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator) || !current || !duration) return;
+    try {
+      navigator.mediaSession.setPositionState({ duration, playbackRate: 1, position: Math.min(position, duration) });
+    } catch {
+      // El navegador rechaza posiciones que no le cuadran: la barra del sistema solo queda sin actualizar.
+    }
+  }, [current, position, duration]);
+
   const value = useMemo<Player>(
     () => ({
       current,
@@ -272,18 +414,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       shuffle: queue.shuffle,
       repeat: queue.repeat,
       notice,
+      sleepTimer,
       play,
       toggle,
       next: () => advance(false),
       prev,
       seek,
       jump,
+      playNext,
+      addToQueue,
+      removeFromQueue,
+      moveInQueue,
       setVolume,
+      toggleMute,
+      setSleepTimer,
       setShuffle: (next) => setQueue((q) => Q.setShuffle(q, next)),
       setRepeat: (next) => setQueue((q) => Q.setRepeat(q, next)),
       dismissNotice: () => setNotice(null),
     }),
-    [current, queue, context, isPlaying, position, duration, volume, notice, play, toggle, advance, prev, seek, jump, setVolume],
+    [current, queue, context, isPlaying, position, duration, volume, notice, sleepTimer, play, toggle, advance, prev, seek, jump, playNext, addToQueue, removeFromQueue, moveInQueue, setVolume, toggleMute, setSleepTimer],
   );
 
   return (
@@ -297,7 +446,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
           setIsPlaying(false);
           reporter.pause();
         }}
-        onEnded={() => advance(true)}
+        onEnded={() => {
+          if (sleepRef.current?.kind === "track") {
+            reporter.end();
+            stopForSleep();
+            return;
+          }
+          advance(true);
+        }}
         onError={() => void onError()}
         onLoadedMetadata={(event) => {
           const element = event.currentTarget;

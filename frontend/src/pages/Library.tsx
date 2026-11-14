@@ -6,6 +6,10 @@ import { useFollows, useInviteActions, usePendingInvites, usePlaylists, useTapes
 import type { PlaylistSummary } from "../api/types";
 import { Note } from "../components/Note";
 import { Icon } from "../components/Icon";
+import { orderLibrary } from "../components/libraryOrder";
+import { useLibraryPrefs } from "../components/libraryPrefs";
+import { LibrarySortSelect } from "../components/LibrarySortSelect";
+import { PinButton } from "../components/PinButton";
 import { TapePile } from "../components/TapePile";
 
 function NewPlaylist() {
@@ -41,10 +45,14 @@ export function Library() {
   const playlists = usePlaylists();
   const follows = useFollows();
   const { join, dismiss } = useInviteActions();
+  const { pinned, sort } = useLibraryPrefs();
+  const orderedPlaylists = orderLibrary(playlists.data ?? [], pinned, sort, { id: (item) => item.id, name: (item) => item.name });
+  const orderedFollows = orderLibrary(follows.data ?? [], pinned, sort, { id: (item) => item.id, name: (item) => item.name });
 
   return (
     <>
       <h1 className="page-title">Tu biblioteca</h1>
+      <LibrarySortSelect />
       {invites.data?.map((invite) => (
         <Note key={invite.invite_id} tape color="yellow" className="invite invite-wide">
           {invite.inviter} te invitó a «{invite.title}»
@@ -64,14 +72,22 @@ export function Library() {
       <h2>Playlists</h2>
       <NewPlaylist />
       <ul className="link-list">
-        {playlists.data?.map((playlist) => (
-          <li key={playlist.id}><Link to={`/playlists/${playlist.id}`}>{playlist.name}</Link></li>
+        {orderedPlaylists.map((playlist) => (
+          <li key={playlist.id}>
+            <Link to={`/playlists/${playlist.id}`}>{playlist.name}</Link>
+            <PinButton id={playlist.id} label={playlist.name} />
+          </li>
         ))}
       </ul>
       <h2>Artistas que sigues</h2>
       {follows.data?.length ? (
         <ul className="link-list">
-          {follows.data.map((artist) => <li key={artist.id}><Link to={`/artists/${artist.id}`}>{artist.name}</Link></li>)}
+          {orderedFollows.map((artist) => (
+            <li key={artist.id}>
+              <Link to={`/artists/${artist.id}`}>{artist.name}</Link>
+              <PinButton id={artist.id} label={artist.name} />
+            </li>
+          ))}
         </ul>
       ) : (
         <p className="muted">Sigue a un artista desde su página y sabrás cuándo publica.</p>

@@ -5,6 +5,7 @@ import { useAddSong } from "./AddSong";
 import { Attribution } from "./Attribution";
 import { Cover } from "./Cover";
 import { Icon } from "./Icon";
+import { SongMenu } from "./SongMenu";
 
 type Props = { song: Song; onPlay: () => void; actions?: ReactNode; as?: "li" | "div" };
 
@@ -28,9 +29,12 @@ export function SongRow({ song, onPlay, actions, as: Tag = "li" }: Props) {
       </div>
       <span className="song-time">{clock(song.duration)}</span>
       {song.available && (
-        <button className="plain" type="button" aria-label={`Agregar ${song.title} a un casete o playlist`} onClick={() => addSong(song)}>
-          <Icon name="plus" />
-        </button>
+        <>
+          <button className="plain" type="button" aria-label={`Agregar ${song.title} a un casete o playlist`} onClick={() => addSong(song)}>
+            <Icon name="plus" />
+          </button>
+          <SongMenu song={song} />
+        </>
       )}
       {actions}
     </Tag>

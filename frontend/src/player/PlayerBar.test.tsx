@@ -79,6 +79,75 @@ test("la pantalla completa sigue abierta mientras avanza la canción", async () 
   expect(document.fullscreenElement).not.toBeNull();
 });
 
+test("cada pista de la cola se puede quitar y mover", async () => {
+  const removeFromQueue = vi.fn();
+  const moveInQueue = vi.fn();
+  store.set({
+    queue: [song({ id: "s2", title: "Otra" }), song({ id: "s3", title: "Tercera" })],
+    removeFromQueue,
+    moveInQueue,
+    jump: vi.fn(),
+  });
+  renderApp(<PlayerBar />);
+  await userEvent.click(screen.getByRole("button", { name: "Cola" }));
+
+  await userEvent.click(screen.getByRole("button", { name: "Quitar Tercera de la cola" }));
+  expect(removeFromQueue).toHaveBeenCalledWith(1);
+
+  await userEvent.click(screen.getByRole("button", { name: "Subir Tercera en la cola" }));
+  expect(moveInQueue).toHaveBeenCalledWith(1, 0);
+
+  await userEvent.click(screen.getByRole("button", { name: "Bajar Otra en la cola" }));
+  expect(moveInQueue).toHaveBeenCalledWith(0, 1);
+});
+
+test("la primera de la cola no se puede subir ni la última bajar", async () => {
+  store.set({
+    queue: [song({ id: "s2", title: "Otra" }), song({ id: "s3", title: "Tercera" })],
+    removeFromQueue: vi.fn(),
+    moveInQueue: vi.fn(),
+    jump: vi.fn(),
+  });
+  renderApp(<PlayerBar />);
+  await userEvent.click(screen.getByRole("button", { name: "Cola" }));
+  expect(screen.getByRole("button", { name: "Subir Otra en la cola" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Bajar Tercera en la cola" })).toBeDisabled();
+});
+
+test("el temporizador ofrece sus opciones", async () => {
+  const setSleepTimer = vi.fn();
+  store.set({ sleepTimer: null, setSleepTimer });
+  renderApp(<PlayerBar />);
+  await userEvent.click(screen.getByRole("button", { name: "Temporizador" }));
+
+  await userEvent.click(screen.getByRole("button", { name: "15 minutos" }));
+  expect(setSleepTimer).toHaveBeenLastCalledWith({ minutes: 15 });
+  await userEvent.click(screen.getByRole("button", { name: "30 minutos" }));
+  expect(setSleepTimer).toHaveBeenLastCalledWith({ minutes: 30 });
+  await userEvent.click(screen.getByRole("button", { name: "1 hora" }));
+  expect(setSleepTimer).toHaveBeenLastCalledWith({ minutes: 60 });
+  await userEvent.click(screen.getByRole("button", { name: "Al terminar la pista" }));
+  expect(setSleepTimer).toHaveBeenLastCalledWith("track");
+  expect(screen.queryByRole("button", { name: "Desactivar temporizador" })).not.toBeInTheDocument();
+});
+
+test("con el temporizador activo dice cuándo se detiene y se puede desactivar", async () => {
+  const setSleepTimer = vi.fn();
+  store.set({ sleepTimer: { kind: "minutes", endsAt: new Date(2030, 0, 1, 22, 40).getTime() }, setSleepTimer });
+  renderApp(<PlayerBar />);
+  await userEvent.click(screen.getByRole("button", { name: "Temporizador" }));
+  expect(screen.getByText(/Se detiene a las 22:40/)).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Desactivar temporizador" }));
+  expect(setSleepTimer).toHaveBeenCalledWith(null);
+});
+
+test("con el temporizador de pista activo lo dice con palabras", async () => {
+  store.set({ sleepTimer: { kind: "track" }, setSleepTimer: vi.fn() });
+  renderApp(<PlayerBar />);
+  await userEvent.click(screen.getByRole("button", { name: "Temporizador" }));
+  expect(screen.getByText("Se detiene al terminar esta pista.")).toBeInTheDocument();
+});
+
 test("el botón de salir cierra la pantalla completa", async () => {
   renderApp(<PlayerBar />);
   await userEvent.click(screen.getByRole("button", { name: "Pantalla completa" }));
