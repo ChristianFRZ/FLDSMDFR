@@ -309,10 +309,11 @@ def effective(directive: str, body: str) -> str | None:
 
 
 def test_catalog_locations_fail_over():
+    """Failover con dos intentos y sin non_idempotent: POST/PATCH no se repiten (GET, HEAD, PUT y DELETE sí pueden)."""
     catalog = [(p, b) for _, p, b in blocks() if owner(b) == "catalog-streaming"]
     assert catalog, "no se encontró ningún location de catálogo"
     for pattern, body in catalog:
         assert effective("proxy_next_upstream", body) == "error timeout http_502 http_503", pattern
         assert effective("proxy_next_upstream_tries", body) == "2", pattern
         assert effective("proxy_connect_timeout", body) == "1s", pattern
-        assert "non_idempotent" not in (effective("proxy_next_upstream", body) or ""), pattern
+        assert "non_idempotent" not in (effective("proxy_next_upstream", body) or ""), f"{pattern}: sin non_idempotent, POST/PATCH no se repiten"

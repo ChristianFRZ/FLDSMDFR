@@ -32,7 +32,18 @@ Toda ruta pasa por `auth_request /_auth`, que consulta `GET /auth` de `gateway-a
 
 ## Réplicas y failover
 
-`catalog-streaming` corre con dos réplicas (`deploy.replicas: 2` en `compose.yaml`). El DNS de Docker devuelve las dos direcciones para el nombre `catalog-streaming` y nginx reparte entre ellas. En el bloque `server`, `proxy_connect_timeout 1s` (vale para todos los servicios), `proxy_next_upstream error timeout http_502 http_503` y `proxy_next_upstream_tries 2` hacen que una petición que falla en una réplica se pruebe en la otra. Sin `non_idempotent`, solo se reintentan `GET` y `HEAD`: una escritura nunca se repite. La prueba [`scenario_2_failover.py`](../demo/scenario_2_failover.py) detiene una réplica en pleno tráfico y [`tests/test_stack.py`](tests/test_stack.py) lo comprueba con el stack arriba.
+`catalog-streaming` corre con dos réplicas (`deploy.replicas: 2` en `compose.yaml`). El DNS de Docker devuelve las dos direcciones para el nombre `catalog-streaming` y nginx reparte entre ellas. En el bloque `server`, `proxy_connect_timeout 1s` (vale para todos los servicios), `proxy_next_upstream error timeout http_502 http_503` y `proxy_next_upstream_tries 2` hacen que una petición que falla en una réplica se pruebe en la otra. Sin `non_idempotent`, nginx no reintenta `POST` ni `PATCH` una vez enviados; `GET`, `HEAD`, `PUT` y `DELETE` sí pueden reintentarse. Es una desviación respecto al diseño, que decía que las escrituras no se reintentan (ver [decisiones](../docs/decisions/03-gateway-balanceo.md)). La prueba [`scenario_2_failover.py`](../demo/scenario_2_failover.py) detiene una réplica en pleno tráfico y [`tests/test_stack.py`](tests/test_stack.py) lo comprueba con el stack arriba.
+
+
+### Límites del control de salud pasivo
+
+- Tras detener una réplica, durante hasta 10 s (`valid=10s` del resolvedor) cerca de la mitad de las peticiones a catálogo pagan el `proxy_connect_timeout` de 1 s antes de reintentarse con la otra.
+- Como `proxy_pass` usa una variable, cada petición forma un upstream implícito nuevo y no hay memoria entre peticiones: `max_fails` y `fail_timeout` no actúan, y una réplica caída se vuelve a probar en cada petición.
+- Una réplica colgada (acepta TCP pero nunca responde) se abandona solo tras el `proxy_read_timeout` por defecto de 60 s.
+
+### Ruta normalizada y URI enviada
+
+nginx decide la autenticación con la ruta normalizada, pero `proxy_pass $upstream;` reenvía la URI tal como llegó. Por ejemplo, `/api/media/..%2Fsongs/x/stream` se clasifica como el `location` público del stream y llega a la ruta `/media/{path:path}` de catálogo. Hoy es inofensivo: ambas rutas son públicas y los servicios revalidan por su cuenta. Queda como pendiente menor.
 
 ## Servicio caído
 

@@ -12,7 +12,7 @@ Rama `03-gateway-balanceo`: nginx valida sesión y rol con `gateway-auth` y `cat
 - **Infraestructura**
   - `gateway-auth` en compose y catálogo con dos réplicas por defecto. (`9666f32`)
   - El gateway valida sesión y rol por prefijo antes de enrutar, con 401 y 403 en JSON. (`8875bd6`)
-  - El gateway reintenta `GET` y `HEAD` de catálogo con la réplica sana. (`6f2fffe`)
+  - El gateway reintenta con la réplica sana de catálogo; `POST` y `PATCH` no se reintentan, `GET`, `HEAD`, `PUT` y `DELETE` pueden. (`6f2fffe`)
 - **playback-metrics:** drena la latencia de cada réplica de catálogo. (`5f10df7`)
 - **Demo y pruebas**
   - Escenario 2 de failover de catálogo (F2.4). (`06464c7`)
