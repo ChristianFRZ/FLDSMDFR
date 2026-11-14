@@ -53,6 +53,8 @@ services:
       JAMENDO_CLIENT_ID: ${JAMENDO_CLIENT_ID:-}
       JAMENDO_AUDIO_MODE: ${JAMENDO_AUDIO_MODE:-proxy}
       MEDIA_DIR: /media
+    deploy:
+      replicas: 2
     volumes:
       - media:/media
     depends_on:
@@ -60,6 +62,24 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8002/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  gateway-auth:
+    build:
+      context: .
+      dockerfile: services/gateway-auth/Dockerfile
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
+      USERS_URL: http://users-playlists:8001
+    restart: always
+    depends_on:
+      users-playlists:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8004/internal/health', timeout=3).status == 200 else 1)"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -90,8 +110,11 @@ services:
       dockerfile: edge/Dockerfile
     ports:
       - "8080:80"
+    restart: always
     depends_on:
       users-playlists:
+        condition: service_healthy
+      gateway-auth:
         condition: service_healthy
       catalog-streaming:
         condition: service_healthy

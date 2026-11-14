@@ -1,4 +1,5 @@
 """Comprueba sin el stack que la restauración de catalog-streaming no tapa el error original."""
+import inspect
 import sys
 import unittest
 
@@ -6,12 +7,16 @@ import common
 
 
 class RestoreTest(unittest.TestCase):
-    def test_runs_up_with_single_replica_and_waits(self):
+    def test_runs_up_with_default_replicas_and_waits(self):
         calls, waited = [], []
         common.restore_catalog(lambda *a: calls.append(a), lambda: waited.append(1))
         self.assertIn("--scale", calls[0])
-        self.assertIn("catalog-streaming=1", calls[0])
+        self.assertEqual(common.REPLICAS, 2)
+        self.assertIn(f"catalog-streaming={common.REPLICAS}", calls[0])
         self.assertEqual(waited, [1])
+
+    def test_demo_stack_defaults_to_replicas(self):
+        self.assertEqual(inspect.signature(common.demo_stack).parameters["replicas"].default, common.REPLICAS)
 
     def test_failure_without_prior_error_propagates(self):
         def boom(*a):

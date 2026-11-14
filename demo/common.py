@@ -20,6 +20,7 @@ COMPOSE = ["docker", "compose"]
 OVERLAY = [*COMPOSE, "-f", "compose.yaml", "-f", "compose.demo.yaml"]
 START_SECONDS = 60
 SERVICE = "catalog-streaming"
+REPLICAS = 2  # réplicas normales de catalog-streaming tras el balanceo del edge
 
 
 class Failure(Exception):
@@ -174,7 +175,7 @@ def replica_urls(replicas: int) -> list[str]:
 
 
 @contextmanager
-def demo_stack(replicas: int = 1) -> Iterator[list[str]]:
+def demo_stack(replicas: int = REPLICAS) -> Iterator[list[str]]:
     """Levanta catalog-streaming con el overlay y, pase lo que pase, la devuelve a su estado normal en el 8080."""
     try:
         compose(OVERLAY, "up", "-d", "--no-build", "--scale", f"{SERVICE}={replicas}", SERVICE)
@@ -187,11 +188,11 @@ def demo_stack(replicas: int = 1) -> Iterator[list[str]]:
 
 
 def restore_catalog(run_compose: Callable[..., str] = compose, wait: Callable[[], None] | None = None) -> None:
-    """Deja catalog-streaming en una réplica, sin overlay y arriba. Nunca tapa un error anterior:
+    """Deja catalog-streaming en REPLICAS réplicas (dos), sin overlay y arriba. Nunca tapa un error anterior:
     si falla durante otro error lo avisa por la salida y sigue; si no había error, lo propaga."""
     in_error = sys.exc_info()[1] is not None
     try:
-        run_compose(COMPOSE, "up", "-d", "--no-build", "--scale", f"{SERVICE}=1", SERVICE)
+        run_compose(COMPOSE, "up", "-d", "--no-build", "--scale", f"{SERVICE}={REPLICAS}", SERVICE)
         (wait or wait_edge)()
     except Exception as exc:
         if not in_error:
