@@ -121,7 +121,7 @@ Estas otras tienen un valor por defecto y casi nunca hay que tocarlas. Cada una 
 | `APP_VERSION` | `03-gateway-balanceo` | playback-metrics, gateway-auth | Versión que muestra la sección de Salud |
 | `AUTH_CACHE_SECONDS` | `30` | los tres y gateway-auth | Cuánto se recuerda el estado de una cuenta |
 | `USERS_URL` | `http://users-playlists:8001` | gateway-auth | Dónde pide el estado de la cuenta. Compose lo pasa |
-| `INTERNAL_TIMEOUT_SECONDS` | `3.0` | los tres | Espera máxima por llamada entre servicios |
+| `INTERNAL_TIMEOUT_SECONDS` | `3.0` | los tres y gateway-auth | Espera máxima por llamada entre servicios |
 | `DISABLE_SCHEDULER` | `false` | los tres | Apaga las tareas periódicas. Lo usan las pruebas |
 
 Los valores están en [`meloxo_common/config.py`](services/common/meloxo_common/config.py) y en el `config.py` de cada servicio.
@@ -232,7 +232,7 @@ Los resultados y sus límites están en [`demo/`](demo/README.md#prueba-de-carga
 
 ## Estado de los criterios
 
-Verificado el 2026-11-13 sobre el stack en marcha (`seed activity`, porque `JAMENDO_CLIENT_ID` estaba vacía): 43 pruebas de `common`, 174 de `users-playlists`, 158 de `catalog-streaming`, 105 de `playback-metrics`, 14 de `gateway-auth`, 113 de `edge` (13 de ellas contra el stack), 11 de `demo` y 144 de frontend. Los escenarios 1, 2 y 4 a 8 pasan; el 3 sale con la precondición no cumplida y `seed all` tampoco se corrió: ambos siguen sin verificar hasta tener una llave real de Jamendo. Las pruebas de navegador (Playwright), `seed/tests`, `infra/tests` y `tests` no se repitieron en esta rama. Las mediciones de carga son de la corrida del 2026-11-13, en `docker compose` local y sin una red real de por medio. Los criterios completos están en la [sección 6 del PRD](docs/prd.md#6-historias-de-usuario-y-criterios-de-aceptación), y los resultados y avisos de la rama, en [`docs/decisions/03-gateway-balanceo.md`](docs/decisions/03-gateway-balanceo.md#resultados-de-la-verificación).
+Verificado el 2026-11-13 sobre el stack en marcha (`seed activity`, porque `JAMENDO_CLIENT_ID` estaba vacía): 43 pruebas de `common`, 174 de `users-playlists`, 158 de `catalog-streaming`, 105 de `playback-metrics`, 14 de `gateway-auth`, 113 de `edge` (13 de ellas contra el stack), 11 de `demo` y 144 de frontend. Los escenarios 1, 2 y 4 a 8 pasan; el 3 sale con la precondición no cumplida y `seed all` tampoco se corrió: ambos siguen sin verificar hasta tener una llave real de Jamendo. También pasaron `seed/tests` (18), `infra/tests` (7) y `tests` (2). Las pruebas de navegador (Playwright) no se repitieron en esta rama. Las mediciones de carga son de la corrida del 2026-11-13, en `docker compose` local y sin una red real de por medio. Los criterios completos están en la [sección 6 del PRD](docs/prd.md#6-historias-de-usuario-y-criterios-de-aceptación), y los resultados y avisos de la rama, en [`docs/decisions/03-gateway-balanceo.md`](docs/decisions/03-gateway-balanceo.md#resultados-de-la-verificación).
 
 La columna Evidencia dice dónde se comprueba cada criterio; las mediciones marcadas con 01 salen de la corrida del monolito (2026-11-06) y no se repitieron.
 
@@ -269,7 +269,7 @@ La columna Evidencia dice dónde se comprueba cada criterio; las mediciones marc
 | F6.1 Último administrador | Cumple | [Escenario 6](demo/scenario_6_last_admin.py) |
 | F6.2 Importación con `job_id` | Cumple | [`test_import.py`](services/catalog-streaming/tests/modules/catalog/test_import.py) |
 | F6.3 Bitácora paginada y filtrable | Cumple | [`test_admin.py`](services/users-playlists/tests/modules/users/test_admin.py) |
-| F6.4 `/api/admin/*` da `403` | Cumple | [`test_admin.py`](services/users-playlists/tests/modules/users/test_admin.py), [escenario 7](demo/scenario_7_permissions.py) |
+| F6.4 `/api/admin/*` da `403` | Cumple | [`test_admin.py`](services/users-playlists/tests/modules/users/test_admin.py), [escenario 7](demo/scenario_7_permissions.py), [`test_stack.py`](edge/tests/test_stack.py) (`403` del gateway) |
 | F7.1 Vista por rol | Cumple | Pruebas de [`frontend/src/pages/`](frontend/src/pages/README.md) y [Playwright](frontend/e2e/README.md) |
 | F7.2 Gráficas en < 2 s | Medido en 01 | Las 12 rutas de métricas tardaron menos de 90 ms, sin carga; no se repitió |
 | F7.3 Aviso si no hay métricas | Cumple | [`ChartCard.test.tsx`](frontend/src/charts/ChartCard.test.tsx) |
