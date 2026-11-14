@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
@@ -8,15 +9,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from meloxo_common.auth import CurrentUser
 from meloxo_common.errors import AppError
 from meloxo_common.pagination import PageParams, page_body
-from meloxo_common.contracts import ArtistSummary
+from meloxo_common.contracts import ArtistSummary, PublishedRelease, SongSummary
 from users_playlists.clients.catalog import (
+    RECENT_LIMIT,
     get_artists,
     get_songs,
     missing_song,
     published_since,
     upcoming_for_artists,
 )
-from users_playlists.modules.social.models import Favorite, Follow, NoticeSeen
+from users_playlists.modules.social.models import Favorite, Follow, NoticeSeen, ReleaseEvent
 from users_playlists.modules.social.tapes import pending_invites
 
 log = logging.getLogger(__name__)
@@ -80,17 +82,33 @@ async def list_follows(session: AsyncSession, user: CurrentUser) -> list[ArtistS
     return list((await get_artists(list(await followed_artists(session, user)))).values())
 
 
+async def local_releases(session: AsyncSession, artist_ids: list[UUID], since: datetime | None) -> list[PublishedRelease]:
+    """Lanzamientos guardados por el consumidor de `track_published`: no llama a catálogo.
+
+    Un `song` guardado que ya no valide como `SongSummary` se omite con un aviso en el log.
+    """
+    if not artist_ids:
+        return []
+    query = select(ReleaseEvent).where(ReleaseEvent.artist_id.in_(artist_ids))
+    if since is not None:
+        query = query.where(ReleaseEvent.published_at > since)
+    rows = (await session.execute(query.order_by(ReleaseEvent.published_at.desc()).limit(RECENT_LIMIT))).scalars()
+    found = []
+    for row in rows:
+        try:
+            found.append(PublishedRelease(song=SongSummary.model_validate(row.song), published_at=row.published_at))
+        except ValueError:
+            log.warning("El lanzamiento %s guardado no es válido; se omite", row.song_id)
+    return found
+
+
 async def notices(session: AsyncSession, user: CurrentUser) -> dict:
     seen = await session.scalar(select(NoticeSeen.seen_at).where(NoticeSeen.user_id == user.id))
     followed = await followed_artists(session, user)
-    items, degraded = [], False
+    items = []
     if followed:
         earliest = min(followed.values())
-        try:
-            releases = await published_since(list(followed), max(earliest, seen) if seen else earliest)
-        except Exception:
-            log.warning("Catálogo no disponible: avisos sin lanzamientos")
-            releases, degraded = [], True
+        releases = await local_releases(session, list(followed), max(earliest, seen) if seen else earliest)
         # Seguir a un artista no avisa de lo que ya había publicado.
         items = [
             {"type": "release", "song": r.song, "published_at": r.published_at}
@@ -99,7 +117,7 @@ async def notices(session: AsyncSession, user: CurrentUser) -> dict:
         ]
     invites = [{"type": "invite", **i} for i in await pending_invites(session, user)]
     items = invites + items
-    return {"unread": len(items), "items": items, "degraded": degraded}
+    return {"unread": len(items), "items": items, "degraded": False}  # ya no depende de catálogo
 
 
 async def mark_seen(session: AsyncSession, user: CurrentUser) -> None:
