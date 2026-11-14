@@ -5,10 +5,11 @@ from sqlalchemy import func, select
 
 from meloxo_common.db import session_scope
 from users_playlists.modules.social.models import Tape, TapeMember, TapeTrack
+from users_playlists.modules.social.release_consumer import run_release_consumer
 from users_playlists.modules.social.schemas import TapeActivity
 from users_playlists.modules.social.demo import DemoTape, DemoTapeTrack, clear_demo_social, insert_demo_links, insert_demo_tapes  # noqa: F401
 
-__all__ = ["TapeActivity", "count_tape_inclusions", "tape_activity", "DemoTape", "DemoTapeTrack", "clear_demo_social", "insert_demo_links", "insert_demo_tapes"]
+__all__ = ["TapeActivity", "run_release_consumer", "count_tape_inclusions", "tape_activity", "DemoTape", "DemoTapeTrack", "clear_demo_social", "insert_demo_links", "insert_demo_tapes"]
 
 
 async def count_tape_inclusions(song_ids: list[UUID]) -> int:
