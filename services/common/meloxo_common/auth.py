@@ -31,15 +31,16 @@ class AuthStateCache:
         self._fetch = fetch
         self._ttl = ttl
         self._clock = clock
-        self._entries: dict[UUID, tuple[float, AuthState | None]] = {}
+        self._entries: dict[UUID, tuple[float, AuthState | None, float]] = {}  # (reloj, estado, hora de pared)
 
     def clear(self) -> None:
         self._entries.clear()
 
-    async def get(self, user_id: UUID) -> AuthState | None:
+    async def get(self, user_id: UUID, not_before: float | None = None) -> AuthState | None:
+        """`not_before` (hora de pared) descarta lo guardado antes de esa hora: así un cambio de rol ya revocado se ve al instante."""
         entry = self._entries.get(user_id)
         now = self._clock()
-        if entry is not None and now - entry[0] < self._ttl:
+        if entry is not None and now - entry[0] < self._ttl and (not_before is None or entry[2] >= not_before):
             return entry[1]
         try:
             state = await self._fetch(user_id)
@@ -47,7 +48,7 @@ class AuthStateCache:
             if entry is None:
                 raise
             return entry[1]
-        self._entries[user_id] = (now, state)
+        self._entries[user_id] = (now, state, time.time())
         return state
 
 
@@ -63,7 +64,7 @@ class Auth:
         revoked = await revocation.revoked_after(user_id)
         if revoked is not None and claims.get("iat", 0) < revoked:
             raise AppError(401, "invalid_token", "La sesión no es válida o ya venció")
-        state = await self._cache.get(user_id)
+        state = await self._cache.get(user_id, not_before=revoked)
         if state is None or state.status != "active":
             raise AppError(401, "invalid_token", "La sesión no es válida o ya venció")
         return CurrentUser(id=state.id, role=state.role)

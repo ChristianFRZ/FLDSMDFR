@@ -244,3 +244,38 @@ async def test_redis_down_falls_back_to_cache(fake_redis):
 
     override_redis(Down())
     assert (await auth.resolve_user(token)).id == state.id
+
+
+async def test_new_token_after_role_change_sees_new_role_without_waiting_for_cache(fake_redis):
+    """La revocación vacía lo que la caché sabía de esa persona: el token nuevo trae el rol nuevo de inmediato."""
+    from meloxo_common import revocation
+
+    state = _state(role="listener")
+    auth, origin, _ = _setup(state)
+    assert (await auth.resolve_user(_token(state))).role == "listener"  # queda en caché
+    origin.state = AuthState(id=state.id, role="composer", status="active")
+    await revocation.revoke(state.id)
+    assert (await auth.resolve_user(_token(state))).role == "composer"
+    assert origin.calls == 2
+
+
+async def test_cache_entry_fetched_after_revocation_is_reused(fake_redis):
+    from meloxo_common import revocation
+
+    state = _state()
+    auth, origin, _ = _setup(state)
+    await revocation.revoke(state.id)
+    await auth.resolve_user(_token(state))
+    await auth.resolve_user(_token(state))
+    assert origin.calls == 1
+
+
+async def test_stale_cache_is_used_if_origin_is_down_after_revocation(fake_redis):
+    from meloxo_common import revocation
+
+    state = _state()
+    auth, origin, _ = _setup(state)
+    await auth.resolve_user(_token(state))
+    await revocation.revoke(state.id)
+    origin.down = True
+    assert (await auth.resolve_user(_token(state))).id == state.id
