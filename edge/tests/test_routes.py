@@ -294,3 +294,25 @@ def test_required_roles_are_computed_from_the_main_request_uri():
         r"if\s*\(\s*\$uri\s*!=\s*/_auth\s*\)\s*\{\s*set\s+" + re.escape(sent.group(1)) + r"\s+\$required_roles\s*;\s*\}",
         server_level(),
     )
+
+
+# --- Failover hacia la réplica sana ---
+
+
+def effective(directive: str, body: str) -> str | None:
+    """Valor de una directiva ``proxy_*`` en el ``location``, o el del ``server`` si no la repite."""
+    for text in (body, server_level()):
+        match = re.search(rf"^\s*{directive}\s+([^;]+);", text, re.M)
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def test_catalog_locations_fail_over():
+    catalog = [(p, b) for _, p, b in blocks() if owner(b) == "catalog-streaming"]
+    assert catalog, "no se encontró ningún location de catálogo"
+    for pattern, body in catalog:
+        assert effective("proxy_next_upstream", body) == "error timeout http_502 http_503", pattern
+        assert effective("proxy_next_upstream_tries", body) == "2", pattern
+        assert effective("proxy_connect_timeout", body) == "1s", pattern
+        assert "non_idempotent" not in (effective("proxy_next_upstream", body) or ""), pattern
