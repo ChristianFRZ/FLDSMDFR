@@ -39,7 +39,7 @@ Cada escenario termina con código `0` si pasa, `1` si falla y `2` si no se cump
 ### Lo que hay que saber
 
 - **El escenario 1 detiene `playback-metrics`** y siempre lo arranca de nuevo, aunque falle.
-- **El escenario 2 detiene una réplica de `catalog-streaming`** y siempre la restaura (vuelve a las dos réplicas sanas), aunque falle.
+- **El escenario 2 detiene una réplica de `catalog-streaming`** y siempre la restaura (vuelve a las dos réplicas sanas), aunque falle. Para ello usa `restore_catalog`, que también espera a que el 8080 responda.
 - **Los escenarios 3 y 8 recrean los contenedores de `catalog-streaming`.** Lo devuelven a sus dos réplicas detrás del 8080 aunque fallen, pero no los corras mientras alguien usa la app.
 - **Cortar Jamendo requiere dos cambios.** `JAMENDO_API_URL` solo cubre la API. El audio sale directo de `prod-1.storage.jamendo.com`, por eso el overlay también apunta ese host a una dirección que no responde.
 - **El escenario 6 suspende a los demás administradores** para quedar como único activo, y los reactiva al terminar.

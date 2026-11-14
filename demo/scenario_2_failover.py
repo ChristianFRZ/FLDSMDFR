@@ -1,9 +1,10 @@
 """Con una réplica de catalog-streaming detenida, el nginx de entrada sigue sirviendo con la otra."""
+import math
 import subprocess
 import threading
 import time
 
-from common import COMPOSE, REPLICAS, SERVICE, Failure, Precondition, check, compose, failed, new_user, probe_status, restore_catalog, run
+from common import COMPOSE, REPLICAS, SERVICE, Failure, Precondition, check, compose, failed, new_user, probe_status, restore_catalog, run, wait_edge
 
 PATH = "/api/songs?size=1"
 RATE = 20  # peticiones por segundo
@@ -40,6 +41,8 @@ def scenario() -> None:
     ids = compose(COMPOSE, "ps", "-q", SERVICE).split()
     if len(ids) < REPLICAS:
         raise Precondition(f"hacen falta {REPLICAS} réplicas de {SERVICE} y hay {len(ids)}: corre `docker compose up -d`")
+    stop = threading.Event()
+    thread: threading.Thread | None = None
     try:
         warm = time.time()
         for _ in range(20):
@@ -52,8 +55,6 @@ def scenario() -> None:
         print(f"  ok: ambas réplicas atienden antes de la falla ({counts})")
 
         statuses: list[int] = []
-        stop = threading.Event()
-
         def load() -> None:
             end = time.monotonic() + DURATION
             step = 1 / RATE
@@ -69,9 +70,8 @@ def scenario() -> None:
         time.sleep(STOP_AT)
         victim, survivor = ids
         subprocess.run(["docker", "stop", victim], check=True, capture_output=True)
-        stopped = time.time()
+        stopped = math.ceil(time.time())
         thread.join()
-        stop.set()
 
         errors = failed(statuses)
         check(len(statuses) >= RATE * DURATION // 2, f"la carga mandó {len(statuses)} peticiones")
@@ -79,8 +79,10 @@ def scenario() -> None:
         check(all(s == 200 for s in statuses[-TAIL:]), f"las últimas {TAIL} peticiones dan 200")
         check(served(survivor, stopped) > 0, "la réplica que sigue en pie recibió tráfico tras la caída")
     finally:
-        restore_catalog()
-        wait_healthy()
+        stop.set()
+        if thread is not None and thread.is_alive():
+            thread.join()
+        restore_catalog(wait=lambda: (wait_edge(), wait_healthy()))
     print(f"  ok: las {REPLICAS} réplicas volvieron a estar arriba")
 
 
