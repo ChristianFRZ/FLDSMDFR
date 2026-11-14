@@ -8,6 +8,7 @@ Aquí está todo lo que explica el proyecto y no es código. Si llegas por prime
 | Diseños aprobados, con las decisiones del equipo | [`specs/`](specs/README.md) |
 | Planes de implementación que salen de esos diseños | [`plans/`](plans/README.md) |
 | Lo que se decidió sobre la marcha y lo que quedó pendiente | [`decisions/`](decisions/README.md) |
+| Las seis ramas del recorrido, lo que cabe en cada una y lo pendiente | [`ramas.md`](ramas.md) |
 | Maqueta de la interfaz | [`design/`](design/README.md) |
 | Logo, colores y guía de marca | [`brand/`](brand/README.md) |
 

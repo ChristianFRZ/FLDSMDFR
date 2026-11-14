@@ -279,7 +279,11 @@ De los escenarios del PRD, el 2 (una réplica de catálogo cae) y el 1 (`playbac
 
 ## Lo que sigue
 
+El recorrido completo, con lo que cabe en MELOXO de cada rama y lo que está pendiente de decidir, está en [`docs/ramas.md`](docs/ramas.md).
+
 - `04-resiliencia-concurrencia`: tiempos de espera, reintentos, circuit breaker y Redis Streams. Trae la cola del criterio F3.3 y la lista de revocación de sesiones en Redis, que el PRD pedía para el gateway y aquí queda fuera (el gateway solo tiene control de salud pasivo y la caché de 30 s).
+- `05-mensajeria` (propuesta): eventos entre servicios con acuse manual, cola de mensajes muertos y outbox, de modo que los avisos de lanzamientos no dependan de que catálogo responda. Falta decidir el broker.
+- `06-poliglota` (propuesta): caché de lectura en Redis y, si el equipo lo aprueba, un almacén documental para la bitácora y los avisos.
 
 ## Documentación
 
@@ -348,7 +352,7 @@ Los términos que aparecen en el código y en la documentación, agrupados por t
 | Proxy | Intermediario. `catalog-streaming` pide el audio a Jamendo y lo pasa al navegador sin guardarlo |
 | Punto único de falla | Pieza que, si cae, tira todo el sistema. Es el problema que motivó separar en servicios |
 | Réplica | Otra copia del mismo servicio corriendo a la vez |
-| Revocación | Invalidar un acceso antes de que venza. Hoy se revisa en la base de datos; en la rama 03 pasa a Redis |
+| Revocación | Invalidar un acceso antes de que venza. Hoy se revisa en la base de datos con una caché de 30 s; en la rama 04 pasa a Redis |
 | Servicio | Programa independiente con su propia responsabilidad y sus datos. Aquí hay tres: `users-playlists`, `catalog-streaming` y `playback-metrics` |
 | Timeout | Tiempo máximo que se espera una respuesta antes de darla por fallida |
 
@@ -449,7 +453,7 @@ Los códigos de respuesta que más aparecen en este proyecto:
 | jsdom | Simula un navegador para las pruebas de Vitest |
 | Locust | Prueba de carga |
 | mutagen | Lee los datos de un MP3 para validarlo |
-| Nginx | Servidor web. En esta rama es `edge`, la entrada que sirve la interfaz y reparte `/api/*` por prefijo; el gateway con JWT llega en la rama 03 |
+| Nginx | Servidor web. Aquí es `edge`, la entrada que sirve la interfaz, valida sesión y rol con `gateway-auth` y reparte `/api/*` por prefijo |
 | Node.js, npm | Compilan la interfaz e instalan sus dependencias |
 | Playwright | Pruebas de navegador |
 | PostgreSQL | Base de datos |
@@ -460,7 +464,7 @@ Los códigos de respuesta que más aparecen en este proyecto:
 | python-multipart | Lee las subidas de archivos en FastAPI |
 | React | Biblioteca de la interfaz |
 | React Router | Rutas de la interfaz |
-| Redis | Almacén en memoria para eventos y revocación. Llega en las ramas 03 y 04 |
+| Redis | Almacén en memoria para eventos y revocación. Llega en la rama 04, y en la 06 sirve también de caché |
 | Redis Streams | La cola de eventos de Redis. Llega en la rama 04 |
 | respx | Simula las respuestas de Jamendo en las pruebas |
 | SQLAlchemy | ORM de los servicios |
