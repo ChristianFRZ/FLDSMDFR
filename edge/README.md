@@ -1,6 +1,6 @@
 # edge
 
-Puerta de entrada de MELOXO (puerto `8080`): un nginx que sirve la SPA del `frontend/` y reparte `/api/*` entre los tres servicios. Los servicios no publican puertos; solo `edge` es alcanzable desde fuera.
+Puerta de entrada de MELOXO (puerto `8080`): un nginx que sirve la SPA del `frontend/`, valida la sesión y el rol de cada petición con `gateway-auth` y reparte `/api/*` entre los tres servicios. Los servicios no publican puertos; solo `edge` es alcanzable desde fuera.
 
 ## Rutas
 
@@ -20,13 +20,19 @@ Toda ruta pasa por `auth_request /_auth`, que consulta `GET /auth` de `gateway-a
 - Sin sesión: `/api/auth/` (register, login, refresh, logout), `/api/health`, `/api/songs/{id}/stream` (usa el ticket de streaming, que valida catálogo), `/api/media/`, el 404 JSON de `/api/` y la SPA.
 - Rol por prefijo (`map $uri $required_roles`): `/api/admin/*` exige `admin`; `/api/composer/*` exige `composer` o `admin`; el resto, cualquier sesión válida. El rol se calcula en la petición principal (`$auth_required_roles`), porque dentro de la subpetición `$uri` vale `/_auth`.
 - El gateway reenvía `X-User-Id` y `X-User-Role` con lo que respondió `gateway-auth`. En las rutas sin sesión esas variables quedan vacías y nginx no envía la cabecera, así que la que mande el cliente nunca llega al servicio.
-- `401` y `403` del gateway responden `edge/errors/unauthorized.json` y `forbidden.json`, con `detail.source = "gateway"`. Si `gateway-auth` no responde, `auth_request` da 500 y edge lo devuelve como `503` `upstream_unavailable`.
-- Un cambio de rol o una suspensión tarda hasta 30 s en verse (caché de `gateway-auth`, `AUTH_CACHE_SECONDS`).
+- `401` y `403` del gateway responden `edge/errors/unauthorized.json` y `forbidden.json`, con `detail.source = "gateway"`. Si `gateway-auth` no responde, `auth_request` da 500 y `error_page 500 =503` lo devuelve como `503` `upstream_unavailable` (un 500 propio de nginx también se verá como 503). Las rutas sin sesión y la SPA siguen respondiendo.
+- Un cambio de rol o una suspensión tarda hasta 30 s en verse (caché de `gateway-auth`, `AUTH_CACHE_SECONDS`): un usuario recién ascendido a Compositor recibe `403` del gateway en `/api/composer/*` hasta que vence.
+- Dos detalles de nginx que importan al tocar la configuración: `/_auth` usa su propia variable `$auth_upstream`, porque una subpetición comparte variables con la principal y un `$upstream` compartido enviaría la petición protegida a `gateway-auth`; y el rol exigido se calcula en la petición principal con `if ($uri != /_auth)`, porque dentro de la subpetición `$uri` vale `/_auth`.
+- El control de salud es pasivo (nginx de código abierto no sondea): una réplica o un servicio caído se detecta cuando falla una petición.
 
 ## Audio y subidas
 
 - `/api/songs/{id}/stream` y `/api/media/`: `proxy_buffering off`, `proxy_request_buffering off`, `proxy_read_timeout 3600s`, `Range` e `If-Range` reenviados y sin gzip.
 - `/api/composer/` (MP3 de hasta 15 MB y portadas): `client_max_body_size 20m`. El resto de rutas admite 1 MB.
+
+## Réplicas y failover
+
+`catalog-streaming` corre con dos réplicas (`deploy.replicas: 2` en `compose.yaml`). El DNS de Docker devuelve las dos direcciones para el nombre `catalog-streaming` y nginx reparte entre ellas. En el bloque `server`, `proxy_connect_timeout 1s` (vale para todos los servicios), `proxy_next_upstream error timeout http_502 http_503` y `proxy_next_upstream_tries 2` hacen que una petición que falla en una réplica se pruebe en la otra. Sin `non_idempotent`, solo se reintentan `GET` y `HEAD`: una escritura nunca se repite. La prueba [`scenario_2_failover.py`](../demo/scenario_2_failover.py) detiene una réplica en pleno tráfico y [`tests/test_stack.py`](tests/test_stack.py) lo comprueba con el stack arriba.
 
 ## Servicio caído
 

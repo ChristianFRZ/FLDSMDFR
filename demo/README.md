@@ -44,6 +44,7 @@ Cada escenario termina con código `0` si pasa, `1` si falla y `2` si no se cump
 - **Cortar Jamendo requiere dos cambios.** `JAMENDO_API_URL` solo cubre la API. El audio sale directo de `prod-1.storage.jamendo.com`, por eso el overlay también apunta ese host a una dirección que no responde.
 - **El escenario 6 suspende a los demás administradores** para quedar como único activo, y los reactiva al terminar.
 - **El escenario 8 vence las pistas con SQL**, con `catalog-streaming` apagado, porque la API rechaza fechas pasadas. Así, las dos réplicas las encuentran al arrancar. Comprueba el resultado, pero no garantiza que ambas hayan consultado en el mismo instante.
+- **Un ascenso a Compositor tarda hasta 30 s en verse en el gateway**, por la caché de estado de cuenta. `new_composer` espera a que `/api/composer/` deje de dar `403`, así que los escenarios 3, 7 y 8, que crean un Compositor, tardan unos 30 s más.
 - **Quedan usuarios en la base de datos.** Las cuentas `*@escenarios.meloxo.dev` no tienen `is_demo`, así que `seed clear` no las borra. Las pistas que crean los escenarios sí se eliminan al terminar.
 
 ## Prueba de carga
@@ -59,17 +60,17 @@ Cada cliente se registra, arma una lista de 20 pistas y después busca, abre su 
 
 ### Resultado
 
-Corrida del 2026-11-12 sobre una pila recién reconstruida (`seed activity`): 50 clientes durante 2 minutos, 5461 peticiones y 0 fallos. Entre paréntesis, la corrida del monolito del 2026-11-06 (5576 peticiones y 0 fallos).
+Corrida del 2026-11-13 sobre la rama `03-gateway-balanceo` (gateway con `auth_request` y dos réplicas de catálogo): 50 clientes durante 2 minutos, 5438 peticiones y 0 fallos. Entre paréntesis, la corrida de `02-separacion` (2026-11-12, 5461 peticiones y 0 fallos).
 
 | Medida | p50 | p95 | Objetivo p95 |
 | --- | --- | --- | --- |
-| Primer byte de audio | 9 ms (12) | 20 ms (39) | < 500 ms |
-| `GET /api/songs` | 12 ms (36) | 26 ms (71) | < 300 ms |
-| `GET /api/playlists/{id}` | 31 ms (27) | 55 ms (66) | < 200 ms |
+| Primer byte de audio | 9 ms (9) | 21 ms (20) | < 500 ms |
+| `GET /api/songs` | 15 ms (12) | 34 ms (26) | < 300 ms |
+| `GET /api/playlists/{id}` | 36 ms (31) | 94 ms (55) | < 200 ms |
 
-La máquina fue una laptop Intel i7-1165G7 con 8 hilos, 15 GB de RAM y Linux. Locust, nginx, los tres servicios y PostgreSQL corrieron en ella, así que el resultado no incluye la latencia de una red real. Jamendo quedó fuera de la carga. El análisis, incluida la fase de preparación lenta al agregar a una playlist, está en [`docs/decisions/02-separacion.md`](../docs/decisions/02-separacion.md#prueba-de-carga-f23).
+La máquina fue una laptop Intel i7-1165G7 con 8 hilos, 15 GB de RAM y Linux. Locust, nginx, `gateway-auth`, los servicios, las dos réplicas de catálogo y PostgreSQL corrieron en ella, así que el resultado no incluye la latencia de una red real. Jamendo quedó fuera de la carga. El análisis está en [`docs/decisions/03-gateway-balanceo.md`](../docs/decisions/03-gateway-balanceo.md#prueba-de-carga-f23), y el de la fase de preparación lenta al agregar a una playlist, en [`02-separacion.md`](../docs/decisions/02-separacion.md#prueba-de-carga-f23).
 
 Conviene mencionar dos límites al presentar estos datos:
 
-- **No hay 50 conexiones de audio abiertas todo el tiempo.** Los clientes descargan cada pista a toda velocidad y luego esperan de 1 a 3 s. El ritmo total de la corrida del monolito fue de 47 peticiones por segundo, y las pistas de la semilla pesan unos 480 KB.
-- **Las cifras incluyen la fase de preparación.** Durante los primeros 45 s, aproximadamente, los clientes se registran y agregan 20 pistas sin pausa, y esas peticiones son más lentas. Locust acumula los percentiles, así que estas corridas no separan los percentiles por fase. En la rama 02 esa fase tuvo p50 de 780 ms y p95 de 1400 ms al agregar a una playlist; es un aviso por confirmar.
+- **No hay 50 conexiones de audio abiertas todo el tiempo.** Los clientes descargan cada pista a toda velocidad y luego esperan de 1 a 3 s. El ritmo total fue de unas 45 peticiones por segundo, y las pistas de la semilla pesan unos 480 KB.
+- **Las cifras incluyen la fase de preparación.** Durante los primeros 45 s, aproximadamente, los clientes se registran y agregan 20 pistas sin pausa, y esas peticiones son más lentas. Locust acumula los percentiles, así que estas corridas no separan los percentiles por fase. En las ramas 02 y 03 esa fase tuvo p50 de 760 a 780 ms y p95 de 1400 ms al agregar a una playlist; es un aviso por confirmar.

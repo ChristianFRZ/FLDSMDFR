@@ -4,14 +4,14 @@ Tu Casetera de Confianza. MELOXO es un servicio de streaming musical que gira al
 
 Es el proyecto de la materia de Sistemas Distribuidos del equipo FLDSMDFR: Christian Franco Ramírez, Miriam Amisadai López Hernández, Erick Nava Santiago y Brent Armando Pérez Paitán.
 
-Esta rama, `02-separacion`, parte el monolito de `01-monolito` en tres servicios con su propia base de datos, detrás de un nginx de entrada. El producto es el mismo; cambia cómo está armado por dentro. Las ramas siguientes agregan gateway, balanceo y resiliencia.
+Esta rama, `03-gateway-balanceo`, parte de los tres servicios de `02-separacion` y convierte el nginx de entrada en un gateway: valida la sesión y el rol de cada petición con un servicio pequeño, `gateway-auth`, y reparte la carga entre dos réplicas de `catalog-streaming` con failover. El producto es el mismo; cambia cómo está armado por dentro. La rama siguiente agrega resiliencia.
 
 ## Con qué está hecho
 
 | Parte | Tecnologías |
 | --- | --- |
 | Servicios | Python 3.12, FastAPI, SQLAlchemy, Alembic |
-| Entrada | nginx, que también sirve la interfaz compilada |
+| Entrada | nginx con `auth_request`, que también sirve la interfaz compilada |
 | Base de datos | PostgreSQL 16, una base y un rol por servicio |
 | Interfaz | React 18, TypeScript, Vite, TanStack Query, Chart.js |
 | Música | Catálogo de Jamendo y pistas que suben los Compositores |
@@ -20,14 +20,15 @@ Esta rama, `02-separacion`, parte el monolito de `01-monolito` en tres servicios
 
 ## Arquitectura
 
-Seis contenedores de larga vida: `edge`, los tres servicios y `postgres`, más `seed`, que solo corre cuando se le pide. Solo `edge` y, en `127.0.0.1:5433`, PostgreSQL publican puertos al host; los servicios se hablan por la red interna de Compose.
+Siete contenedores de larga vida (seis servicios, con `catalog-streaming` en dos réplicas): `edge`, `gateway-auth`, los tres servicios de negocio y `postgres`, más `seed`, que solo corre cuando se le pide. Solo `edge` y, en `127.0.0.1:5433`, PostgreSQL publican puertos al host; los servicios se hablan por la red interna de Compose.
 
 ```text
 Navegador ──► edge :8080 (nginx)
                 │  /*     interfaz de React
-                │  /api/* reparto por prefijo
+                │  /api/* auth_request ──► gateway-auth :8004 ──► users-playlists (estado de la cuenta)
+                │         y después, reparto por prefijo
                 ├──► users-playlists :8001   ──► base users_playlists
-                ├──► catalog-streaming :8002 ──► base catalog (+ volumen media)
+                ├──► catalog-streaming :8002 (×2 réplicas, con failover) ──► base catalog (+ volumen media)
                 └──► playback-metrics :8003  ──► base playbacks
 
 Entre servicios: HTTP por /internal/* (3 s de espera, sin autenticación, no publicadas por nginx)
@@ -38,9 +39,10 @@ Entre servicios: HTTP por /internal/* (3 s de espera, sin autenticación, no pub
 | [`users-playlists`](services/users-playlists/README.md) | Cuentas, roles, solicitudes de Compositor, auditoría, playlists, favoritas, seguidos, casetes, invitaciones y avisos | 8001 |
 | [`catalog-streaming`](services/catalog-streaming/README.md) | Canciones, artistas, importación de Jamendo, subidas, publicación programada y audio | 8002 |
 | [`playback-metrics`](services/playback-metrics/README.md) | Reproducciones, agregados, gráficas, latencia y salud | 8003 |
-| [`edge`](edge/README.md) | Entrada única y reparto de rutas; si un servicio no responde, devuelve el error JSON de la API | 80 (8080 en el host) |
+| [`gateway-auth`](services/gateway-auth/README.md) | Valida el JWT y el rol que nginx le consulta con `auth_request`; no tiene base de datos | 8004 |
+| [`edge`](edge/README.md) | Entrada única: valida sesión y rol, reparte rutas y reintenta con la otra réplica de catálogo; si un servicio no responde, devuelve el error JSON de la API | 80 (8080 en el host) |
 
-Lo que ya no pasa dentro de un proceso ahora es una llamada HTTP: users-playlists pide pistas a catalog-streaming, y playback-metrics pide pistas a catalog-streaming y el estado de cada cuenta a users-playlists. Cada servicio guarda 30 s el estado de las cuentas, y si el origen cae usa el último conocido. Lo compartido (errores, JWT, cliente interno, autenticación) vive en [`services/common`](services/common/README.md).
+Lo que ya no pasa dentro de un proceso ahora es una llamada HTTP: users-playlists pide pistas a catalog-streaming, y playback-metrics pide pistas a catalog-streaming y el estado de cada cuenta a users-playlists. Cada servicio guarda 30 s el estado de las cuentas, y si el origen cae usa el último conocido. `gateway-auth` usa esa misma caché, así que un cambio de rol o una suspensión tarda hasta 30 s en verse en el borde. Lo compartido (errores, JWT, cliente interno, autenticación) vive en [`services/common`](services/common/README.md).
 
 ## Cómo levantarlo
 
@@ -98,7 +100,7 @@ Estas van en `.env`; [`.env.example`](.env.example) es la plantilla:
 | --- | --- |
 | `POSTGRES_PASSWORD` | Contraseña del superusuario `meloxo` de PostgreSQL. Las pruebas la leen de aquí |
 | `USERS_DB_PASSWORD`, `CATALOG_DB_PASSWORD`, `PLAYBACKS_DB_PASSWORD` | Claves de los roles de cada servicio. Las usa [`init.sh`](infra/postgres/init.sh) y Compose arma con ellas el `DATABASE_URL` de cada servicio |
-| `JWT_SECRET` | Firma de las sesiones. Es la misma para los tres servicios |
+| `JWT_SECRET` | Firma de las sesiones. Es la misma para los tres servicios y para `gateway-auth` |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Primer administrador, creado al arrancar si todavía no hay ninguno |
 | `DEMO_PASSWORD` | Contraseña de las cuentas de demo. Si está vacía, se genera una al azar |
 | `JAMENDO_CLIENT_ID` | Llave de Jamendo. Va solo en `.env`, nunca en archivos versionados |
@@ -116,8 +118,9 @@ Estas otras tienen un valor por defecto y casi nunca hay que tocarlas. Cada una 
 | `UPLOAD_MAX_MINUTES` | `10` | catalog-streaming | Duración máxima de una pista |
 | `JAMENDO_API_URL` | `https://api.jamendo.com/v3.0` | catalog-streaming | API de Jamendo. El escenario 3 la cambia para simular la caída |
 | `MEDIA_DIR` | `/media` | catalog-streaming, playback-metrics | Dónde se guardan el audio y las portadas |
-| `APP_VERSION` | `02-separacion` | playback-metrics | Versión que muestra la sección de Salud |
-| `AUTH_CACHE_SECONDS` | `30` | los tres | Cuánto se recuerda el estado de una cuenta |
+| `APP_VERSION` | `03-gateway-balanceo` | playback-metrics, gateway-auth | Versión que muestra la sección de Salud |
+| `AUTH_CACHE_SECONDS` | `30` | los tres y gateway-auth | Cuánto se recuerda el estado de una cuenta |
+| `USERS_URL` | `http://users-playlists:8001` | gateway-auth | Dónde pide el estado de la cuenta. Compose lo pasa |
 | `INTERNAL_TIMEOUT_SECONDS` | `3.0` | los tres | Espera máxima por llamada entre servicios |
 | `DISABLE_SCHEDULER` | `false` | los tres | Apaga las tareas periódicas. Lo usan las pruebas |
 
@@ -131,7 +134,8 @@ MELOXO/
 │   ├── common/              # paquete meloxo_common, compartido
 │   ├── users-playlists/     # servicio :8001
 │   ├── catalog-streaming/   # servicio :8002
-│   └── playback-metrics/    # servicio :8003
+│   ├── playback-metrics/    # servicio :8003
+│   └── gateway-auth/        # validador de sesión y rol :8004
 ├── edge/                    # nginx de entrada y su configuración
 ├── infra/
 │   └── postgres/            # crea una base y un rol por servicio
@@ -149,7 +153,7 @@ MELOXO/
 │   ├── decisions/           # lo que se decidió sobre la marcha
 │   ├── design/              # maqueta de la interfaz
 │   └── brand/               # logo y guía de marca
-├── compose.yaml             # postgres, los tres servicios, edge y seed
+├── compose.yaml             # postgres, los servicios, gateway-auth, edge y seed
 ├── compose.demo.yaml        # overlay de los escenarios 3 y 8
 ├── .env.example             # plantilla de variables
 └── LICENSE                  # licencia MIT
@@ -159,7 +163,7 @@ Para seguir leyendo, entra por el README de cada parte:
 
 | Parte | Empieza aquí |
 | --- | --- |
-| Los tres servicios y lo que comparten | [`services/`](services/README.md) |
+| Los servicios y lo que comparten | [`services/`](services/README.md) |
 | Entrada y reparto de rutas | [`edge/`](edge/README.md) |
 | Bases de datos | [`infra/`](infra/README.md) |
 | Datos de demo | [`seed/`](seed/README.md) |
@@ -187,13 +191,15 @@ Las pruebas de cada servicio leen `POSTGRES_PASSWORD` de `.env`, así que hace f
 docker compose up -d postgres
 python3 -m venv .venv                       # solo la primera vez
 
-# Cada servicio, contra un PostgreSQL real (el mismo patrón en los tres)
+# Cada servicio, contra un PostgreSQL real (el mismo patrón en los tres; gateway-auth no la necesita)
 .venv/bin/pip install -e services/common -e 'services/users-playlists[dev]'
 (cd services/users-playlists && ../../.venv/bin/pytest -q)
 .venv/bin/pip install -e 'services/catalog-streaming[dev]'
 (cd services/catalog-streaming && ../../.venv/bin/pytest -q)
 .venv/bin/pip install -e 'services/playback-metrics[dev]'
 (cd services/playback-metrics && ../../.venv/bin/pytest -q)
+.venv/bin/pip install -e 'services/gateway-auth[dev]'   # sin base de datos
+(cd services/gateway-auth && ../../.venv/bin/pytest -q)
 
 # Lo compartido, la entrada y el repositorio
 .venv/bin/pip install -e 'services/common[dev]'
@@ -226,7 +232,7 @@ Los resultados y sus límites están en [`demo/`](demo/README.md#prueba-de-carga
 
 ## Estado de los criterios
 
-Verificado el 2026-11-12 sobre una pila reconstruida (`docker compose down -v`, `up --build` y `seed activity`, porque `JAMENDO_CLIENT_ID` estaba vacía): 39 pruebas de `common`, 172 de `users-playlists`, 158 de `catalog-streaming`, 98 de `playback-metrics`, 18 de la semilla, 94 de `edge` (4 de ellas contra el stack), 7 de `infra`, 3 de `demo`, 2 de README y 144 de frontend. Los escenarios 1 y 4 a 8 pasan; el 3 sale con la precondición no cumplida y `seed all` tampoco se corrió: ambos siguen sin verificar hasta tener una llave real de Jamendo. Las pruebas de navegador (Playwright) no se repitieron en esta rama. Las mediciones de carga son de la corrida del 2026-11-12, en `docker compose` local y sin una red real de por medio. Los criterios completos están en la [sección 6 del PRD](docs/prd.md#6-historias-de-usuario-y-criterios-de-aceptación), y los resultados y avisos de la rama, en [`docs/decisions/02-separacion.md`](docs/decisions/02-separacion.md#resultados-de-la-verificación).
+Verificado el 2026-11-13 sobre el stack en marcha (`seed activity`, porque `JAMENDO_CLIENT_ID` estaba vacía): 43 pruebas de `common`, 174 de `users-playlists`, 158 de `catalog-streaming`, 105 de `playback-metrics`, 14 de `gateway-auth`, 113 de `edge` (13 de ellas contra el stack), 11 de `demo` y 144 de frontend. Los escenarios 1, 2 y 4 a 8 pasan; el 3 sale con la precondición no cumplida y `seed all` tampoco se corrió: ambos siguen sin verificar hasta tener una llave real de Jamendo. Las pruebas de navegador (Playwright), `seed/tests`, `infra/tests` y `tests` no se repitieron en esta rama. Las mediciones de carga son de la corrida del 2026-11-13, en `docker compose` local y sin una red real de por medio. Los criterios completos están en la [sección 6 del PRD](docs/prd.md#6-historias-de-usuario-y-criterios-de-aceptación), y los resultados y avisos de la rama, en [`docs/decisions/03-gateway-balanceo.md`](docs/decisions/03-gateway-balanceo.md#resultados-de-la-verificación).
 
 La columna Evidencia dice dónde se comprueba cada criterio; las mediciones marcadas con 01 salen de la corrida del monolito (2026-11-06) y no se repitieron.
 
@@ -235,13 +241,13 @@ La columna Evidencia dice dónde se comprueba cada criterio; las mediciones marc
 | F1.1 Registro e inicio de sesión con JWT | Cumple | [`test_auth.py`](services/users-playlists/tests/modules/users/test_auth.py) |
 | F1.2 Lista ligada al usuario del token | Cumple | [`test_playlists.py`](services/users-playlists/tests/modules/playlists/test_playlists.py) |
 | F1.3 Reagregar es idempotente | Cumple | [`test_playlists.py`](services/users-playlists/tests/modules/playlists/test_playlists.py) |
-| F1.4 `GET /api/playlists/{id}` p95 < 200 ms | Cumple | 55 ms con 50 clientes |
+| F1.4 `GET /api/playlists/{id}` p95 < 200 ms | Cumple | 94 ms con 50 clientes |
 | F1.5 Lista degradada | Cumple | [`test_playlists.py`](services/users-playlists/tests/modules/playlists/test_playlists.py). Se activa si catalog-streaming no responde |
 | F1.6 Lista ajena privada da `403` | Cumple | [`test_playlists.py`](services/users-playlists/tests/modules/playlists/test_playlists.py) |
 | F2.1 Búsqueda con filtros | Cumple | [`test_songs.py`](services/catalog-streaming/tests/modules/catalog/test_songs.py) |
 | F2.2 `Range` y `206`, local y Jamendo | Cumple | [`test_streaming.py`](services/catalog-streaming/tests/modules/catalog/test_streaming.py). El audio contra Jamendo real se probó en 01 |
-| F2.3 Primer byte p95 < 500 ms, búsqueda p95 < 300 ms | Cumple | 20 ms y 26 ms, solo pistas locales |
-| F2.4 Failover de réplicas | Rama 03 | Esta rama tiene una sola instancia |
+| F2.3 Primer byte p95 < 500 ms, búsqueda p95 < 300 ms | Cumple | 21 ms y 34 ms, solo pistas locales |
+| F2.4 Failover de réplicas | Cumple | [Escenario 2](demo/scenario_2_failover.py) (0 fallidas de 293 al caer una réplica) y [`test_stack.py`](edge/tests/test_stack.py) (a lo sumo 1 de 120) |
 | F2.5 Jamendo caído | Sin verificar en 02 | [Escenario 3](demo/scenario_3_jamendo_down.py): falta una llave de Jamendo para correrlo |
 | F3.1 Evento a los 10 s | Cumple | [`usePlaybackReporter.test.ts`](frontend/src/player/usePlaybackReporter.test.ts) |
 | F3.2 `playback_id` idempotente | Cumple | [Escenario 4](demo/scenario_4_idempotency.py) |
@@ -269,19 +275,18 @@ La columna Evidencia dice dónde se comprueba cada criterio; las mediciones marc
 | F7.3 Aviso si no hay métricas | Cumple | [`ChartCard.test.tsx`](frontend/src/charts/ChartCard.test.tsx) |
 | F7.4 Exportar a CSV y PNG | Cumple | [`export.test.ts`](frontend/src/charts/export.test.ts) |
 
-De los escenarios del PRD, el 2 necesita réplicas y queda para la rama siguiente. El 1 (`playback-metrics` caído) ya corre aquí. El 9 es la [prueba de carga](demo/README.md#prueba-de-carga). El escenario 8 comprueba el resultado con dos réplicas reales, pero la concurrencia exacta se verifica en [`test_publishing.py`](services/catalog-streaming/tests/modules/catalog/test_publishing.py).
+De los escenarios del PRD, el 2 (una réplica de catálogo cae) y el 1 (`playback-metrics` caído) corren aquí. El 9 es la [prueba de carga](demo/README.md#prueba-de-carga). El escenario 8 comprueba el resultado con dos réplicas reales, pero la concurrencia exacta se verifica en [`test_publishing.py`](services/catalog-streaming/tests/modules/catalog/test_publishing.py).
 
 ## Lo que sigue
 
-- `03-gateway-balanceo`: gateway, JWT y roles en el borde, y réplicas de catálogo. Trae el criterio F2.4.
-- `04-resiliencia-concurrencia`: tiempos de espera, reintentos, circuit breaker y Redis Streams. Trae la cola del criterio F3.3.
+- `04-resiliencia-concurrencia`: tiempos de espera, reintentos, circuit breaker y Redis Streams. Trae la cola del criterio F3.3 y la lista de revocación de sesiones en Redis, que el PRD pedía para el gateway y aquí queda fuera (el gateway solo tiene control de salud pasivo y la caché de 30 s).
 
 ## Documentación
 
 - [`docs/prd.md`](docs/prd.md): qué se construye y por qué. Es la referencia de todas las ramas.
 - [`docs/specs/`](docs/specs/README.md): los diseños de cada rama.
 - [`docs/plans/`](docs/plans/README.md): los planes de implementación.
-- [`docs/decisions/`](docs/decisions/README.md): lo que se decidió sobre la marcha y lo que quedó pendiente, con los avisos al equipo de esta rama.
+- [`docs/decisions/`](docs/decisions/README.md): lo que se decidió sobre la marcha y lo que quedó pendiente, con los avisos al equipo de cada rama.
 - [`docs/design/`](docs/design/README.md): la maqueta de la interfaz.
 - [`docs/brand/`](docs/brand/README.md): logo, colores y tipografía.
 - [`CHANGELOG.md`](CHANGELOG.md): historial de cambios por rama.

@@ -1,6 +1,42 @@
 # Cambios
 
-Historial de las ramas `02-separacion` y `01-monolito`, ordenado del más reciente al más antiguo y agrupado por fecha. Cada línea corresponde a un commit. Las decisiones de diseño tomadas durante la construcción están en [`docs/decisions/02-separacion.md`](docs/decisions/02-separacion.md) y [`docs/decisions/01-monolito.md`](docs/decisions/01-monolito.md).
+Historial de las ramas `03-gateway-balanceo`, `02-separacion` y `01-monolito`, ordenado del más reciente al más antiguo y agrupado por fecha. Cada línea corresponde a un commit. Las decisiones de diseño tomadas durante la construcción están en [`docs/decisions/03-gateway-balanceo.md`](docs/decisions/03-gateway-balanceo.md), [`docs/decisions/02-separacion.md`](docs/decisions/02-separacion.md) y [`docs/decisions/01-monolito.md`](docs/decisions/01-monolito.md).
+
+## 2026-11-13
+
+Rama `03-gateway-balanceo`: nginx valida sesión y rol con `gateway-auth` y `catalog-streaming` corre en dos réplicas con failover.
+
+### Agregado
+- **Diseño y plan:** diseño y plan de la rama. (`5a24729`)
+- **gateway-auth:** servicio sin base de datos que valida el JWT y el rol para `auth_request`. (`e5f7756`)
+- **Infraestructura**
+  - `gateway-auth` en compose y catálogo con dos réplicas por defecto. (`9666f32`)
+  - El gateway valida sesión y rol por prefijo antes de enrutar, con 401 y 403 en JSON. (`8875bd6`)
+  - El gateway reintenta `GET` y `HEAD` de catálogo con la réplica sana. (`6f2fffe`)
+- **playback-metrics:** drena la latencia de cada réplica de catálogo. (`5f10df7`)
+- **Demo y pruebas**
+  - Escenario 2 de failover de catálogo (F2.4). (`06464c7`)
+  - Pruebas del gateway y del failover con el stack levantado. (`dc68aac`)
+
+### Cambiado
+- `proxy_connect_timeout` baja de 3 s a 1 s y vale para todos los servicios. (`6f2fffe`)
+- Un cambio de rol o una suspensión tarda hasta 30 s en verse en el gateway (caché de `gateway-auth`). (`8875bd6`)
+- `APP_VERSION` de playback-metrics pasa a `03-gateway-balanceo`. (`7f84b5a`)
+
+### Corregido
+- `/_auth` usa su propio upstream y el rol se calcula en la petición principal; antes toda ruta protegida terminaba en gateway-auth y el gateway no exigía el rol. (`8875bd6`)
+- `/_auth` no reenvía a gateway-auth la identidad que manda el cliente. (`22d1622`)
+- `new_composer` espera a que el gateway vea el rol de Compositor, y solo reintenta un `403`. (`f70670d`, `d1bab25`)
+- La latencia valida cada réplica por separado y descarta clientes de réplicas viejas. (`b19563a`)
+- El escenario 2 no tapa su error al restaurar y cuenta solo el tráfico posterior a la caída. (`e7d7830`)
+- `wait_edge` sondea con sesión de administrador: el 401 sin token ya lo da el gateway, y el escenario 8 limpiaba contra direcciones viejas. (`7f84b5a`)
+
+### Documentación
+- README, decisiones y CHANGELOG de la rama.
+
+### Avisos
+- La lista de revocación en Redis pasa a la rama `04`, y el control de salud de las réplicas es solo pasivo.
+- El escenario 3 y `seed all` siguen sin verificar: falta `JAMENDO_CLIENT_ID`.
 
 ## 2026-11-12
 
