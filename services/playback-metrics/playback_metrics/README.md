@@ -4,7 +4,7 @@ Paquete de Python del servicio [`playback-metrics`](../README.md).
 
 | Archivo o carpeta | Para qué sirve |
 | --- | --- |
-| [`main.py`](main.py) | `create_app()` (puerto 8003): rutas de reproducciones y métricas, medición de latencia y las tareas periódicas `actualizar_agregados` (cada 2 s) y `volcar_latencia` (cada 30 s) |
+| [`main.py`](main.py) | `create_app()` (puerto 8003): historial y métricas, medición de latencia, las tareas periódicas `actualizar_agregados` (cada 2 s) y `volcar_latencia` (cada 30 s) y el consumidor de la cola de reproducciones |
 | [`internal_routes.py`](internal_routes.py) | `/internal/health` y las rutas de la semilla de demo |
 | [`health.py`](health.py) | Salud agregada de los tres servicios, base de datos, Jamendo y agregados |
 | [`latency_pull.py`](latency_pull.py) | Drena la latencia de cada servicio y la guarda en `request_metrics` |

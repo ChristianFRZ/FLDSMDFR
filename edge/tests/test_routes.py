@@ -93,6 +93,12 @@ def test_composer_requests_are_not_captured_by_composer_prefix():
     assert owner(resolve("/api/composer/tracks")[2]) == "catalog-streaming"
 
 
+def test_playback_writes_go_to_catalog_and_history_stays_in_metrics():
+    assert owner(resolve("/api/playbacks")[2]) == "catalog-streaming"
+    assert owner(resolve("/api/playbacks/x/progress")[2]) == "catalog-streaming"
+    assert owner(resolve("/api/playbacks/history")[2]) == "playback-metrics"
+
+
 def test_internal_prefix_is_blocked():
     modifier, pattern, body = resolve("/internal/health")
     assert (modifier, pattern) == ("^~", "/internal/")

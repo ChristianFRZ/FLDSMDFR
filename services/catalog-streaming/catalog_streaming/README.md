@@ -5,6 +5,7 @@ Paquete de Python del servicio [`catalog-streaming`](../README.md).
 | Archivo o carpeta | Para qué sirve |
 | --- | --- |
 | [`main.py`](main.py) | `create_app()`: rutas de catálogo y compositor, medición de latencia y las tareas periódicas `publicar_programadas` (30 s) y `refrescar_jamendo` (24 h) |
+| [`playback_routes.py`](playback_routes.py) | `POST /api/playbacks` y `PATCH /api/playbacks/{id}/progress`: validan (sesión, cuerpo y que la pista exista), encolan en el stream `playbacks` de Redis y responden `202`. Con Redis caído o desactivado responden `503` `upstream_unavailable` (1 s de espera máxima) y el navegador reintenta. `playback-metrics` aplica la cola |
 | [`internal_routes.py`](internal_routes.py) | Rutas `/internal/*` para otros servicios (ver tabla abajo) |
 | [`config.py`](config.py) | `Settings`, que extiende la configuración común con `USERS_URL`, Jamendo, `MEDIA_DIR` y límites de subida |
 | [`auth.py`](auth.py) | `auth`: usuario actual y roles, con el estado de `users-playlists` guardado 30 s |

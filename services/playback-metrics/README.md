@@ -12,11 +12,11 @@ Servicio de reproducciones y métricas de MELOXO (puerto 8003), con su propia ba
 
 ## Variables
 
-`DATABASE_URL` y `JWT_SECRET` (compartidas, ver [`meloxo_common`](../common/README.md)), `CATALOG_URL` (por defecto `http://catalog-streaming:8002`), `USERS_URL` (por defecto `http://users-playlists:8001`), `APP_VERSION` y `MEDIA_DIR`.
+`DATABASE_URL` y `JWT_SECRET` (compartidas, ver [`meloxo_common`](../common/README.md)), `CATALOG_URL` (por defecto `http://catalog-streaming:8002`), `USERS_URL` (por defecto `http://users-playlists:8001`), `REDIS_URL` (la cola de reproducciones), `APP_VERSION` y `MEDIA_DIR`.
 
 ## Si un servicio cae
 
-- **Guardar una reproducción:** se guarda aunque catálogo no responda. Solo un «no existe» explícito de catálogo da `404`.
+- **Guardar una reproducción:** las escrituras entran por catálogo, que las encola en Redis. Si este servicio está caído, los eventos esperan en el stream y se aplican al volver. El consumidor no consulta catálogo, así que se guardan aunque catálogo no responda.
 - **Métricas y reportes:** `503` si necesitan datos de un servicio que no responde.
 - **Sesiones:** el estado del usuario se guarda 30 s; si users-playlists cae, se usa el último conocido.
 

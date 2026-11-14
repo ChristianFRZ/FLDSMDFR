@@ -1,5 +1,7 @@
 from uuid import uuid4
 
+from tests.plays import record_play
+
 from sqlalchemy import func, select
 
 from meloxo_common.db import session_scope
@@ -8,11 +10,10 @@ from playback_metrics.modules.playback.models import Playback
 
 
 async def _play(client, user, song_id):
-    return await client.post(
-        "/api/playbacks",
-        json={"playback_id": str(uuid4()), "song_id": str(song_id), "listened_seconds": 12},
-        headers=user.headers,
-    )
+    class Song:
+        id = song_id
+
+    return await record_play(user, Song)
 
 
 async def _rows() -> int:
@@ -23,16 +24,8 @@ async def _rows() -> int:
 async def test_playback_saved_when_catalog_down(client, listener, fake_catalog):
     song = fake_catalog.add_song()
     fake_catalog.down = True
-    r = await _play(client, listener, song.id)
-    assert r.status_code == 201
+    assert await _play(client, listener, song.id) == "created"
     assert await _rows() == 1
-
-
-async def test_playback_404_when_catalog_says_song_missing(client, listener):
-    r = await _play(client, listener, uuid4())
-    assert r.status_code == 404
-    assert r.json()["error"]["code"] == "song_not_found"
-    assert await _rows() == 0
 
 
 async def test_metrics_return_503_when_catalog_down(client, admin, fake_catalog):

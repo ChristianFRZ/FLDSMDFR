@@ -8,5 +8,6 @@ Corren contra un PostgreSQL real, en la base `playbacks_test`, que se crea sola 
 | [`fake_catalog.py`](fake_catalog.py) | `FakeCatalog`: las rutas `/internal/*` de catálogo en memoria; permite crear y borrar pistas, simular caída (`down`) y ver las llamadas recibidas |
 | [`fake_users.py`](fake_users.py) | `FakeUsers`: estado de autenticación, crecimiento, inclusiones y actividad de casetes; permite simular caída |
 | [`test_boundaries.py`](test_boundaries.py) | El servicio solo importa `meloxo_common` y los módulos pasan por `public.py` |
-| [`test_playback_resilience.py`](test_playback_resilience.py) | Reproducción guardada con catálogo caído, `404` si catálogo dice que no existe, `503` en métricas, lotes de inclusiones y caché de autenticación |
+| [`plays.py`](plays.py) | `record_play` y `progress_play`: siembran reproducciones con `service.apply_event`, como lo hace el consumidor |
+| [`test_playback_resilience.py`](test_playback_resilience.py) | Reproducción guardada con catálogo caído, `503` en métricas, lotes de inclusiones y caché de autenticación |
 | [`modules/`](modules/README.md) | Pruebas de cada módulo |

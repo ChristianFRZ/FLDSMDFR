@@ -8,15 +8,11 @@ from playback_metrics.config import get_settings
 from meloxo_common.db import session_scope
 from playback_metrics.modules.analytics.aggregates import refresh_aggregates
 from playback_metrics.modules.playback.models import Playback
+from tests.plays import record_play
 
 
 async def post_play(client, user, song, seconds=12):
-    r = await client.post(
-        "/api/playbacks",
-        json={"playback_id": str(uuid4()), "song_id": str(song.id), "listened_seconds": seconds},
-        headers=user.headers,
-    )
-    assert r.status_code == 201, r.text
+    assert await record_play(user, song, seconds) == "created"
 
 
 async def refresh():
@@ -213,10 +209,9 @@ async def test_user_growth_counts_roles(client, admin):
 
 
 async def test_duplicates_counter(client, admin, listener, make_song):
-    song, pid = await make_song(), str(uuid4())
-    body = {"playback_id": pid, "song_id": str(song.id), "listened_seconds": 12}
+    song, pid = await make_song(), uuid4()
     for _ in range(3):
-        await client.post("/api/playbacks", json=body, headers=listener.headers)
+        await record_play(listener, song, playback_id=pid)
     assert (await get(client, admin, "duplicates"))["duplicates_discarded"] == 2
 
 

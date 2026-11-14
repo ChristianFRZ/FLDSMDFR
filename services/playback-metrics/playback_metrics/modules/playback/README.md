@@ -8,19 +8,17 @@ Eventos de reproducción, contadores e historial. Sus pruebas están en [`tests/
 
 ## Idempotencia
 
-`POST /api/playbacks` inserta con `ON CONFLICT (playback_id) DO NOTHING`. Si no insertó nada, suma 1 a `duplicates_discarded` en la misma transacción. Responde `201` si el evento era nuevo y `200` si era un reenvío.
-
-`PATCH /api/playbacks/{playback_id}/progress` solo aumenta `listened_seconds`: no cuenta como reproducción ni como duplicado. La gráfica de retención depende de ese dato.
+Las escrituras ya no llegan por HTTP a este servicio: entran por `catalog-streaming`, que las encola, y las aplica el consumidor (más abajo). `service.apply_event` inserta con `ON CONFLICT (playback_id) DO NOTHING`; si no insertó nada, suma 1 a `duplicates_discarded` en la misma transacción. Un `progress` solo aumenta `listened_seconds`: no cuenta como reproducción ni como duplicado. La gráfica de retención depende de ese dato.
 
 El módulo [`analytics`](../analytics/README.md) lee estos eventos con `events_since`, nunca directamente de las tablas.
 
 ## Catálogo caído
 
-Al guardar una reproducción, `POST /api/playbacks` valida la pista con `get_songs` de [`clients/catalog.py`](../../clients/catalog.py). Si catálogo no responde (`UpstreamError`), la reproducción se guarda igual. Solo un «no existe» explícito (el id falta en una respuesta correcta) devuelve `404`. El historial sí necesita catálogo para mostrar los datos de cada pista y responde `503` si no está.
+El historial (`GET /api/playbacks/history`) necesita catálogo para mostrar los datos de cada pista y responde `503` si no está. Guardar reproducciones no lo necesita: lo validó quien encoló.
 
 ## Cola de reproducciones
 
-[`consumer.py`](consumer.py) lee el stream `playbacks` de Redis con el grupo `playbacks` ([contrato en `meloxo_common.playback_queue`](../../../../common/meloxo_common/playback_queue.py)) y aplica cada evento con `service.apply_event`, que hace lo mismo que `POST` y `PATCH`: insertar con `ON CONFLICT DO NOTHING` y subir `listened_seconds` con `greatest`. El `XACK` va después del commit.
+[`consumer.py`](consumer.py) lee el stream `playbacks` de Redis con el grupo `playbacks` ([contrato en `meloxo_common.playback_queue`](../../../../common/meloxo_common/playback_queue.py)) y aplica cada evento con `service.apply_event`, que inserta con `ON CONFLICT DO NOTHING` (`record`) o sube `listened_seconds` con `greatest` (`progress`). El `XACK` va después del commit.
 
 - Orden: primero se leen los pendientes del propio consumidor, luego los de otros que llevan más de 30 s (`XAUTOCLAIM`) y al final los nuevos. Si un mensaje falla por algo transitorio, la vuelta se detiene: así un `progress` no se aplica antes que su `record`.
 - Un mensaje inválido se acusa, se descarta con un aviso y suma 1 a `events_discarded` en `playback_counters`. Lo mismo un `progress` de una reproducción que no existe o es de otra persona.

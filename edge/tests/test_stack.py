@@ -219,3 +219,13 @@ def test_replica_failover_loses_at_most_one_request(listener):
         assert all(status == 200 for status in statuses[-40:])
     finally:
         restore_catalog(wait=lambda: (wait_edge(), wait_replicas()))
+
+
+def test_playback_write_is_queued_and_answers_202(listener, track):
+    import uuid
+
+    _, song_id = track
+    body = {"playback_id": str(uuid.uuid4()), "song_id": song_id, "listened_seconds": 12}
+    status, data = listener.call("POST", "/api/playbacks", body)
+    assert status == 202
+    assert data == {"playback_id": body["playback_id"]}

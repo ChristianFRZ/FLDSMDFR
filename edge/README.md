@@ -9,8 +9,8 @@ nginx elige el `location` con el prefijo más largo. Los prefijos que terminan e
 | Servicio | Prefijos |
 |---|---|
 | `users-playlists` (:8001) | `/api/auth/`, `/api/users/`, `/api/composer-requests`, `/api/admin/composer-requests`, `/api/admin/users`, `/api/admin/audit`, `/api/playlists`, `/api/favorites`, `/api/follows`, `/api/notices`, `/api/releases`, `/api/tapes` |
-| `catalog-streaming` (:8002) | `/api/songs`, `/api/artists`, `/api/genres`, `/api/media/`, `/api/composer/`, `/api/admin/catalog`, `/api/admin/songs` |
-| `playback-metrics` (:8003) | `/api/playbacks`, `/api/metrics`, `/api/admin/health`, `/api/admin/reports` |
+| `catalog-streaming` (:8002) | `/api/songs`, `/api/artists`, `/api/genres`, `/api/media/`, `/api/composer/`, `/api/admin/catalog`, `/api/admin/songs`, y las escrituras de reproducciones: `/api/playbacks` (exacta) y `/api/playbacks/{id}/progress`, que catálogo encola en Redis |
+| `playback-metrics` (:8003) | `/api/playbacks/history` (el prefijo `/api/playbacks`), `/api/metrics`, `/api/admin/health`, `/api/admin/reports` |
 | edge | `/internal/` responde 404; `/api/health` responde `{"status":"ok"}`; el resto de `/api/` responde 404 JSON (`not_found`); todo lo demás es la SPA (`try_files $uri /index.html`) |
 
 ## Sesión y rol
