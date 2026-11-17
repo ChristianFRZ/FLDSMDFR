@@ -3,6 +3,7 @@ import pkgutil
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from functools import lru_cache
+from contextvars import ContextVar
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -26,12 +27,21 @@ def load_models() -> None:
                 raise
 
 
+# Solo el comando administrativo de semilla selecciona una base distinta a la del proceso.
+maintenance_database = ContextVar("maintenance_database", default=None)
+
+
 @lru_cache
+def _engine(url: str) -> AsyncEngine:
+    if get_settings().SERVICE_NAME == "monolith":
+        return create_async_engine(url, pool_size=20, max_overflow=40)
+    return create_async_engine(url, pool_size=8, max_overflow=12)
+
+
 def get_engine() -> AsyncEngine:
-    return create_async_engine(get_settings().DATABASE_URL, pool_size=20, max_overflow=40)
+    return _engine(maintenance_database.get() or get_settings().DATABASE_URL)
 
 
-@lru_cache
 def _sessionmaker() -> async_sessionmaker[AsyncSession]:
     return async_sessionmaker(get_engine(), expire_on_commit=False)
 
