@@ -2,7 +2,7 @@
 
 Escenarios reproducibles del [PRD](../docs/prd.md#14-pruebas-y-demo-de-fallas) y prueba de carga. Cada escenario corre contra `http://localhost:8080`, imprime `PASA` o `FALLA` y, si falla, termina con un código de error.
 
-El número de cada archivo es el del escenario en la sección 14 del PRD. Los escenarios 1 y 2 necesitan servicios separados, así que llegan en las ramas siguientes. El 9 es la [prueba de carga](#prueba-de-carga).
+El número de cada archivo es el del escenario en la sección 14 del PRD. El escenario 1 queda para la etapa 04. El 9 es la [prueba de carga](#prueba-de-carga).
 
 ## Antes de empezar
 
@@ -23,6 +23,7 @@ for f in demo/scenario_*.py; do python3 "$f" || break; done
 
 | Archivo | Qué comprueba |
 | --- | --- |
+| [`scenario_2_catalog_failover.py`](scenario_2_catalog_failover.py) | Detiene una réplica durante 40 consultas, comprueba F2.4 y restablece el servicio |
 | [`scenario_3_jamendo_down.py`](scenario_3_jamendo_down.py) | Con Jamendo cortado, las pistas locales y los metadatos guardados siguen disponibles, y el audio de Jamendo da `503 jamendo_unavailable` |
 | [`scenario_4_idempotency.py`](scenario_4_idempotency.py) | 100 envíos del mismo `playback_id` cuentan una reproducción y suman 99 a `duplicates_discarded` |
 | [`scenario_5_tape_full.py`](scenario_5_tape_full.py) | Dos miembros agregan a la vez la pista 12: uno recibe `201` y el otro `409 tape_full`, en 5 rondas |
@@ -34,7 +35,7 @@ for f in demo/scenario_*.py; do python3 "$f" || break; done
 
 ### Lo que hay que saber
 
-- **Los escenarios 3 y 8 recrean el servicio de catálogo.** Lo devuelven a una instancia aunque fallen, pero no los corras mientras alguien usa la app.
+- **Los escenarios 3 y 8 recrean el servicio de catálogo.** Restablecen las dos réplicas aunque fallen, pero no los corras mientras alguien usa la app.
 - **Cortar Jamendo requiere dos cambios.** `JAMENDO_API_URL` solo cubre la API. El audio sale directo de `prod-1.storage.jamendo.com`, por eso el overlay también apunta ese host a una dirección que no responde.
 - **El escenario 6 suspende a los demás administradores** para quedar como único activo, y los reactiva al terminar.
 - **El escenario 8 vence las pistas con SQL**, con catálogo apagado, porque la API rechaza fechas pasadas. Así, las dos réplicas las encuentran al arrancar. Comprueba el resultado, pero no garantiza que ambas hayan consultado en el mismo instante.

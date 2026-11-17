@@ -4,7 +4,9 @@ Tu Casetera de Confianza. MELOXO es un servicio de streaming musical que gira al
 
 Es el proyecto de la materia de Sistemas Distribuidos del equipo FLDSMDFR: Christian Franco Ramírez, Miriam Amisadai López Hernández, Erick Nava Santiago y Brent Armando Pérez Paitán.
 
-La rama `02-separacion` distribuye los seis módulos en tres servicios FastAPI. El navegador conserva la SPA y la API en `localhost:8080`. [Estado de la etapa y actualización desde el monolito](docs/02-separacion.md) · [Requisitos](REQUISITOS.txt).
+En la etapa 03, Nginx sirve el panel y la API en `localhost:8080`. Antes de reenviar una petición protegida, consulta a Usuarios para validar el JWT y el rol vigente. Catálogo tiene dos réplicas con una base y un volumen de medios compartidos. Nginx descubre sus direcciones por DNS, reparte las consultas por turnos y prueba otra réplica ante un fallo de conexión. El audio con ticket se valida en Catálogo.
+
+Para iniciar, configura `.env` y ejecuta `docker compose up -d --build --wait`. En una instalación anterior al corte de bases, sigue primero la [guía de migración](docs/02-separacion.md). Para comprobar F2.4 en un entorno de prueba, ejecuta `python3 demo/scenario_2_catalog_failover.py`.
 
 ## Con qué está hecho
 
@@ -199,7 +201,7 @@ Verificado el 2026-11-06 sobre una imagen reconstruida: 410 pruebas de backend, 
 | F2.1 Búsqueda con filtros | Cumple | [`test_songs.py`](backend/tests/modules/catalog/test_songs.py) |
 | F2.2 `Range` y `206`, local y Jamendo | Cumple | [`test_streaming.py`](backend/tests/modules/catalog/test_streaming.py) y 3 pistas contra Jamendo real |
 | F2.3 Primer byte p95 < 500 ms, búsqueda p95 < 300 ms | Cumple | 39 ms y 71 ms, solo pistas locales |
-| F2.4 Failover de réplicas | Rama 03 | Esta rama tiene una sola instancia |
+| F2.4 Failover de réplicas | Rama 03 | Verificado por el escenario 2 |
 | F2.5 Jamendo caído | Cumple | [Escenario 3](demo/scenario_3_jamendo_down.py) |
 | F3.1 Evento a los 10 s | Cumple | [`usePlaybackReporter.test.ts`](frontend/src/player/usePlaybackReporter.test.ts) |
 | F3.2 `playback_id` idempotente | Cumple | [Escenario 4](demo/scenario_4_idempotency.py) |
@@ -227,7 +229,7 @@ Verificado el 2026-11-06 sobre una imagen reconstruida: 410 pruebas de backend, 
 | F7.3 Aviso si no hay métricas | Cumple | [`ChartCard.test.tsx`](frontend/src/charts/ChartCard.test.tsx) |
 | F7.4 Exportar a CSV y PNG | Cumple | [`export.test.ts`](frontend/src/charts/export.test.ts) |
 
-De los escenarios del PRD, el 1 y el 2 necesitan servicios separados y quedan para las ramas siguientes. El 9 es la [prueba de carga](demo/README.md#prueba-de-carga). El escenario 8 comprueba el resultado con dos réplicas reales, pero la concurrencia exacta se verifica en [`test_publishing.py`](backend/tests/modules/catalog/test_publishing.py).
+De los escenarios del PRD, el 2 verifica la caída de una réplica y el 1 queda para la etapa 04. El 9 es la [prueba de carga](demo/README.md#prueba-de-carga). El escenario 8 comprueba el resultado con dos réplicas reales, pero la concurrencia exacta se verifica en [`test_publishing.py`](backend/tests/modules/catalog/test_publishing.py).
 
 ## Lo que sigue
 
@@ -283,7 +285,7 @@ Los términos que aparecen en el código y en la documentación, agrupados por t
 | --- | --- |
 | 2PC | Confirmación en dos fases entre varios sistemas. El PRD la descarta para no frenar la reproducción |
 | Agregado | Dato ya resumido, como reproducciones por hora, para que una gráfica no recorra todos los eventos |
-| API Gateway | Punto de entrada único que valida y reparte las peticiones. Llega en la rama 03 |
+| API Gateway | Punto de entrada único que valida y reparte las peticiones. Implementado en la etapa 03 |
 | Backoff | Esperar cada vez más entre reintentos, para no saturar a quien ya está fallando |
 | Balanceo de carga | Repartir peticiones entre réplicas. El PRD plantea round-robin: una a cada una, por turnos |
 | CAP | Teorema: con la red partida hay que elegir entre consistencia y disponibilidad. MELOXO elige disponibilidad (AP) |
@@ -291,7 +293,7 @@ Los términos que aparecen en el código y en la documentación, agrupados por t
 | Consistencia eventual | Un dato tarda un poco en verse igual en todos lados. Aplica a contadores y gráficas |
 | Consistencia fuerte | El dato siempre es exacto. Aplica a roles, cupo del casete y `playback_id` |
 | Degradación elegante | Si algo falla, se responde con lo que se tiene y con `degraded: true`, en vez de un error |
-| Failover | Pasar el trabajo a una réplica sana cuando otra cae. Llega en la rama 03 |
+| Failover | Pasar el trabajo a una réplica sana cuando otra cae. Implementado en la etapa 03 |
 | Frontera de módulo | Regla de que un módulo solo entra a otro por su `public.py` |
 | Idempotencia | Repetir una operación da el mismo resultado que hacerla una vez |
 | Interfaz pública | El archivo `public.py` de cada módulo. Las operaciones entre servicios tienen contratos HTTP en la rama 02 |

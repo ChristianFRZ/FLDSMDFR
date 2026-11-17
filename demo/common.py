@@ -146,11 +146,11 @@ def compose(command: list[str], *args: str) -> str:
 
 
 @contextmanager
-def demo_stack(replicas: int = 1) -> Iterator[None]:
+def demo_stack(replicas: int = 2) -> Iterator[None]:
     """Recrea solo catálogo. La URL pública y los datos se conservan."""
     service = "catalog-streaming-service"
     try:
         compose(OVERLAY, "up", "-d", "--no-deps", "--wait", "--no-build", "--scale", f"{service}={replicas}", service)
         yield
     finally:
-        compose(COMPOSE, "up", "-d", "--no-deps", "--wait", "--no-build", "--scale", f"{service}=1", service)
+        compose(COMPOSE, "up", "-d", "--no-deps", "--wait", "--no-build", service)
