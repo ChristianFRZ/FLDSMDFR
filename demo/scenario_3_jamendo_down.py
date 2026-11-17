@@ -13,8 +13,8 @@ def scenario() -> None:
     composer.ok("POST", f"/api/composer/tracks/{local['id']}/publish")  # sin fecha queda en borrador
     jamendo = published_songs(boss, 1, "jamendo")[0]
     try:
-        with demo_stack() as (url,):
-            api = boss.at(url)
+        with demo_stack():
+            api = boss
             services = {s["name"]: s["status"] for s in api.ok("GET", "/api/admin/health")["services"]}
             check(services["jamendo"] != "up", f"la salud marca Jamendo como {services['jamendo']}")
             check(services["app"] == "up" and services["database"] == "up", "la app y la base siguen arriba")

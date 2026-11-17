@@ -5,6 +5,9 @@ from random import Random
 from uuid import UUID
 
 from app.modules.users.public import DemoUser, insert_demo_users
+from seed.targets import in_database
+
+insert_demo_users = in_database("USERS_DATABASE_URL", insert_demo_users)
 
 DOMAIN = "demo.meloxo.dev"
 NAMES = ("Ana", "Bruno", "Carla", "Diego", "Elena", "Fer", "Gabi", "Hugo", "Inés", "Julia", "Kike", "Lucía", "Mateo", "Nora")

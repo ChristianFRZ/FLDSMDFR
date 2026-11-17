@@ -1,5 +1,6 @@
 """Interfaz pública de modules.catalog. Solo tipos simples; cada función abre su sesión."""
 import asyncio
+import shutil
 import time
 from datetime import datetime
 from uuid import UUID
@@ -7,6 +8,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 
 from app.core.config import get_settings
+from app.core.internal import internal
 from app.core.db import session_scope
 from app.modules.catalog.import_jobs import refresh_metadata
 from app.modules.catalog.jamendo import JamendoClient, JamendoError
@@ -83,6 +85,7 @@ async def song_is_playable(song_id: UUID) -> bool:
     return status == "published"
 
 
+@internal("catalog")
 async def get_artists(ids: list[UUID]) -> dict[UUID, ArtistSummary]:
     if not ids:
         return {}
@@ -91,6 +94,7 @@ async def get_artists(ids: list[UUID]) -> dict[UUID, ArtistSummary]:
         return {a.id: to_artist_summary(a) for a in rows}
 
 
+@internal("catalog")
 async def upcoming_for_artists(artist_ids: list[UUID]) -> list[UpcomingRelease]:
     if not artist_ids:
         return []
@@ -104,6 +108,7 @@ async def upcoming_for_artists(artist_ids: list[UUID]) -> list[UpcomingRelease]:
         return [UpcomingRelease(s.id, s.title, s.artist_id, s.artist.name, s.publish_at) for s in rows]
 
 
+@internal("catalog")
 async def published_since(artist_ids: list[UUID], since: datetime | None) -> list[PublishedRelease]:
     """Publicaciones de Compositores. Las importaciones de Jamendo no generan avisos."""
     if not artist_ids:
@@ -117,18 +122,21 @@ async def published_since(artist_ids: list[UUID], since: datetime | None) -> lis
         return [PublishedRelease(to_summary(s), s.published_at) for s in rows]
 
 
+@internal("catalog")
 async def songs_owned_by(user_id: UUID) -> list[UUID]:
     query = select(Song.id).join(Artist, Song.artist_id == Artist.id).where(Artist.owner_user_id == user_id)
     async with session_scope() as session:
         return list((await session.execute(query)).scalars())
 
 
+@internal("catalog")
 async def catalog_by_source() -> dict[str, int]:
     query = select(Song.source, func.count()).where(Song.status == "published").group_by(Song.source)
     async with session_scope() as session:
         return dict((await session.execute(query)).all())
 
 
+@internal("catalog")
 async def release_counts(owner_id: UUID | None = None) -> ReleaseCounts:
     query = select(Song.status, func.count()).where(Song.source == "local").group_by(Song.status)
     if owner_id is not None:
@@ -149,6 +157,7 @@ async def _ask_jamendo() -> str:
     return "up"
 
 
+@internal("catalog")
 async def jamendo_status() -> str:
     """Se guarda un minuto: cada panel abierto pregunta cada 15 s y Jamendo es un servicio externo."""
     if not get_settings().JAMENDO_CLIENT_ID:
@@ -159,3 +168,12 @@ async def jamendo_status() -> str:
     status = await _ask_jamendo()
     _jamendo_status["value"] = (time.monotonic(), status)
     return status
+
+
+@internal("catalog")
+async def media_usage() -> dict | None:
+    try:
+        usage = shutil.disk_usage(get_settings().MEDIA_DIR)
+    except OSError:
+        return None
+    return {"used_bytes": usage.used, "total_bytes": usage.total}

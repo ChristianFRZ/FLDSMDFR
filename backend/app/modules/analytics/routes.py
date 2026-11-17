@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import dataclasses
 import io
@@ -6,18 +7,21 @@ from typing import Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import httpx
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
+from app.core.internal import HOSTS
 from app.core.auth import CurrentUser, current_user, require_role
 from app.core.db import get_session
 from app.core.errors import AppError
 from app.modules.analytics import service
 from app.modules.analytics.aggregates import lag_seconds
+from app.core.catalog_client import get_songs
 from app.modules.catalog.public import (
     catalog_by_source,
-    get_songs,
     jamendo_status,
     release_counts,
     songs_owned_by,
@@ -180,7 +184,25 @@ async def health(_: CurrentUser = Depends(is_admin), session: AsyncSession = Dep
             "lag_seconds": lag,
         }
     app = {"name": "app", "status": "up", "uptime_seconds": service.uptime_seconds()}
-    return {"services": [app, database, {"name": "jamendo", "status": await jamendo_status()}, aggregates]}
+    try:
+        jamendo = await jamendo_status()
+    except AppError:
+        jamendo = "down"
+    services = [app, database, {"name": "jamendo", "status": jamendo}, aggregates]
+    if get_settings().SERVICE_NAME == "playback":
+        async with httpx.AsyncClient(timeout=1.5, trust_env=False) as client:
+            services.extend(await asyncio.gather(*(_probe(client, url) for url in HOSTS.values())))
+    return {"services": services}
+
+
+async def _probe(client, url):
+    try:
+        response = await client.get(url + "/api/health")
+        response.raise_for_status()
+        status = "up"
+    except httpx.HTTPError:
+        status = "down"
+    return {"name": httpx.URL(url).host, "status": status}
 
 
 @router.get("/admin/health/system")

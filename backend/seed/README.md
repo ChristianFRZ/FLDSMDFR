@@ -5,7 +5,7 @@ Llena una instalación con catálogo real de Jamendo y actividad simulada. Es un
 Con la app levantada, córrelo desde la raíz del repositorio:
 
 ```bash
-docker compose exec app python -m seed all
+docker compose run --rm seed all
 ```
 
 Ese `all` se puede cambiar por cualquiera de estos subcomandos:

@@ -12,6 +12,14 @@ from app.modules.playback.public import DemoPlay, insert_demo_playbacks
 from app.modules.playlists.public import DemoPlaylist, insert_demo_playlists
 from app.modules.social.public import DemoTape, DemoTapeTrack, insert_demo_links, insert_demo_tapes
 from seed.audio import ensure_tones
+from seed.targets import in_database
+
+insert_demo_catalog = in_database("CATALOG_DATABASE_URL", insert_demo_catalog)
+listenable_songs = in_database("CATALOG_DATABASE_URL", listenable_songs)
+insert_demo_playbacks = in_database("PLAYBACK_DATABASE_URL", insert_demo_playbacks)
+insert_demo_playlists = in_database("USERS_DATABASE_URL", insert_demo_playlists)
+insert_demo_links = in_database("USERS_DATABASE_URL", insert_demo_links)
+insert_demo_tapes = in_database("USERS_DATABASE_URL", insert_demo_tapes)
 
 ARTISTS = (
     "Los Carretes", "Lado Z", "Neón de Barrio", "Ruido Rosa", "Bruma Norte", "Casa de Tonos",

@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import CurrentUser
 from app.core.errors import AppError
 from app.core.pagination import PageParams, page_body
+from app.core.catalog_client import get_songs
 from app.modules.catalog.public import (
     ArtistSummary,
     get_artists,
-    get_songs,
     missing_song,
     published_since,
     upcoming_for_artists,

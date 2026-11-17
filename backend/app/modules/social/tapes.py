@@ -13,7 +13,7 @@ from app.core.auth import CurrentUser
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.security import hash_opaque_token, new_opaque_token
-from app.modules.catalog.public import get_songs
+from app.core.catalog_client import get_songs
 from app.modules.social.models import InviteClaim, Tape, TapeInvite, TapeMember, TapeTrack
 from app.modules.social.schemas import InviteIn, OrderIn, TapeIn, TapePatch, TrackIn
 from app.modules.users.public import get_display_names

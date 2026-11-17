@@ -4,7 +4,7 @@ Tu Casetera de Confianza. MELOXO es un servicio de streaming musical que gira al
 
 Es el proyecto de la materia de Sistemas Distribuidos del equipo FLDSMDFR: Christian Franco Ramírez, Miriam Amisadai López Hernández, Erick Nava Santiago y Brent Armando Pérez Paitán.
 
-Esta rama, `01-monolito`, entrega el producto completo en un solo proceso, como monolito modular. Es el punto de partida: las ramas siguientes lo van separando en servicios.
+La rama `02-separacion` distribuye los seis módulos en tres servicios FastAPI. El navegador conserva la SPA y la API en `localhost:8080`. [Estado de la etapa y actualización desde el monolito](docs/02-separacion.md) · [Requisitos](REQUISITOS.txt).
 
 ## Con qué está hecho
 
@@ -17,29 +17,28 @@ Esta rama, `01-monolito`, entrega el producto completo en un solo proceso, como 
 | Pruebas | pytest, Vitest, Playwright, axe, Locust |
 | Despliegue | Docker y Docker Compose |
 
-Todo corre en dos contenedores. El proceso de FastAPI atiende la API, sirve la interfaz ya compilada y entrega el audio:
-
 ```text
-Navegador ──► app :8080 (FastAPI) ──► postgres :5432
-                 │
-                 ├── /api/*    seis módulos
-                 ├── /*        interfaz de React
-                 └── audio     archivo local, o proxy hacia Jamendo
+Navegador → app (Nginx, :8080)
+              ├─ users-playlists-service   → base users_playlists
+              ├─ catalog-streaming-service → base catalog y volumen /media
+              └─ playback-metrics-service  → base playbacks
 ```
+
+Cada servicio valida la sesión y los permisos de sus propias rutas. Los tres comparten una instancia PostgreSQL con bases y usuarios independientes. El frente sirve los archivos de React y reenvía HTTP por ruta.
 
 ## Cómo levantarlo
 
-Necesitas Docker con Compose. Corre esto desde la raíz del repositorio:
+Si ya tienes un volumen con datos, sigue primero el [procedimiento de corte](docs/02-separacion.md#actualizar-una-instalación-existente). Para una instalación nueva necesitas Docker con Compose. Corre esto desde la raíz del repositorio:
 
 ```bash
-cp .env.example .env                         # después, completa los valores
+cp -n .env.example .env                         # después, completa los valores
 docker compose up --build -d                 # la app queda en http://localhost:8080
-docker compose exec app python -m seed all   # opcional: catálogo y actividad de demo
+docker compose run --rm seed all   # opcional: catálogo y actividad de demo
 ```
 
-Las variables de `.env` se explican en [Variables de entorno](#variables-de-entorno). Para `POSTGRES_PASSWORD` y `JWT_SECRET` sirve cualquier cadena larga, como la que genera `openssl rand -hex 32`. Usa esa misma contraseña de PostgreSQL en lugar de `CAMBIA_ESTO` dentro de `DATABASE_URL`.
+Las variables de `.env` se explican en [Variables de entorno](#variables-de-entorno). Si ya tienes un `.env`, agrega `USERS_DB_PASSWORD`, `CATALOG_DB_PASSWORD`, `PLAYBACK_DB_PASSWORD` y `CATALOG_INTERNAL_TOKEN`. Genera secretos independientes para esas variables, `POSTGRES_PASSWORD` y `JWT_SECRET` con `openssl rand -hex 32`. Conserva la contraseña de un volumen PostgreSQL existente. Usa esa misma contraseña de PostgreSQL en lugar de `CAMBIA_ESTO` dentro de `DATABASE_URL`.
 
-La semilla tarda cerca de un minuto y necesita `JAMENDO_CLIENT_ID`. Para borrar lo simulado, corre `docker compose exec app python -m seed clear`. Los demás subcomandos están en [`backend/seed/`](backend/seed/README.md).
+La semilla tarda cerca de un minuto y necesita `JAMENDO_CLIENT_ID`. Para borrar lo simulado, corre `docker compose run --rm seed clear`. Los demás subcomandos están en [`backend/seed/`](backend/seed/README.md).
 
 Con la app en marcha, la documentación interactiva de la API está en <http://localhost:8080/api/docs>. Para apagar todo, usa `docker compose down`; agrega `-v` si además quieres borrar la base de datos y los archivos subidos.
 
@@ -81,7 +80,11 @@ Estas van en `.env`:
 | --- | --- |
 | `POSTGRES_PASSWORD` | Contraseña de PostgreSQL |
 | `DATABASE_URL` | Conexión desde fuera de Docker, para correr las migraciones a mano. Dentro de Docker, Compose la reemplaza |
+| `USERS_DB_PASSWORD`, `CATALOG_DB_PASSWORD`, `PLAYBACK_DB_PASSWORD` | Contraseñas hexadecimales independientes de las tres bases |
 | `JWT_SECRET` | Firma de las sesiones |
+| `CATALOG_INTERNAL_TOKEN` | Credencial de las operaciones HTTP internas |
+| `CATALOG_SERVICE_URL` | Compose configura el nombre privado del catálogo. Vacía al ejecutar el monolito local |
+| `CATALOG_TIMEOUT_SECONDS` | Tiempo de espera HTTP por operación de red. Por defecto 1.5 s |
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Primer administrador, creado al arrancar si todavía no hay ninguno |
 | `DEMO_PASSWORD` | Contraseña de las cuentas de demo. Si está vacía, se genera una al azar |
 | `JAMENDO_CLIENT_ID` | Llave de Jamendo. Va solo en `.env`, nunca en archivos versionados |
@@ -100,7 +103,7 @@ Estas otras tienen un valor por defecto y casi nunca hay que tocarlas. Se define
 | `JAMENDO_API_URL` | `https://api.jamendo.com/v3.0` | API de Jamendo. El escenario 3 la cambia para simular la caída |
 | `MEDIA_DIR` | `/media` | Dónde se guardan el audio y las portadas |
 | `STATIC_DIR` | Vacía | Interfaz compilada. El [`Dockerfile`](Dockerfile) la fija en `/app/static` |
-| `APP_VERSION` | `01-monolito` | Versión que muestra la sección de Salud |
+| `APP_VERSION` | `02-separacion` | Versión que muestra la sección de Salud |
 | `DISABLE_SCHEDULER` | `false` | Apaga las tareas periódicas. Lo usan las pruebas |
 
 ## Estructura del repositorio
@@ -111,6 +114,7 @@ MELOXO/
 │   ├── app/
 │   │   ├── core/            # lo que comparten todos los módulos
 │   │   ├── modules/         # los seis módulos de negocio
+│   │   ├── catalog_main.py  # servicio de catálogo
 │   │   └── main.py          # crea la app y arranca las tareas periódicas
 │   ├── migrations/          # esquema de la base de datos, con Alembic
 │   ├── seed/                # datos de demo
@@ -127,7 +131,7 @@ MELOXO/
 │   ├── decisions/           # lo que se decidió sobre la marcha
 │   ├── design/              # maqueta de la interfaz
 │   └── brand/               # logo y guía de marca
-├── compose.yaml             # los dos contenedores
+├── compose.yaml             # entrada web, servicios, bases y tareas de mantenimiento
 ├── compose.demo.yaml        # overlay de los escenarios 3 y 8
 ├── Dockerfile               # compila la interfaz y arma la imagen
 ├── .env.example             # plantilla de variables
@@ -180,7 +184,7 @@ for f in demo/scenario_*.py; do python3 "$f" || break; done
 
 Cada parte tiene más detalle en su README: [backend](backend/tests/README.md), [navegador](frontend/e2e/README.md) y [escenarios y prueba de carga](demo/README.md).
 
-## Estado de los criterios
+## Estado de los criterios en 01-monolito
 
 Verificado el 2026-11-06 sobre una imagen reconstruida: 410 pruebas de backend, 127 de frontend, 15 de navegador y los escenarios 3 a 8 pasan. Las mediciones de carga son de la corrida de ese mismo día, desde cero (`docker compose down -v`, reconstrucción y semilla), en `docker compose` local y sin una red real de por medio. Los criterios completos están en la [sección 6 del PRD](docs/prd.md#6-historias-de-usuario-y-criterios-de-aceptación).
 
@@ -290,7 +294,7 @@ Los términos que aparecen en el código y en la documentación, agrupados por t
 | Failover | Pasar el trabajo a una réplica sana cuando otra cae. Llega en la rama 03 |
 | Frontera de módulo | Regla de que un módulo solo entra a otro por su `public.py` |
 | Idempotencia | Repetir una operación da el mismo resultado que hacerla una vez |
-| Interfaz pública | El archivo `public.py` de cada módulo. En la rama 02, esas funciones se vuelven llamadas HTTP |
+| Interfaz pública | El archivo `public.py` de cada módulo. Las operaciones entre servicios tienen contratos HTTP en la rama 02 |
 | Módulo | Parte del monolito dueña de un tema y de sus tablas |
 | Monolito modular | Una sola aplicación desplegada, dividida por dentro en módulos con fronteras claras |
 | Monorepo | Un solo repositorio para backend, interfaz y documentación |
@@ -398,7 +402,7 @@ Los códigos de respuesta que más aparecen en este proyecto:
 | jsdom | Simula un navegador para las pruebas de Vitest |
 | Locust | Prueba de carga |
 | mutagen | Lee los datos de un MP3 para validarlo |
-| Nginx | Servidor web que el PRD contempla para el gateway. No se usa en esta rama |
+| Nginx | Servidor que entrega la SPA y reenvía las rutas públicas al servicio correspondiente |
 | Node.js, npm | Compilan la interfaz e instalan sus dependencias |
 | Playwright | Pruebas de navegador |
 | PostgreSQL | Base de datos |

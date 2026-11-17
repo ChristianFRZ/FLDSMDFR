@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import CurrentUser
 from app.core.errors import AppError
 from app.core.pagination import PageParams, page_body
-from app.modules.catalog.public import get_songs
+from app.core.catalog_client import get_songs
 from app.modules.playback.models import Playback, PlaybackCounter
 from app.modules.playback.schemas import PlaybackIn
 

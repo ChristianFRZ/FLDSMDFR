@@ -9,6 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.catalog.audit import enqueue
 from app.core.db import session_scope
 from app.core.errors import AppError
 from app.modules.catalog.jamendo import MAX_PAGE, JamendoClient, JamendoError, JamendoTrack
@@ -46,6 +47,8 @@ async def create_job(created_by: UUID | None, params: dict) -> UUID:
         job = ImportJob(params=params, created_by=created_by)
         session.add(job)
         await session.flush()
+        if created_by is not None:
+            enqueue(session, created_by, "catalog_import", "import_job", job.id, params)
         return job.id
 
 

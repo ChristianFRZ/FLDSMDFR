@@ -11,7 +11,8 @@ from app.core.pagination import PageParams, page_body, page_params
 from app.core.security import create_token, decode_token
 from app.modules.catalog import import_jobs, publishing, service, streaming
 from app.modules.catalog.schemas import HideIn, ImportIn, ImportJobOut
-from app.modules.users.public import get_auth_state, record_audit
+from app.modules.users.public import get_auth_state
+from app.modules.catalog.audit import deliver_pending
 
 router = APIRouter(prefix="/api")
 _bearer = HTTPBearer(auto_error=False)
@@ -86,7 +87,7 @@ async def stream(
 @router.post("/admin/catalog/import", status_code=202)
 async def start_import(data: ImportIn, user: CurrentUser = Depends(is_admin)):
     job_id = await import_jobs.create_job(user.id, data.model_dump())
-    await record_audit(user.id, "catalog_import", "import_job", str(job_id), data.model_dump())
+    await deliver_pending()
     import_jobs.spawn(import_jobs.run_import_job(job_id))
     return {"job_id": job_id}
 

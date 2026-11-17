@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import delete
 
 from app.core.db import session_scope
-from app.modules.catalog.public import get_songs
+from app.core.catalog_client import get_songs
 from app.modules.playlists.models import Playlist, PlaylistSong
 from app.modules.playlists.service import _cache
 

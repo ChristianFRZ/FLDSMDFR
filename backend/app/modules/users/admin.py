@@ -1,7 +1,8 @@
 """Administración de cuentas, solicitudes de Compositor y bitácora."""
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,18 +20,14 @@ async def write_audit(
     target_id: str,
     detail: dict | None = None,
     outcome: str = "ok",
+    event_id: UUID | None = None,
 ) -> None:
     async with session_scope() as session:
-        session.add(
-            AuditEntry(
-                actor_id=actor_id,
-                action=action,
-                target_type=target_type,
-                target_id=target_id,
-                detail=detail,
-                outcome=outcome,
-            )
+        statement = insert(AuditEntry).values(
+            id=event_id or uuid4(), actor_id=actor_id, action=action, target_type=target_type,
+            target_id=target_id, detail=detail, outcome=outcome,
         )
+        await session.execute(statement.on_conflict_do_nothing(index_elements=[AuditEntry.id]))
 
 
 async def _lock_active_admins(session: AsyncSession) -> list[UUID]:

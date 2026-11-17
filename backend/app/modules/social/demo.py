@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import delete
 
 from app.core.db import session_scope
-from app.modules.catalog.public import get_songs
+from app.core.catalog_client import get_songs
 from app.modules.social.models import Favorite, Follow, NoticeSeen, Tape, TapeMember, TapeTrack
 from app.modules.social.tapes import _cache
 

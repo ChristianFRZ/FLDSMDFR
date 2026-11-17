@@ -4,23 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-
-@dataclass(frozen=True)
-class SongSummary:
-    id: UUID
-    title: str
-    artist_id: UUID
-    artist: str
-    album: str | None
-    duration: float
-    cover_url: str | None
-    source: str
-    license: str
-    license_url: str | None
-    jamendo_url: str | None
-    genres: tuple[str, ...]
-    status: str
-    available: bool
+from app.core.catalog_contract import SongSummary
 
 
 @dataclass(frozen=True)

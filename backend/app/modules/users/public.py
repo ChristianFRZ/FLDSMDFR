@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 
+from app.core.internal import internal
 from app.core.db import session_scope
 from app.core.errors import AppError
 from app.modules.users import admin, service
@@ -27,12 +28,14 @@ class UserGrowthPoint:
     admin: int
 
 
+@internal("users")
 async def get_auth_state(user_id: UUID) -> AuthState | None:
     async with session_scope() as session:
         row = (await session.execute(select(User.id, User.role, User.status).where(User.id == user_id))).first()
     return AuthState(*row) if row else None
 
 
+@internal("users")
 async def get_display_names(ids: list[UUID]) -> dict[UUID, str]:
     if not ids:
         return {}
@@ -53,6 +56,7 @@ async def ensure_first_admin(email: str, password: str) -> None:
             return
 
 
+@internal("users")
 async def record_audit(
     actor_id: UUID | str | None,
     action: str,
@@ -60,11 +64,13 @@ async def record_audit(
     target_id: str,
     detail: dict | None = None,
     outcome: str = "ok",
+    event_id: UUID | None = None,
 ) -> None:
     actor = UUID(str(actor_id)) if actor_id else None
-    await admin.write_audit(actor, action, target_type, str(target_id), detail, outcome)
+    await admin.write_audit(actor, action, target_type, str(target_id), detail, outcome, event_id)
 
 
+@internal("users")
 async def user_growth(days: int) -> list[UserGrowthPoint]:
     """Usuarios acumulados por rol actual al final de cada día. Sin historial de cambios de rol."""
     today = datetime.now(UTC).date()

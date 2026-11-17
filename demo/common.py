@@ -3,7 +3,6 @@ import json
 import os
 import subprocess
 import sys
-import time
 import urllib.error
 import urllib.request
 import uuid
@@ -18,7 +17,6 @@ DOMAIN = "escenarios.meloxo.dev"
 PASSWORD = "escenario-" + uuid.uuid4().hex
 COMPOSE = ["docker", "compose"]
 OVERLAY = [*COMPOSE, "-f", "compose.yaml", "-f", "compose.demo.yaml"]
-START_SECONDS = 60
 
 
 class Failure(Exception):
@@ -139,7 +137,7 @@ def published_songs(api: Api, count: int, source: str | None = None) -> list[dic
 
 
 def sql(query: str) -> str:
-    command = [*COMPOSE, "exec", "-T", "postgres", "psql", "-U", "meloxo", "-d", "meloxo", "-Atc", query]
+    command = [*COMPOSE, "exec", "-T", "postgres", "psql", "-U", "meloxo", "-d", "catalog", "-Atc", query]
     return subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
 
 
@@ -147,35 +145,12 @@ def compose(command: list[str], *args: str) -> str:
     return subprocess.run([*command, *args], cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
 
 
-def wait_up(base: str) -> None:
-    limit = time.monotonic() + START_SECONDS
-    while time.monotonic() < limit:
-        try:
-            if Api(base=base).send("GET", "/api/openapi.json", None, {})[0] == 200:
-                return
-        except OSError:
-            pass
-        time.sleep(0.5)
-    raise Failure(f"{base} no arrancó en {START_SECONDS} s")
-
-
-def replica_urls(replicas: int) -> list[str]:
-    urls = []
-    for index in range(1, replicas + 1):
-        address = compose(OVERLAY, "port", "--index", str(index), "app", "8080")
-        urls.append(f"http://localhost:{address.rsplit(':', 1)[1]}")
-    return urls
-
-
 @contextmanager
-def demo_stack(replicas: int = 1) -> Iterator[list[str]]:
-    """Levanta la app con el overlay y, pase lo que pase, la devuelve a su estado normal en el 8080."""
+def demo_stack(replicas: int = 1) -> Iterator[None]:
+    """Recrea solo catálogo. La URL pública y los datos se conservan."""
+    service = "catalog-streaming-service"
     try:
-        compose(OVERLAY, "up", "-d", "--no-build", "--scale", f"app={replicas}", "app")
-        urls = replica_urls(replicas)
-        for url in urls:
-            wait_up(url)
-        yield urls
+        compose(OVERLAY, "up", "-d", "--no-deps", "--wait", "--no-build", "--scale", f"{service}={replicas}", service)
+        yield
     finally:
-        compose(COMPOSE, "up", "-d", "--no-build", "--scale", "app=1", "app")
-        wait_up(BASE_URL)
+        compose(COMPOSE, "up", "-d", "--no-deps", "--wait", "--no-build", "--scale", f"{service}=1", service)

@@ -99,3 +99,10 @@ class PublishedEvent(Base):
 
     song_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class PendingAudit(Base):
+    __tablename__ = "catalog_pending_audit"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    payload: Mapped[dict] = mapped_column(JSONB)

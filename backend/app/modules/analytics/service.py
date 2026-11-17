@@ -1,15 +1,16 @@
 """Consultas de las gráficas. Los datos del Compositor son agregados: nunca llevan identidades."""
 import platform
-import shutil
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import extract, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import AppError
 from app.core.config import get_settings
 from app.modules.analytics.models import PlaysHourly, RequestMetric, UserPlays
-from app.modules.catalog.public import get_artists, get_songs
+from app.core.catalog_client import get_songs
+from app.modules.catalog.public import get_artists, media_usage
 
 UNAVAILABLE = "No disponible"
 STARTED_AT = datetime.now(UTC)
@@ -96,14 +97,6 @@ def uptime_seconds() -> int:
     return int((datetime.now(UTC) - STARTED_AT).total_seconds())
 
 
-def _disk() -> dict | None:
-    try:
-        usage = shutil.disk_usage(get_settings().MEDIA_DIR)
-    except OSError:
-        return None
-    return {"used_bytes": usage.used, "total_bytes": usage.total}
-
-
 async def system_status(session: AsyncSession) -> dict:
     database = (
         await session.execute(
@@ -117,8 +110,12 @@ async def system_status(session: AsyncSession) -> dict:
             )
         )
     ).one()
+    try:
+        disk = await media_usage()
+    except AppError:
+        disk = None
     return {
-        "disk": _disk(),
+        "disk": disk,
         "database": {
             "size_bytes": database.size_bytes,
             "connections": database.connections,

@@ -27,19 +27,19 @@ def scenario() -> None:
     songs = [upload_track(composer, f"Escenario 8, pista {n}", later)["id"] for n in range(TRACKS)]
     ids = ",".join(f"'{song}'" for song in songs)
     try:
-        # Con la app apagada vencen todas a la vez, y las dos réplicas las encuentran al arrancar.
-        compose(COMPOSE, "stop", "app")
+        # Con catálogo apagado vencen todas a la vez, y las dos réplicas las encuentran al arrancar.
+        compose(COMPOSE, "stop", "catalog-streaming-service")
         sql(f"update songs set publish_at = now() - interval '1 minute' where id in ({ids})")
 
-        with demo_stack(replicas=2) as urls:
-            check(len(urls) == 2, f"dos réplicas responden: {', '.join(urls)}")
+        with demo_stack(replicas=2):
+            check(len(compose(COMPOSE, "ps", "-q", "catalog-streaming-service").splitlines()) == 2, "dos catálogos en ejecución")
             wait_published(ids)
             published = sql(f"select count(*) from songs where id in ({ids}) and status = 'published'")
             check(published == str(TRACKS), f"{published} de {TRACKS} pistas publicadas")
             events = sql(f"select count(*) from published_events where song_id in ({ids})")
             check(events == str(TRACKS), f"{events} eventos track_published, uno por pista")
 
-            notices = follower.at(urls[1]).ok("GET", "/api/notices")["items"]
+            notices = follower.ok("GET", "/api/notices")["items"]
             announced = [n["song"]["id"] for n in notices if n["type"] == "release"]
             check(sorted(announced) == sorted(songs), f"el seguidor recibió {len(announced)} avisos, uno por pista")
     finally:

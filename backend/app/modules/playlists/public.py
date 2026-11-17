@@ -3,11 +3,13 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 
+from app.core.internal import internal
 from app.core.db import session_scope
 from app.modules.playlists.models import PlaylistSong
 from app.modules.playlists.demo import DemoPlaylist, clear_demo_playlists, insert_demo_playlists  # noqa: F401
 
 
+@internal("users")
 async def count_inclusions(song_ids: list[UUID]) -> int:
     """Cuántas playlists incluyen alguna de estas pistas. Solo un conteo, sin identidades."""
     if not song_ids:

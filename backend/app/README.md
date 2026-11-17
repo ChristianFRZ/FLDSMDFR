@@ -1,8 +1,8 @@
 # Aplicación
 
-[`main.py`](main.py) crea la app, registra las rutas y arranca las tareas periódicas. [`core/`](core/README.md) reúne lo que comparten todos los módulos, y cada carpeta de [`modules/`](modules/README.md) es dueña de sus tablas.
+Compose arranca [Usuarios](users_main.py), [Catálogo](catalog_main.py) y [Métricas](playback_main.py). [El monolito](main.py) sigue disponible para pruebas. [`core/`](core/README.md) reúne lo que comparten todos los módulos, y cada carpeta de [`modules/`](modules/README.md) es dueña de sus tablas.
 
-**Regla de frontera:** un módulo solo puede importar de otro a través de su `public.py`. Ese archivo trabaja con tipos simples y abre su propia sesión de base de datos. Si alguien rompe la regla, [`test_boundaries.py`](../tests/test_boundaries.py) hace fallar las pruebas. En la rama 02, esas funciones públicas se convierten en llamadas HTTP.
+**Regla de frontera:** un módulo solo puede importar de otro a través de su `public.py`. Ese archivo trabaja con tipos simples y abre su propia sesión de base de datos. Si alguien rompe la regla, [`test_boundaries.py`](../tests/test_boundaries.py) hace fallar las pruebas. Las operaciones que cruzan entre procesos usan HTTP.
 
 ## Qué hay en un módulo
 
@@ -19,7 +19,7 @@ No todos los módulos tienen todos los archivos, pero cuando un archivo existe, 
 
 ## Tareas periódicas
 
-Corren dentro del mismo proceso, y la variable `DISABLE_SCHEDULER` las apaga. Toda tarea nueva debe funcionar bien con dos procesos a la vez, porque en la rama 03 habrá réplicas.
+En Compose, Catálogo ejecuta publicación, refresco y entrega de auditoría; Métricas mantiene los agregados. Cada proceso envía sus mediciones de latencia. La variable `DISABLE_SCHEDULER` las apaga. Toda tarea nueva debe funcionar bien con dos procesos a la vez, porque en la rama 03 habrá réplicas.
 
 | Tarea | Frecuencia | Módulo |
 | --- | --- | --- |

@@ -1,5 +1,9 @@
 """Catálogo real de Jamendo. Reutiliza el trabajo de importación del Administrador."""
 from app.modules.catalog.public import demo_import_done, import_demo_catalog
+from seed.targets import in_database
+
+demo_import_done = in_database("CATALOG_DATABASE_URL", demo_import_done)
+import_demo_catalog = in_database("CATALOG_DATABASE_URL", import_demo_catalog)
 
 
 async def import_catalog(sizes) -> str:

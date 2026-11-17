@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from app.core.db import session_scope
 from app.modules.analytics.models import AggCursor, PlaysHourly, UserPlays
-from app.modules.catalog.public import get_songs
+from app.core.catalog_client import get_songs
 from app.modules.playback.public import PlaybackEvent, events_since
 
 BATCH = 2000

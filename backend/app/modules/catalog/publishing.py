@@ -12,7 +12,7 @@ from app.core.pagination import PageParams
 from app.modules.catalog.models import Artist, PublishedEvent, Song
 from app.modules.catalog.schemas import SongSummary
 from app.modules.catalog.service import to_summary
-from app.modules.users.public import record_audit
+from app.modules.catalog.audit import enqueue, deliver_pending
 
 
 async def record_published(session: AsyncSession, song_id: UUID) -> None:
@@ -53,8 +53,9 @@ async def hide_song(session: AsyncSession, actor_id: UUID, song_id: UUID, reason
     song.status = "hidden"
     song.hidden_reason = reason
     song.hidden_by_admin = True
+    enqueue(session, actor_id, "hide_song", "song", str(song_id), {"reason": reason})
     await session.commit()
-    await record_audit(actor_id, "hide_song", "song", str(song_id), {"reason": reason})
+    await deliver_pending()
     return to_summary(song)
 
 
@@ -67,8 +68,9 @@ async def restore_song(session: AsyncSession, actor_id: UUID, song_id: UUID) -> 
     song.status_before_hide = None
     song.hidden_reason = None
     song.hidden_by_admin = False
+    enqueue(session, actor_id, "restore_song", "song", str(song_id))
     await session.commit()
-    await record_audit(actor_id, "restore_song", "song", str(song_id))
+    await deliver_pending()
     return to_summary(song)
 
 

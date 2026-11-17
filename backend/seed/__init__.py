@@ -15,6 +15,16 @@ from seed.activity import create_activity, create_catalog
 from seed.audio import remove_tones
 from seed.catalog import import_catalog
 from seed.users import create_users
+from seed.targets import in_database
+
+catch_up_aggregates = in_database("PLAYBACK_DATABASE_URL", catch_up_aggregates)
+rebuild_aggregates = in_database("PLAYBACK_DATABASE_URL", rebuild_aggregates)
+clear_demo_catalog = in_database("CATALOG_DATABASE_URL", clear_demo_catalog)
+clear_demo_playbacks = in_database("PLAYBACK_DATABASE_URL", clear_demo_playbacks)
+clear_demo_playlists = in_database("USERS_DATABASE_URL", clear_demo_playlists)
+clear_demo_social = in_database("USERS_DATABASE_URL", clear_demo_social)
+clear_demo_users = in_database("USERS_DATABASE_URL", clear_demo_users)
+demo_user_ids = in_database("USERS_DATABASE_URL", demo_user_ids)
 
 RANDOM_SEED = 2026
 

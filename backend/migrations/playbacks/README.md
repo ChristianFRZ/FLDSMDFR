@@ -1,0 +1,3 @@
+# Migraciones de playbacks
+
+La revisión inicial reutiliza las revisiones históricas del dominio. Las revisiones nuevas de esta base van en esta carpeta.

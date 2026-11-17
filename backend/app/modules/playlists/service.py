@@ -8,8 +8,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import CurrentUser
+from app.core.catalog_client import get_songs
 from app.core.errors import AppError
-from app.modules.catalog.public import get_songs
 from app.modules.playlists.models import Playlist, PlaylistSong
 from app.modules.playlists.schemas import PlaylistIn, PlaylistOut, PlaylistPatch
 
@@ -62,6 +62,7 @@ def _cache(summary) -> dict:
 async def add_song(session: AsyncSession, user: CurrentUser, playlist_id: UUID, song_id: UUID) -> bool:
     """Devuelve True si la agregó, False si ya estaba."""
     await _load_owned(session, user, playlist_id)
+    await session.commit()  # Libera la conexión durante la consulta HTTP.
     try:
         songs = await get_songs([song_id])
     except Exception as exc:

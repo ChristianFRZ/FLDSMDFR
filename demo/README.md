@@ -10,7 +10,7 @@ Necesitas la app en marcha con la semilla cargada, y un `.env` con `ADMIN_EMAIL`
 
 ```bash
 docker compose up -d --build
-docker compose exec app python -m seed all
+docker compose run --rm seed all
 ```
 
 ## Escenarios
@@ -34,10 +34,10 @@ for f in demo/scenario_*.py; do python3 "$f" || break; done
 
 ### Lo que hay que saber
 
-- **Los escenarios 3 y 8 recrean el contenedor `app`.** Lo devuelven a su estado normal en el puerto 8080 aunque fallen, pero no los corras mientras alguien usa la app.
+- **Los escenarios 3 y 8 recrean el servicio de catálogo.** Lo devuelven a una instancia aunque fallen, pero no los corras mientras alguien usa la app.
 - **Cortar Jamendo requiere dos cambios.** `JAMENDO_API_URL` solo cubre la API. El audio sale directo de `prod-1.storage.jamendo.com`, por eso el overlay también apunta ese host a una dirección que no responde.
 - **El escenario 6 suspende a los demás administradores** para quedar como único activo, y los reactiva al terminar.
-- **El escenario 8 vence las pistas con SQL**, con la app apagada, porque la API rechaza fechas pasadas. Así, las dos réplicas las encuentran al arrancar. Comprueba el resultado, pero no garantiza que ambas hayan consultado en el mismo instante.
+- **El escenario 8 vence las pistas con SQL**, con catálogo apagado, porque la API rechaza fechas pasadas. Así, las dos réplicas las encuentran al arrancar. Comprueba el resultado, pero no garantiza que ambas hayan consultado en el mismo instante.
 - **Quedan usuarios en la base de datos.** Las cuentas `*@escenarios.meloxo.dev` no tienen `is_demo`, así que `seed clear` no las borra. Las pistas que crean los escenarios sí se eliminan al terminar.
 
 ## Prueba de carga

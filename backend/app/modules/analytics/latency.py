@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 from sqlalchemy.dialects.postgresql import insert
 
+from app.core.internal import internal
 from app.core.db import session_scope
 from app.modules.analytics.models import RequestMetric
 
@@ -70,31 +71,31 @@ async def flush_latency(include_current: bool = False) -> None:
     keys = [k for k in buffer if include_current or k[0] < current]
     if not keys:
         return
+    for key in keys:
+        bucket = buffer.pop(key)
+        ordered = sorted(bucket.times)
+        await store_latency(key[0], key[1], len(ordered), bucket.errors,
+                            _percentile(ordered, 0.5), _percentile(ordered, 0.95))
+
+
+@internal("playback")
+async def store_latency(minute: datetime, module: str, count: int, errors: int, p50: float, p95: float) -> None:
     async with session_scope() as session:
-        for key in keys:
-            bucket = buffer.pop(key)
-            ordered = sorted(bucket.times)
-            statement = insert(RequestMetric).values(
-                minute=key[0],
-                module=key[1],
-                count=len(ordered),
-                errors=bucket.errors,
-                p50_ms=_percentile(ordered, 0.5),
-                p95_ms=_percentile(ordered, 0.95),
+        statement = insert(RequestMetric).values(minute=minute, module=module, count=count,
+                                                errors=errors, p50_ms=p50, p95_ms=p95)
+        new, old = statement.excluded, RequestMetric
+        total = old.count + new.count
+        await session.execute(
+            statement.on_conflict_do_update(
+                index_elements=[RequestMetric.minute, RequestMetric.module],
+                set_={
+                    "count": total,
+                    "errors": old.errors + new.errors,
+                    "p50_ms": (old.p50_ms * old.count + new.p50_ms * new.count) / total,
+                    "p95_ms": (old.p95_ms * old.count + new.p95_ms * new.count) / total,
+                },
             )
-            new, old = statement.excluded, RequestMetric
-            total = old.count + new.count
-            await session.execute(
-                statement.on_conflict_do_update(
-                    index_elements=[RequestMetric.minute, RequestMetric.module],
-                    set_={
-                        "count": total,
-                        "errors": old.errors + new.errors,
-                        "p50_ms": (old.p50_ms * old.count + new.p50_ms * new.count) / total,
-                        "p95_ms": (old.p95_ms * old.count + new.p95_ms * new.count) / total,
-                    },
-                )
-            )
+        )
 
 
 class LatencyMiddleware:
