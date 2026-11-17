@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE, extra="ignore")
 
     SERVICE_NAME: str = "monolith"
+    REDIS_URL: str = ""
     DATABASE_URL: str
     JWT_SECRET: str
     CATALOG_SERVICE_URL: str = ""

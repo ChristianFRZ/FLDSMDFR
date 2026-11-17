@@ -9,6 +9,8 @@ from app.core.service_app import service_app
 from app.modules.users.public import ensure_first_admin
 from app.modules.users.routes import router as users
 from app.modules.playlists import public as playlist_contracts
+from app.modules.playback.queue import close_queue
+from app.modules.playback.ingress import router as playback_ingress
 from app.modules.playlists.routes import router as playlists
 from app.modules.social import public as social_contracts
 from app.modules.social.routes import router as social
@@ -21,7 +23,7 @@ async def bootstrap_admin():
         await ensure_first_admin(settings.ADMIN_EMAIL, settings.ADMIN_PASSWORD)
 
 
-app = service_app("users", (users, playlists, social, tapes), startup=bootstrap_admin)
+app = service_app("users", (users, playlists, social, tapes, playback_ingress), startup=bootstrap_admin, shutdown=close_queue)
 
 
 @app.get("/internal/gateway/authorize", include_in_schema=False)

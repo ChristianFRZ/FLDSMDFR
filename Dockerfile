@@ -27,6 +27,8 @@ FROM backend AS schema
 RUN DATABASE_URL=unused JWT_SECRET=build python -c "import json; from app.main import app; print(json.dumps(app.openapi()))" > /tmp/openapi.json
 
 FROM nginx:alpine AS entry
+RUN sed -i '1i load_module modules/ngx_http_js_module.so;' /etc/nginx/nginx.conf
+COPY gateway.js /etc/nginx/gateway.js
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=web /web/dist /usr/share/nginx/html
 COPY --from=schema /tmp/openapi.json /usr/share/nginx/html/openapi.json

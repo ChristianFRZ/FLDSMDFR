@@ -2,7 +2,7 @@
 
 Escenarios reproducibles del [PRD](../docs/prd.md#14-pruebas-y-demo-de-fallas) y prueba de carga. Cada escenario corre contra `http://localhost:8080`, imprime `PASA` o `FALLA` y, si falla, termina con un código de error.
 
-El número de cada archivo es el del escenario en la sección 14 del PRD. El escenario 1 queda para la etapa 04. El 9 es la [prueba de carga](#prueba-de-carga).
+El número de cada archivo es el del escenario en la sección 14 del PRD. El 9 es la [prueba de carga](#prueba-de-carga).
 
 ## Antes de empezar
 
@@ -23,6 +23,7 @@ for f in demo/scenario_*.py; do python3 "$f" || break; done
 
 | Archivo | Qué comprueba |
 | --- | --- |
+| [`scenario_1_playback_down.py`](scenario_1_playback_down.py) | Con una pista local publicada, apaga Métricas, envía un evento dos veces, comprueba audio por rangos y verifica una escucha al recuperarse |
 | [`scenario_2_catalog_failover.py`](scenario_2_catalog_failover.py) | Detiene una réplica durante 40 consultas, comprueba F2.4 y restablece el servicio |
 | [`scenario_3_jamendo_down.py`](scenario_3_jamendo_down.py) | Con Jamendo cortado, las pistas locales y los metadatos guardados siguen disponibles, y el audio de Jamendo da `503 jamendo_unavailable` |
 | [`scenario_4_idempotency.py`](scenario_4_idempotency.py) | 100 envíos del mismo `playback_id` cuentan una reproducción y suman 99 a `duplicates_discarded` |

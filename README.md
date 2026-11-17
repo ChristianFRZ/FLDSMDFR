@@ -4,7 +4,11 @@ Tu Casetera de Confianza. MELOXO es un servicio de streaming musical que gira al
 
 Es el proyecto de la materia de Sistemas Distribuidos del equipo FLDSMDFR: Christian Franco Ramírez, Miriam Amisadai López Hernández, Erick Nava Santiago y Brent Armando Pérez Paitán.
 
-En la etapa 03, Nginx sirve el panel y la API en `localhost:8080`. Antes de reenviar una petición protegida, consulta a Usuarios para validar el JWT y el rol vigente. Catálogo tiene dos réplicas con una base y un volumen de medios compartidos. Nginx descubre sus direcciones por DNS, reparte las consultas por turnos y prueba otra réplica ante un fallo de conexión. El audio con ticket se valida en Catálogo.
+En la etapa 04, Nginx sirve el panel y la API en `localhost:8080`. Antes de reenviar una petición protegida, consulta a Usuarios para validar el JWT y el rol vigente. Catálogo tiene dos réplicas con una base y un volumen de medios compartidos. Nginx descubre sus direcciones por DNS, reparte las consultas por turnos y prueba otra réplica ante un fallo de conexión. El audio con ticket se valida en Catálogo.
+
+Cuando Métricas está disponible, una reproducción nueva recibe `201` y un duplicado recibe `200`. Si Métricas tarda más de 1.5 s o falla, Usuarios acepta el evento autenticado en Redis Streams y responde `202`. Redis persiste la cola en el volumen `redisdata`. Al volver, Métricas confirma cada mensaje después de guardar la escucha y el identificador de entrega en la misma transacción. Si falla también Redis, el navegador conserva el evento y reintenta.
+
+El gateway, las consultas de metadatos, el envío de reproducciones y el proxy de audio de Jamendo tienen circuitos por dependencia. Tras cinco fallos en 30 s se abre el circuito y a los 15 s una solicitud comprueba la recuperación. Las consultas de metadatos reintentan con esperas de 200 y 400 ms antes de recurrir a la copia de la playlist.
 
 Para iniciar, configura `.env` y ejecuta `docker compose up -d --build --wait`. En una instalación anterior al corte de bases, sigue primero la [guía de migración](docs/02-separacion.md). Para comprobar F2.4 en un entorno de prueba, ejecuta `python3 demo/scenario_2_catalog_failover.py`.
 
@@ -205,7 +209,7 @@ Verificado el 2026-11-06 sobre una imagen reconstruida: 410 pruebas de backend, 
 | F2.5 Jamendo caído | Cumple | [Escenario 3](demo/scenario_3_jamendo_down.py) |
 | F3.1 Evento a los 10 s | Cumple | [`usePlaybackReporter.test.ts`](frontend/src/player/usePlaybackReporter.test.ts) |
 | F3.2 `playback_id` idempotente | Cumple | [Escenario 4](demo/scenario_4_idempotency.py) |
-| F3.3 Métricas caídas sin cortar el audio | Parcial | El navegador reintenta. La cola real llega en la rama 04 |
+| F3.3 Métricas caídas sin cortar el audio | Cumple | [Caída y recuperación con Redis Streams](demo/scenario_1_playback_down.py) |
 | F3.4 Evento visible en ≤ 5 s | Cumple | 1.1 s y 2.8 s en dos mediciones |
 | F4.1 Límites de casete | Cumple | [`test_tapes.py`](backend/tests/modules/social/test_tapes.py) |
 | F4.2 Enlaces de invitación | Cumple | [`test_invites.py`](backend/tests/modules/social/test_invites.py) |
@@ -229,9 +233,9 @@ Verificado el 2026-11-06 sobre una imagen reconstruida: 410 pruebas de backend, 
 | F7.3 Aviso si no hay métricas | Cumple | [`ChartCard.test.tsx`](frontend/src/charts/ChartCard.test.tsx) |
 | F7.4 Exportar a CSV y PNG | Cumple | [`export.test.ts`](frontend/src/charts/export.test.ts) |
 
-De los escenarios del PRD, el 2 verifica la caída de una réplica y el 1 queda para la etapa 04. El 9 es la [prueba de carga](demo/README.md#prueba-de-carga). El escenario 8 comprueba el resultado con dos réplicas reales, pero la concurrencia exacta se verifica en [`test_publishing.py`](backend/tests/modules/catalog/test_publishing.py).
+De los escenarios del PRD, el 1 verifica la recuperación de las reproducciones y el 2 la caída de una réplica. El 9 es la [prueba de carga](demo/README.md#prueba-de-carga). El escenario 8 comprueba el resultado con dos réplicas reales, pero la concurrencia exacta se verifica en [`test_publishing.py`](backend/tests/modules/catalog/test_publishing.py).
 
-## Lo que sigue
+## Etapas del proyecto
 
 - `02-separacion`: servicios en Docker sobre una red interna.
 - `03-gateway-balanceo`: gateway, JWT y roles en el borde, y réplicas de catálogo. Trae el criterio F2.4.
@@ -303,7 +307,7 @@ Los términos que aparecen en el código y en la documentación, agrupados por t
 | Proxy | Intermediario. El backend pide el audio a Jamendo y lo pasa al navegador sin guardarlo |
 | Punto único de falla | Pieza que, si cae, tira todo el sistema. Es el problema que motiva separar en servicios |
 | Réplica | Otra copia del mismo servicio corriendo a la vez |
-| Revocación | Invalidar un acceso antes de que venza. Hoy se revisa en la base de datos; en la rama 03 pasa a Redis |
+| Revocación | Invalidar un acceso antes de que venza. Usuarios revisa el estado y el rol vigentes en su base |
 | Servicio | Programa independiente con su propia responsabilidad y sus datos. Es en lo que se convierten los módulos |
 | Timeout | Tiempo máximo que se espera una respuesta antes de darla por fallida |
 
@@ -415,8 +419,8 @@ Los códigos de respuesta que más aparecen en este proyecto:
 | python-multipart | Lee las subidas de archivos en FastAPI |
 | React | Biblioteca de la interfaz |
 | React Router | Rutas de la interfaz |
-| Redis | Almacén en memoria para eventos y revocación. Llega en las ramas 03 y 04 |
-| Redis Streams | La cola de eventos de Redis. Llega en la rama 04 |
+| Redis | Almacén de la cola persistente de reproducciones |
+| Redis Streams | Cola de eventos que Métricas consume al recuperarse |
 | respx | Simula las respuestas de Jamendo en las pruebas |
 | SQLAlchemy | ORM del backend |
 | TanStack Query | Pide datos a la API y los mantiene en caché en la interfaz |

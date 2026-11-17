@@ -12,6 +12,7 @@ import httpx
 from fastapi.responses import RedirectResponse, Response, StreamingResponse
 from sqlalchemy import update
 
+from app.core.breaker import CircuitBreaker
 from app.core.config import get_settings
 from app.core.db import session_scope
 from app.core.errors import AppError
@@ -113,7 +114,15 @@ class _ExpiredUrl(Exception):
     pass
 
 
+_breaker = CircuitBreaker()
+
+
 async def _open_upstream(url: str, range_header: str | None) -> httpx.Response:
+    with _breaker.request(_unavailable):
+        return await _try_upstream(url, range_header)
+
+
+async def _try_upstream(url: str, range_header: str | None) -> httpx.Response:
     client = _http_client()
     request_headers = {"Range": range_header} if range_header else {}
     for attempt in range(JAMENDO_ATTEMPTS):

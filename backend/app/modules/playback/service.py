@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,10 +14,14 @@ from app.modules.playback.schemas import PlaybackIn
 DUPLICATES = "duplicates_discarded"
 
 
-async def record(session: AsyncSession, user: CurrentUser, data: PlaybackIn) -> bool:
+async def record(session: AsyncSession, user: CurrentUser, data: PlaybackIn, delivery_id: UUID | None = None) -> bool:
     """Devuelve True si es una reproducción nueva, False si era un reenvío."""
     if data.song_id not in await get_songs([data.song_id]):
         raise AppError(404, "song_not_found", "Canción no encontrada")
+    if delivery_id is not None:
+        receipt = text("INSERT INTO playback_deliveries (id) VALUES (:id) ON CONFLICT DO NOTHING RETURNING id")
+        if await session.scalar(receipt, {"id": delivery_id}) is None:
+            return False
     statement = (
         insert(Playback)
         .values(

@@ -17,7 +17,7 @@ x-common: &common
   CATALOG_INTERNAL_TOKEN: ${CATALOG_INTERNAL_TOKEN:?Configura la credencial interna}
   CATALOG_TIMEOUT_SECONDS: ${CATALOG_TIMEOUT_SECONDS:-1.5}
   DISABLE_SCHEDULER: ${DISABLE_SCHEDULER:-false}
-  APP_VERSION: ${APP_VERSION:-03-gateway-balanceo}
+  APP_VERSION: ${APP_VERSION:-04-resiliencia-concurrencia}
 
 x-users-url: &users-url postgresql+asyncpg://users_playlists:${USERS_DB_PASSWORD:?Configura USERS_DB_PASSWORD}@postgres:5432/users_playlists
 x-catalog-url: &catalog-url postgresql+asyncpg://catalog:${CATALOG_DB_PASSWORD:?Configura CATALOG_DB_PASSWORD}@postgres:5432/catalog
@@ -32,6 +32,16 @@ x-catalog-settings: &catalog-settings
   UPLOAD_MAX_MINUTES: ${UPLOAD_MAX_MINUTES:-10}
 
 services:
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "always"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+
   postgres:
     image: postgres:16
     environment:
@@ -68,6 +78,7 @@ services:
     environment:
       <<: *common
       SERVICE_NAME: users
+      REDIS_URL: redis://redis:6379/0
       DATABASE_URL: *users-url
       CATALOG_SERVICE_URL: http://catalog-streaming-service:8080
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
@@ -93,6 +104,7 @@ services:
     environment:
       <<: *common
       SERVICE_NAME: playback
+      REDIS_URL: redis://redis:6379/0
       DATABASE_URL: *playback-url
       CATALOG_SERVICE_URL: http://catalog-streaming-service:8080
 
@@ -130,5 +142,6 @@ services:
       - media:/media
 
 volumes:
+  redisdata:
   pgdata:
   media:

@@ -12,7 +12,7 @@ from app.core.scheduler import periodic
 from app.modules.analytics.latency import LatencyMiddleware, flush_latency
 
 
-def service_app(owner, public_routers, jobs=(), startup=None):
+def service_app(owner, public_routers, jobs=(), startup=None, shutdown=None):
     @asynccontextmanager
     async def lifespan(app):
         if startup:
@@ -28,6 +28,8 @@ def service_app(owner, public_routers, jobs=(), startup=None):
             for task in tasks:
                 task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+            if shutdown:
+                await shutdown()
             await get_engine().dispose()
 
     app = FastAPI(title=f"MELOXO · {owner}", lifespan=lifespan, docs_url="/api/docs", openapi_url="/api/openapi.json")
