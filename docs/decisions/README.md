@@ -5,3 +5,4 @@ Hay un archivo por rama con lo que se resolvió durante la construcción y no es
 | Archivo | Rama |
 | --- | --- |
 | [`01-monolito.md`](01-monolito.md) | `01-monolito` |
+| [`02-separacion.md`](02-separacion.md) | `02-separacion` |

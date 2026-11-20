@@ -3,6 +3,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -17,10 +18,16 @@ DOMAIN = "escenarios.meloxo.dev"
 PASSWORD = "escenario-" + uuid.uuid4().hex
 COMPOSE = ["docker", "compose"]
 OVERLAY = [*COMPOSE, "-f", "compose.yaml", "-f", "compose.demo.yaml"]
+START_SECONDS = 60
+SERVICE = "catalog-streaming"
 
 
 class Failure(Exception):
     """Lo que el escenario esperaba no ocurrió."""
+
+
+class Precondition(Exception):
+    """Falta algo que el escenario no crea por sí mismo (datos sembrados)."""
 
 
 def check(condition: object, message: str) -> None:
@@ -34,6 +41,9 @@ def run(name: str, scenario: Callable[[], None]) -> None:
     print(name)
     try:
         scenario()
+    except Precondition as exc:
+        print(f"PRECONDICIÓN NO CUMPLIDA: {exc}")
+        sys.exit(2)
     except Exception as exc:
         print(f"FALLA: {exc}")
         sys.exit(1)
@@ -51,10 +61,6 @@ class Api:
     def __init__(self, token: str | None = None, base: str = BASE_URL):
         self.token = token
         self.base = base
-
-    def at(self, base: str) -> "Api":
-        """El mismo usuario contra otra réplica."""
-        return Api(self.token, base)
 
     def send(self, method: str, path: str, data: bytes | None, headers: dict) -> tuple[int, bytes]:
         if self.token:
@@ -136,8 +142,9 @@ def published_songs(api: Api, count: int, source: str | None = None) -> list[dic
     return items[:count]
 
 
-def sql(query: str) -> str:
-    command = [*COMPOSE, "exec", "-T", "postgres", "psql", "-U", "meloxo", "-d", "catalog", "-Atc", query]
+def sql(query: str, database: str = "catalog") -> str:
+    """Consulta una de las bases (users_playlists, catalog, playbacks) con el superusuario."""
+    command = [*COMPOSE, "exec", "-T", "postgres", "psql", "-U", "meloxo", "-d", database, "-Atc", query]
     return subprocess.run(command, cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
 
 
@@ -145,12 +152,61 @@ def compose(command: list[str], *args: str) -> str:
     return subprocess.run([*command, *args], cwd=ROOT, check=True, capture_output=True, text=True).stdout.strip()
 
 
+def wait_up(base: str) -> None:
+    """Espera a una réplica de catalog-streaming, publicada directo en su puerto (sin pasar por nginx)."""
+    limit = time.monotonic() + START_SECONDS
+    while time.monotonic() < limit:
+        try:
+            if Api(base=base).send("GET", "/internal/health", None, {})[0] == 200:
+                return
+        except Exception:
+            pass
+        time.sleep(0.5)
+    raise Failure(f"{base} no arrancó en {START_SECONDS} s")
+
+
+def replica_urls(replicas: int) -> list[str]:
+    urls = []
+    for index in range(1, replicas + 1):
+        address = compose(OVERLAY, "port", "--index", str(index), SERVICE, "8002")
+        urls.append(f"http://localhost:{address.rsplit(':', 1)[1]}")
+    return urls
+
+
 @contextmanager
-def demo_stack(replicas: int = 1) -> Iterator[None]:
-    """Recrea solo catálogo. La URL pública y los datos se conservan."""
-    service = "catalog-streaming-service"
+def demo_stack(replicas: int = 1) -> Iterator[list[str]]:
+    """Levanta catalog-streaming con el overlay y, pase lo que pase, la devuelve a su estado normal en el 8080."""
     try:
-        compose(OVERLAY, "up", "-d", "--no-deps", "--wait", "--no-build", "--scale", f"{service}={replicas}", service)
-        yield
+        compose(OVERLAY, "up", "-d", "--no-build", "--scale", f"{SERVICE}={replicas}", SERVICE)
+        urls = replica_urls(replicas)
+        for url in urls:
+            wait_up(url)
+        yield urls
     finally:
-        compose(COMPOSE, "up", "-d", "--no-deps", "--wait", "--no-build", "--scale", f"{service}=1", service)
+        restore_catalog()
+
+
+def restore_catalog(run_compose: Callable[..., str] = compose, wait: Callable[[], None] | None = None) -> None:
+    """Deja catalog-streaming en una réplica, sin overlay y arriba. Nunca tapa un error anterior:
+    si falla durante otro error lo avisa por la salida y sigue; si no había error, lo propaga."""
+    in_error = sys.exc_info()[1] is not None
+    try:
+        run_compose(COMPOSE, "up", "-d", "--no-build", "--scale", f"{SERVICE}=1", SERVICE)
+        (wait or wait_edge)()
+    except Exception as exc:
+        if not in_error:
+            raise
+        print(f"AVISO: no se pudo restaurar {SERVICE}: {exc}", file=sys.stderr)
+
+
+def wait_edge() -> None:
+    """Espera a que el nginx de entrada vuelva a repartir tráfico a catalog-streaming por el 8080."""
+    limit = time.monotonic() + START_SECONDS
+    while time.monotonic() < limit:
+        try:
+            if Api().send("GET", "/api/songs?size=1", None, {})[0] == 401:  # sin token: llegó al servicio
+                return
+        except Exception:
+            pass
+        time.sleep(0.5)
+    raise Failure(f"{BASE_URL} no respondió en {START_SECONDS} s")
