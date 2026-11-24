@@ -1,133 +1,151 @@
 name: meloxo
 
-x-runtime: &runtime
-  image: ${COMPOSE_PROJECT_NAME:-meloxo}-backend
-  pull_policy: never
-  depends_on:
-    migrate:
-      condition: service_completed_successfully
-  healthcheck:
-    test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health', timeout=2).close()"]
-    interval: 5s
-    timeout: 3s
-    retries: 20
-
-x-common: &common
-  JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET}
-  CATALOG_INTERNAL_TOKEN: ${CATALOG_INTERNAL_TOKEN:?Configura la credencial interna}
-  CATALOG_TIMEOUT_SECONDS: ${CATALOG_TIMEOUT_SECONDS:-1.5}
-  DISABLE_SCHEDULER: ${DISABLE_SCHEDULER:-false}
-  APP_VERSION: ${APP_VERSION:-03-gateway-balanceo}
-
-x-users-url: &users-url postgresql+asyncpg://users_playlists:${USERS_DB_PASSWORD:?Configura USERS_DB_PASSWORD}@postgres:5432/users_playlists
-x-catalog-url: &catalog-url postgresql+asyncpg://catalog:${CATALOG_DB_PASSWORD:?Configura CATALOG_DB_PASSWORD}@postgres:5432/catalog
-x-playback-url: &playback-url postgresql+asyncpg://playbacks:${PLAYBACK_DB_PASSWORD:?Configura PLAYBACK_DB_PASSWORD}@postgres:5432/playbacks
-x-catalog-settings: &catalog-settings
-  JAMENDO_CLIENT_ID: ${JAMENDO_CLIENT_ID:-}
-  JAMENDO_API_URL: ${JAMENDO_API_URL:-https://api.jamendo.com/v3.0}
-  JAMENDO_AUDIO_MODE: ${JAMENDO_AUDIO_MODE:-proxy}
-  COMPOSER_MAX_TRACKS: ${COMPOSER_MAX_TRACKS:-20}
-  UPLOAD_MAX_MP3_MB: ${UPLOAD_MAX_MP3_MB:-15}
-  UPLOAD_MAX_COVER_MB: ${UPLOAD_MAX_COVER_MB:-2}
-  UPLOAD_MAX_MINUTES: ${UPLOAD_MAX_MINUTES:-10}
-
 services:
   postgres:
     image: postgres:16
     environment:
       POSTGRES_USER: meloxo
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
       POSTGRES_DB: meloxo
+      USERS_DB_PASSWORD: ${USERS_DB_PASSWORD:?Falta USERS_DB_PASSWORD en .env}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Falta CATALOG_DB_PASSWORD en .env}
+      PLAYBACKS_DB_PASSWORD: ${PLAYBACKS_DB_PASSWORD:?Falta PLAYBACKS_DB_PASSWORD en .env}
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U meloxo -d meloxo"]
       interval: 3s
       timeout: 3s
       retries: 20
 
-  migrate:
-    image: ${COMPOSE_PROJECT_NAME:-meloxo}-backend
-    build: {context: ., target: backend}
-    command: ["python", "-m", "app.bootstrap"]
+  users-playlists:
+    build:
+      context: .
+      dockerfile: services/users-playlists/Dockerfile
     environment:
-      JWT_SECRET: unused
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      USERS_DB_PASSWORD: ${USERS_DB_PASSWORD}
-      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD}
-      PLAYBACK_DB_PASSWORD: ${PLAYBACK_DB_PASSWORD}
+      DATABASE_URL: postgresql+asyncpg://users_playlists:${USERS_DB_PASSWORD:?Falta USERS_DB_PASSWORD en .env}@postgres:5432/users_playlists
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
+      CATALOG_URL: http://catalog-streaming:8002
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
 
-  users-playlists-service:
-    <<: *runtime
-    command: ["uvicorn", "app.users_main:app", "--host", "0.0.0.0", "--port", "8080"]
+  catalog-streaming:
+    build:
+      context: .
+      dockerfile: services/catalog-streaming/Dockerfile
     environment:
-      <<: *common
-      SERVICE_NAME: users
-      DATABASE_URL: *users-url
-      CATALOG_SERVICE_URL: http://catalog-streaming-service:8080
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
-      TAPE_MAX_TRACKS: ${TAPE_MAX_TRACKS:-12}
-      TAPE_MAX_MEMBERS: ${TAPE_MAX_MEMBERS:-8}
-
-  catalog-streaming-service:
-    <<: *runtime
+      DATABASE_URL: postgresql+asyncpg://catalog:${CATALOG_DB_PASSWORD:?Falta CATALOG_DB_PASSWORD en .env}@postgres:5432/catalog
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
+      USERS_URL: http://users-playlists:8001
+      JAMENDO_CLIENT_ID: ${JAMENDO_CLIENT_ID:-}
+      JAMENDO_AUDIO_MODE: ${JAMENDO_AUDIO_MODE:-proxy}
+      MEDIA_DIR: /media
     deploy:
       replicas: 2
-    command: ["uvicorn", "app.catalog_main:app", "--host", "0.0.0.0", "--port", "8080"]
-    environment:
-      <<: [*common, *catalog-settings]
-      SERVICE_NAME: catalog
-      DATABASE_URL: *catalog-url
     volumes:
       - media:/media
-
-  playback-metrics-service:
-    <<: *runtime
-    command: ["uvicorn", "app.playback_main:app", "--host", "0.0.0.0", "--port", "8080"]
-    environment:
-      <<: *common
-      SERVICE_NAME: playback
-      DATABASE_URL: *playback-url
-      CATALOG_SERVICE_URL: http://catalog-streaming-service:8080
-
-  app:
-    restart: always
-    build: {context: ., target: entry}
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/index.html"]
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8002/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  gateway-auth:
+    build:
+      context: .
+      dockerfile: services/gateway-auth/Dockerfile
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
+      USERS_URL: http://users-playlists:8001
+    restart: always
+    depends_on:
+      users-playlists:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8004/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  playback-metrics:
+    build:
+      context: .
+      dockerfile: services/playback-metrics/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://playbacks:${PLAYBACKS_DB_PASSWORD:?Falta PLAYBACKS_DB_PASSWORD en .env}@postgres:5432/playbacks
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
+      CATALOG_URL: http://catalog-streaming:8002
+      USERS_URL: http://users-playlists:8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8003/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  edge:
+    build:
+      context: .
+      dockerfile: edge/Dockerfile
+    ports:
+      - "8080:80"
+    restart: always
+    depends_on:
+      users-playlists:
+        condition: service_healthy
+      gateway-auth:
+        condition: service_healthy
+      catalog-streaming:
+        condition: service_healthy
+      playback-metrics:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/api/health"]
       interval: 5s
       timeout: 3s
-      retries: 20
-    ports:
-      - "8080:8080"
-    depends_on:
-      users-playlists-service: {condition: service_started}
-      catalog-streaming-service: {condition: service_started}
-      playback-metrics-service: {condition: service_started}
+      retries: 10
 
   seed:
-    <<: *runtime
     profiles: [tools]
-    entrypoint: ["python", "-m", "seed"]
-    command: ["all"]
-    healthcheck: {disable: true}
+    build:
+      context: .
+      dockerfile: seed/Dockerfile
     environment:
-      <<: [*common, *catalog-settings]
-      SERVICE_NAME: maintenance
-      DATABASE_URL: *users-url
-      USERS_DATABASE_URL: *users-url
-      CATALOG_DATABASE_URL: *catalog-url
-      PLAYBACK_DATABASE_URL: *playback-url
-      CATALOG_SERVICE_URL: http://catalog-streaming-service:8080
+      USERS_URL: http://users-playlists:8001
+      CATALOG_URL: http://catalog-streaming:8002
+      PLAYBACK_URL: http://playback-metrics:8003
+      MEDIA_DIR: /media
       DEMO_PASSWORD: ${DEMO_PASSWORD:-}
     volumes:
       - media:/media
+    depends_on:
+      users-playlists:
+        condition: service_healthy
+      catalog-streaming:
+        condition: service_healthy
+      playback-metrics:
+        condition: service_healthy
 
 volumes:
   pgdata:

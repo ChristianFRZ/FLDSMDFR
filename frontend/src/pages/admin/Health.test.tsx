@@ -13,7 +13,9 @@ vi.mock("../../charts/ChartCanvas", () => ({ ChartCanvas: () => <div data-testid
 const answers = {
   "/api/admin/health": {
     services: [
-      { name: "app", status: "up", uptime_seconds: 7200 },
+      { name: "users-playlists", status: "up", uptime_seconds: 7200 },
+      { name: "catalog-streaming", status: "down" },
+      { name: "servicio-nuevo", status: "up" },
       { name: "database", status: "up", ms: 4 },
       { name: "jamendo", status: "not_configured" },
       { name: "aggregates", status: "delayed", lag_seconds: 360 },
@@ -40,7 +42,10 @@ beforeEach(() => {
 
 test("resume el peor estado y da detalle de cada servicio", async () => {
   renderApp(<Health />);
-  expect(await screen.findByText("1 servicio con retraso")).toBeInTheDocument();
+  expect(await screen.findByText("1 servicio caído")).toBeInTheDocument();
+  expect(screen.getByText("Usuarios y playlists")).toBeInTheDocument();
+  expect(screen.getByText("Catálogo y streaming")).toBeInTheDocument();
+  expect(screen.getByText("servicio-nuevo")).toBeInTheDocument();
   expect(screen.getByText("En línea · activa hace 2 h")).toBeInTheDocument();
   expect(screen.getByText("En línea · responde en 4 ms")).toBeInTheDocument();
   expect(screen.getByText("Con retraso · 6 min sin actualizar")).toBeInTheDocument();
@@ -49,7 +54,7 @@ test("resume el peor estado y da detalle de cada servicio", async () => {
 
 test("una integración sin configurar no cuenta como problema", async () => {
   vi.mocked(api).mockImplementation(
-    routes({ ...answers, "/api/admin/health": { services: [{ name: "app", status: "up" }, { name: "jamendo", status: "not_configured" }] } }) as typeof api,
+    routes({ ...answers, "/api/admin/health": { services: [{ name: "playback-metrics", status: "up" }, { name: "jamendo", status: "not_configured" }] } }) as typeof api,
   );
   renderApp(<Health />);
   expect(await screen.findByText("Todo en orden")).toBeInTheDocument();

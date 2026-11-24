@@ -1,0 +1,10 @@
+[project]
+name = "meloxo-seed"
+version = "0.1.0"
+description = "MELOXO: semilla de demo por las rutas internas de los servicios"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = ["httpx>=0.27", "mutagen>=1.47"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.2", "pytest-asyncio>=0.24", "respx>=0.21"]
