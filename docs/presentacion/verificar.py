@@ -211,15 +211,21 @@ def test_textos_a1(pres):
 
 
 def test_textos_a2(pres):
+    n6 = {f.name: f for f in formas(pres.slides[5].shapes)}
+    for k in range(1, 6):
+        assert f"caja-servicio-{k}" in n6 and f"servicio-{k}" in n6, f"lámina 6: falta servicio-{k}"
+    for k in ["postgres", "redis-cache", "redis"]:
+        assert f"caja-{k}" in n6 and k in n6, f"lámina 6: falta {k}"
+    nombres = [n6[f"servicio-{k}"].text_frame.text.split("\n")[0] for k in range(1, 6)]
+    assert sorted(nombres) == ["catalog-streaming", "catalog-streaming", "gateway-auth", "playback-metrics", "users-playlists"]
+    assert n6["rotulo-auth"].text_frame.text == "auth_request"
+    assert "HTTP /internal" not in n6["rotulo-auth"].text_frame.text
+    assert n6["rotulo-internal"].text_frame.text == "HTTP /internal entre servicios"
     t6 = _textos(pres.slides[5])
-    for nombre in ["edge", "gateway-auth", "users-playlists", "playback-metrics", "postgres", "redis-cache",
-                   "HTTP /internal", "Redis Streams", "Python 3.12"]:
-        assert nombre in t6, f"lámina 6: falta {nombre!r}"
-    assert "redis" in t6.replace("redis-cache", ""), "lámina 6: falta redis"
-    cajas = [f for f in formas(pres.slides[5].shapes) if f.has_text_frame and f.text_frame.text.startswith("catalog-streaming")]
-    assert len(cajas) == 2, f"lámina 6: {len(cajas)} cajas catalog-streaming, se esperaban 2"
+    for c in ["Redis Streams", "Python 3.12", "FastAPI", "PostgreSQL 16", "React 18", "Docker Compose"]:
+        assert c in t6, f"lámina 6: falta {c!r}"
     t7 = _textos(pres.slides[6])
-    for c in ["12 / 26", "36 / 71", "31 / 55", "27 / 66"]:
+    for c in ["12 / 39", "36 / 71", "27 / 66", "9 / 20", "12 / 26", "31 / 55"]:
         assert c in t7, f"lámina 7: falta {c!r}"
     assert "0 / 293" in _textos(pres.slides[7]), "lámina 8: falta '0 / 293'"
     for n in range(6, 9):
