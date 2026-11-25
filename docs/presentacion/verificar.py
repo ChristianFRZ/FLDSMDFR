@@ -248,14 +248,14 @@ def test_textos_b1(pres):
     assert "1,5 s" in n10["nota-timeouts"].text_frame.text
     n11 = por_nombre(11)
     assert "202" in n11["cola-despues-cifra"].text_frame.text
-    assert "0 perdidas" in n11["cola-resultado"].text_frame.text
+    assert "3 de 3 aplicadas" in n11["cola-resultado"].text_frame.text
     assert "30 s" in n11["revocacion-antes-cifra"].text_frame.text
-    assert "0,04 s" in n11["revocacion-despues-cifra"].text_frame.text
+    assert "0,04 s" in n11["revocacion-despues-cifra"].text_frame.text and "401" in n11["revocacion-despues-texto"].text_frame.text
     n12 = por_nombre(12)
     for k in range(1, 5):
         assert f"caja-paso-{k}" in n12 and f"paso-{k}" in n12, f"lámina 12: falta paso-{k}"
     assert "5 intentos" in n12["dlq-texto"].text_frame.text
-    assert "132 publicados" in n12["resultado-cifra"].text_frame.text and "0 sin relevar" in n12["resultado-cifra"].text_frame.text
+    assert "132 relevados" in n12["resultado-cifra"].text_frame.text and "0 sin relevar" in n12["resultado-cifra"].text_frame.text
     t = {n: _textos(pres.slides[n - 1]) for n in (10, 11, 12)}
     for c in ["5 fallos", "30 s", "15 s"]:
         assert c in t[10], f"lámina 10: falta {c!r}"
