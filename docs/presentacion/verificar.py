@@ -12,7 +12,7 @@ from pptx.util import Emu
 MELOXO_PPTX = os.environ.get(
     "MELOXO_PPTX", os.path.join(os.path.dirname(os.path.abspath(__file__)), "meloxo.pptx")
 )
-ESPERADAS = 12
+ESPERADAS = 16
 
 FUENTES = {"Montserrat", "Roboto", "Caveat"}
 PALETA = {"141317", "201F25", "4A4852", "F4F1EA", "BDB9AF", "FF3D8B", "00D1BE", "FFD233", "4A5CFF"}
@@ -268,3 +268,45 @@ def test_textos_b1(pres):
         assert pista.text_frame.text.startswith(f"Lado B · {n:02d} — "), f"lámina {n}: pista"
         assert pista.text_frame.text.count("→") == 2, f"lámina {n}: la pista lleva 3 ideas"
     assert pres.slides[8].notes_slide.notes_text_frame.text.startswith("Gracias, Miriam")
+
+
+def test_textos_b2(pres):
+    def por_nombre(n):
+        return {f.name: f for f in formas(pres.slides[n - 1].shapes)}
+
+    t = {n: _textos(pres.slides[n - 1]) for n in (13, 14, 15, 16)}
+    for c in ["13 / 28", "38 / 70", "7,1", "31,6"]:
+        assert c in t[13], f"lámina 13: falta {c!r}"
+    for c in ["50 clientes", "0 fallos", "6 palabras", "5373", "5203"]:
+        assert c in t[14], f"lámina 14: falta {c!r}"
+    for c in ["saga", "MongoDB", "track_hidden", "sala sincronizada"]:
+        assert c.lower() in t[15].lower(), f"lámina 15: falta {c!r}"
+    assert "Gracias" in t[16] and "github.com/zmd-brnt/MELOXO" in t[16]
+    # las barras de la 13 usan la misma escala de ms en los cuatro casos
+    n13 = por_nombre(13)
+    barras = {k: pulgadas(n13[f"barra-{k}"].width) for k in ["lista-p50-sin", "lista-p50-con", "top-p50-sin", "top-p50-con"]}
+    esc = {k: barras[k] / v for k, v in zip(barras, [38, 13, 31.6, 7.1])}
+    assert max(esc.values()) - min(esc.values()) < 0.005, esc
+    assert any(f.name == "barra-top-p50-con" and str(f.fill.fore_color.rgb) == "00D1BE" for f in formas(pres.slides[12].shapes))
+    for n in range(13, 17):
+        pista = next(f for f in formas(pres.slides[n - 1].shapes) if f.name == "pista")
+        assert pista.text_frame.text.startswith(f"Lado B · {n:02d} — "), f"lámina {n}: pista"
+        assert pista.text_frame.text.count("→") == 2, f"lámina {n}: la pista lleva 3 ideas"
+    assert pres.slides[12].notes_slide.notes_text_frame.text.startswith("Gracias, Erick")
+    for n in range(13, 17):
+        palabras = len(pres.slides[n - 1].notes_slide.notes_text_frame.text.split())
+        assert 75 <= palabras <= 190, f"lámina {n}: notas de {palabras} palabras"
+
+
+def test_qr_decodifica(pres):
+    ruta = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "qr-repo.png")
+    assert os.path.exists(ruta), "falta assets/qr-repo.png"
+    try:
+        import cv2
+    except ImportError:
+        pytest.skip("falta opencv-python-headless: pip install opencv-python-headless")
+    img = cv2.imread(ruta)
+    dato, _, _ = cv2.QRCodeDetector().detectAndDecode(img)
+    assert dato == "https://github.com/zmd-brnt/MELOXO"
+    qr = [f for f in formas(pres.slides[15].shapes) if f.shape_type == MSO_SHAPE_TYPE.PICTURE and f.name == "qr-repo"]
+    assert len(qr) == 1 and pulgadas(qr[0].width) >= 1.6 and pulgadas(qr[0].height) >= 1.6
