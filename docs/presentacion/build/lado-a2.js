@@ -7,12 +7,12 @@ function agregar(pres) {
   // Lámina 8 · A·08 · rama 03
   const s = pres.addSlide();
   fondo(s);
-  titulo(s, 'Cae una réplica y nadie lo nota');
+  titulo(s, 'Si cae una réplica, nadie lo nota');
   caja(s, { x: 0.5, y: 2.85, w: 0.8, h: 0.7, nombre: 'caja-cliente' });
   texto(s, 'cliente', { x: 0.5, y: 2.85, w: 0.8, h: 0.7, bold: true, align: 'center', valign: 'middle', objectName: 'cliente' });
   caja(s, { x: 1.5, y: 2.3, w: 1.2, h: 1.8, nombre: 'caja-edge' });
-  texto(s, 'edge · nginx', { x: 1.55, y: 2.4, w: 1.1, h: 0.5, bold: true, align: 'center', objectName: 'edge-nombre' });
-  texto(s, 'auth_request valida el JWT', { x: 1.55, y: 2.95, w: 1.1, h: 1.05, fontSize: 13, color: C.atenuado, align: 'center', objectName: 'edge-subtitulo' });
+  texto(s, 'edge · nginx', { x: 1.55, y: 2.78, w: 1.1, h: 0.3, bold: true, align: 'center', objectName: 'edge-nombre' });
+  texto(s, 'auth_request valida el JWT', { x: 1.55, y: 3.18, w: 1.1, h: 0.45, fontSize: 13, color: C.atenuado, align: 'center', objectName: 'edge-subtitulo' });
   caja(s, { x: 3.05, y: 1.5, w: 1.9, h: 1.4, nombre: 'caja-replica-1' });
   texto(s, 'catalog-streaming #1', { x: 3.1, y: 1.5, w: 1.8, h: 1.4, bold: true, align: 'center', valign: 'middle', objectName: 'replica-1' });
   caja(s, { x: 3.05, y: 3.5, w: 1.9, h: 1.4, nombre: 'caja-replica-2', atenuada: true });
@@ -22,9 +22,9 @@ function agregar(pres) {
   flecha(s, 1.3, 3.2, 1.5, 3.2, 'flecha-cliente');
   flecha(s, 2.7, 3.2, 3.05, 2.2, 'flecha-1');
   flecha(s, 2.7, 3.2, 3.05, 4.2, 'flecha-2', C.linea);
-  panel(s, { x: 5.2, y: 1.4, w: 4.2, h: 2.0, nombre: 'panel-cifra' });
-  texto(s, '0 / 293', { x: 5.3, y: 1.5, w: 4.0, h: 1.0, fontFace: F.titulo, bold: true, fontSize: 60, color: C.turquesa, valign: 'middle', objectName: 'cifra-0-293' });
-  texto(s, 'peticiones fallidas al apagar una réplica', { x: 5.35, y: 2.6, w: 3.8, h: 0.6, fontSize: 15, objectName: 'cifra-leyenda' });
+  panel(s, { x: 5.1, y: 1.4, w: 4.4, h: 2.0, nombre: 'panel-cifra' });
+  texto(s, '0 / 293', { x: 5.2, y: 1.5, w: 4.2, h: 1.15, fontFace: F.titulo, bold: true, fontSize: 80, color: C.turquesa, valign: 'middle', objectName: 'cifra-0-293' });
+  texto(s, 'peticiones fallidas al apagar una réplica', { x: 5.25, y: 2.75, w: 4.1, h: 0.4, fontSize: 16, objectName: 'cifra-leyenda' });
   texto(s, '+3 ms', { x: 5.2, y: 3.55, w: 2.2, h: 0.35, fontFace: F.titulo, bold: true, fontSize: 20, color: C.rosa, objectName: 'dato-auth-cifra' });
   texto(s, 'costo de auth_request en p50', { x: 5.2, y: 3.95, w: 2.3, h: 0.2, fontSize: 12, color: C.atenuado, objectName: 'dato-auth-etiqueta' });
   texto(s, '15 / 34 ms', { x: 7.6, y: 3.55, w: 1.95, h: 0.35, fontFace: F.titulo, bold: true, fontSize: 20, objectName: 'dato-songs-cifra' });

@@ -59,7 +59,7 @@ function pista(slide, contenido, { y, w = 2.1, h = 0.7 } = {}) {
     fill: { color: C.amarillo, transparency: 15 }, line: { color: C.amarillo, width: 0, transparency: 15 },
     rotate: 3, objectName: 'pista-cinta' });
   texto(slide, contenido, { x: x + 0.1, y: yy, w: w - 0.2, h, fontFace: F.mano, fontSize: 15, color: C.tinta,
-    align: 'center', valign: 'middle', rotate: -2, objectName: 'pista' });
+    align: 'left', valign: 'middle', rotate: -2, objectName: 'pista' });
 }
 
 /** Casete dibujado con formas. w es el ancho; el alto es w*2.2/3.4. rot en grados. */

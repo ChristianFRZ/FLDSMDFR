@@ -1,4 +1,5 @@
 """Pruebas sobre meloxo.pptx: fuentes, colores, tamaños, pistas, márgenes y holguras."""
+import math
 import os
 import re
 import zipfile
@@ -114,17 +115,32 @@ def _rect(f):
     return (f.left, f.top, f.left + f.width, f.top + f.height)
 
 
+def _envolvente(f):
+    """Caja envolvente del rectángulo rotado (en EMU)."""
+    x0, y0, x1, y1 = _rect(f)
+    ang = math.radians(getattr(f, "rotation", 0) or 0)
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    w, h = f.width, f.height
+    ew = abs(w * math.cos(ang)) + abs(h * math.sin(ang))
+    eh = abs(w * math.sin(ang)) + abs(h * math.cos(ang))
+    return (cx - ew / 2, cy - eh / 2, cx + ew / 2, cy + eh / 2)
+
+
+def _cruza(a, b):
+    return a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
+
+
 def test_pista_sin_solape(pres):
+    """La pista, su papel y su cinta (con rotación) no se cruzan con ninguna otra forma."""
     for n, lam in enumerate(pres.slides, 1):
         todas = list(formas(lam.shapes))
-        p = next(f for f in todas if f.name == "pista")
-        a = _rect(p)
-        for f in todas:
-            if f is p or f.name in EXCLUIDAS_PISTA or f.shape_type == MSO_SHAPE_TYPE.GROUP or es_fondo(f):
-                continue
-            b = _rect(f)
-            cruza = a[0] < b[2] and b[0] < a[2] and a[1] < b[3] and b[1] < a[3]
-            assert not cruza, f"lámina {n}: pista se cruza con {f.name}"
+        propias = [f for f in todas if f.name == "pista" or f.name in EXCLUIDAS_PISTA]
+        for p in propias:
+            a = _envolvente(p)
+            for f in todas:
+                if f in propias or f.shape_type == MSO_SHAPE_TYPE.GROUP or es_fondo(f):
+                    continue
+                assert not _cruza(a, _envolvente(f)), f"lámina {n}: {p.name} se cruza con {f.name}"
 
 
 def test_margenes(pres):
@@ -140,17 +156,32 @@ def test_margenes(pres):
     assert not malas, malas
 
 
+FUENTE_MONTSERRAT = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".qa", "fonts", "Montserrat-VF.ttf")
+
+
+def _ancho_texto(texto, pt):
+    """Ancho real en pulgadas de texto en Montserrat Bold a pt puntos (1 px = 1 pt a 72 dpi)."""
+    from PIL import ImageFont
+    fuente = ImageFont.truetype(FUENTE_MONTSERRAT, size=1000)
+    try:
+        fuente.set_variation_by_name("Bold")
+    except (AttributeError, OSError):
+        pass
+    return fuente.getlength(texto) / 1000 * pt / 72
+
+
 def test_holgura_titulos(pres):
+    if not os.path.exists(FUENTE_MONTSERRAT):
+        pytest.skip(f"falta la fuente {FUENTE_MONTSERRAT}: copia Montserrat a .qa/fonts")
     malas = []
     for n, lam in enumerate(pres.slides, 1):
         for f in formas(lam.shapes):
             if f.name != "titulo":
                 continue
             tam = max(r.font.size.pt for p in f.text_frame.paragraphs for r in p.runs)
-            largo = len(f.text_frame.text)
-            necesario = largo * 0.62 * tam / 72
-            if necesario > 0.9 * pulgadas(f.width):
-                malas.append((n, largo, tam, round(necesario, 2), round(pulgadas(f.width), 2)))
+            ancho = _ancho_texto(f.text_frame.text, tam)
+            if ancho > 0.9 * pulgadas(f.width):
+                malas.append((n, f.text_frame.text, tam, round(ancho, 2), round(pulgadas(f.width), 2)))
     assert not malas, malas
 
 

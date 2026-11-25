@@ -11,10 +11,10 @@ function agregar(pres) {
   const s = pres.addSlide();
   fondo(s);
   s.addImage({ path: LOGO, x: 0.5, y: 0.6, w: 5.4, h: 5.4 * 325 / 1200, objectName: 'logo', altText: 'MELOXO' });
-  texto(s, 'Tu casetera de confianza', { x: 0.5, y: 2.4, w: 5.6, h: 0.95, fontFace: F.titulo, bold: true, fontSize: 26, objectName: 'lema' });
+  texto(s, 'Tu casetera de confianza', { x: 0.5, y: 2.4, w: 5.6, h: 0.45, fontFace: F.titulo, bold: true, fontSize: 26, objectName: 'lema' });
   texto(s, textoRico([['Música para '], ['compartir en pequeño', { color: C.rosa }], [', no para exhibir en grande.']]),
-    { x: 0.5, y: 3.4, w: 5.4, h: 0.6, fontSize: 18, color: C.atenuado, objectName: 'frase' });
-  texto(s, 'Equipo FLDSMDFR · Sistemas Distribuidos', { x: 0.5, y: 4.2, w: 6, h: 0.2, fontSize: 12, color: C.atenuado, objectName: 'equipo-titulo' });
+    { x: 0.5, y: 3.1, w: 5.4, h: 0.65, fontSize: 18, color: C.atenuado, objectName: 'frase' });
+  texto(s, 'Equipo FLDSMDFR · Sistemas Distribuidos', { x: 0.5, y: 4.1, w: 6, h: 0.25, fontSize: 12, color: C.atenuado, objectName: 'equipo-titulo' });
   EQUIPO.forEach(([lado, nombre], i) => {
     const x = 0.5 + i * 2.3;
     texto(s, lado, { x, y: 4.5, w: 2.1, h: 0.3, fontFace: F.mano, fontSize: 16, color: C.rosa, objectName: 'integrante-lado-' + (i + 1) });
