@@ -245,6 +245,7 @@ def test_textos_b1(pres):
     n10 = por_nombre(10)
     assert "5 fallos" in n10["transicion-abre"].text_frame.text and "30 s" in n10["transicion-abre"].text_frame.text
     assert "15 s" in n10["transicion-prueba"].text_frame.text
+    assert "si falla" in n10["transicion-falla"].text_frame.text and "se cierra" in n10["transicion-cierra"].text_frame.text
     assert "1,5 s" in n10["nota-timeouts"].text_frame.text
     n11 = por_nombre(11)
     assert "202" in n11["cola-despues-cifra"].text_frame.text

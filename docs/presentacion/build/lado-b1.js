@@ -34,12 +34,14 @@ function agregar(pres) {
   texto(b, 'en vez de 5,1 s (1.ª llamada)', { x: 3.9, y: 2.55, w: 2.2, h: 0.25, fontSize: 12, color: C.atenuado, align: 'center', objectName: 'abierto-cifra-nota' });
   flecha(b, 2.8, 2.9, 3.85, 2.2, 'flecha-abre');
   flecha(b, 6.15, 2.2, 7.2, 2.9, 'flecha-prueba');
+  b.addShape(pres.ShapeType.line, { x: 6.15, y: 2.75, w: 1.05, h: 0.55, line: { color: C.atenuado, width: 2, beginArrowType: 'triangle' }, objectName: 'flecha-falla' });
+  texto(b, 'si falla', { x: 5.9, y: 3.25, w: 1.2, h: 0.28, bold: true, fontSize: 14, align: 'right', objectName: 'transicion-falla' });
   flecha(b, 8.35, 3.65, 8.35, 4.0, 'flecha-cierra-1', C.atenuado);
   b.addShape(pres.ShapeType.line, { x: 1.65, y: 4.0, w: 6.7, h: 0, flipH: true, line: { color: C.atenuado, width: 2 }, objectName: 'flecha-cierra-2' });
   flecha(b, 1.65, 4.0, 1.65, 3.65, 'flecha-cierra-3');
   texto(b, '5 fallos en 30 s', { x: 0.5, y: 2.1, w: 2.4, h: 0.3, bold: true, fontSize: 14, color: C.papel, align: 'right', objectName: 'transicion-abre' });
-  texto(b, 'a los 15 s, una llamada de prueba', { x: 6.9, y: 1.95, w: 2.6, h: 0.55, bold: true, fontSize: 14, align: 'right', objectName: 'transicion-prueba' });
-  texto(b, 'si la prueba sale bien, se cierra; si falla, vuelve a abrirse', { x: 2.0, y: 4.07, w: 6.0, h: 0.3, fontSize: 13, color: C.atenuado, align: 'center', objectName: 'transicion-cierra' });
+  texto(b, 'a los 15 s,\nuna llamada de prueba', { x: 6.9, y: 1.95, w: 2.6, h: 0.55, bold: true, fontSize: 14, align: 'right', objectName: 'transicion-prueba' });
+  texto(b, 'si la prueba sale bien, se cierra', { x: 2.0, y: 4.07, w: 6.0, h: 0.3, fontSize: 13, color: C.atenuado, align: 'center', objectName: 'transicion-cierra' });
   texto(b, textoRico([['Antes: ', { bold: true }], ['lectura con timeout de 1,5 s y 2 reintentos, de 200 y 400 ms.']]),
     { x: 0.5, y: 4.6, w: 6.4, h: 0.55, fontSize: 13, color: C.atenuado, objectName: 'nota-timeouts' });
   pista(b, 'Lado B · 10 — contar\n→ abrir  → probar', { w: 2.6 });
@@ -52,8 +54,8 @@ function agregar(pres) {
   const tarjeta = (id, x, cabecera, sub) => {
     texto(c, cabecera, { x: x + 0.25, y: 1.45, w: 3.9, h: 0.3, bold: true, fontSize: 16, objectName: id + '-titulo' });
     texto(c, sub, { x: x + 0.25, y: 1.78, w: 3.9, h: 0.25, fontSize: 12, color: C.atenuado, objectName: id + '-subtitulo' });
-    texto(c, 'antes', { x: x + 0.25, y: 2.2, w: 1.0, h: 0.25, fontFace: F.mano, fontSize: 16, color: C.atenuado, objectName: id + '-antes-rotulo' });
-    texto(c, 'ahora', { x: x + 0.25, y: 3.0, w: 1.0, h: 0.25, fontFace: F.mano, fontSize: 16, color: C.turquesa, objectName: id + '-despues-rotulo' });
+    texto(c, 'antes', { x: x + 0.25, y: 2.2, w: 1.0, h: 0.25, fontFace: F.mano, fontSize: 18, color: C.papel, objectName: id + '-antes-rotulo' });
+    texto(c, 'ahora', { x: x + 0.25, y: 3.0, w: 1.0, h: 0.25, fontFace: F.mano, fontSize: 18, color: C.turquesa, objectName: id + '-despues-rotulo' });
   };
   caja(c, { x: 0.5, y: 1.3, w: 4.4, h: 2.9, nombre: 'caja-cola' });
   tarjeta('cola', 0.5, 'Cola de reproducciones', 'con playback-metrics caído');
@@ -88,8 +90,8 @@ function agregar(pres) {
     if (i < 3) flecha(m, x + 2.0, 2.4, x + 2.3, 2.4, 'flecha-paso-' + (i + 1));
   });
   flecha(m, 6.0, 3.4, 6.0, 3.85, 'flecha-dlq');
-  caja(m, { x: 5.2, y: 3.85, w: 1.6, h: 1.2, nombre: 'caja-dlq', atenuada: true });
-  texto(m, 'cola de mensajes muertos tras 5 intentos', { x: 5.25, y: 3.85, w: 1.5, h: 1.2, fontSize: 13, color: C.atenuado, align: 'center', valign: 'middle', objectName: 'dlq-texto' });
+  caja(m, { x: 5.0, y: 3.85, w: 1.6, h: 1.2, nombre: 'caja-dlq', atenuada: true });
+  texto(m, 'cola de mensajes muertos tras 5 intentos', { x: 5.05, y: 3.85, w: 1.5, h: 1.2, fontSize: 13, color: C.atenuado, align: 'center', valign: 'middle', objectName: 'dlq-texto' });
   panel(m, { x: 0.5, y: 3.85, w: 4.3, h: 1.4, nombre: 'panel-resultado' });
   texto(m, [{ text: '132 relevados', options: { breakLine: true } }, { text: '0 sin relevar' }],
     { x: 0.7, y: 3.95, w: 3.9, h: 0.85, fontFace: F.titulo, bold: true, fontSize: 24, color: C.turquesa, valign: 'middle', objectName: 'resultado-cifra' });

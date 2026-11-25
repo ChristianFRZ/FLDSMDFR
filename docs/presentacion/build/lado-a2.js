@@ -37,8 +37,8 @@ function agregar(pres) {
   cx.forEach((x, i) => punteada(x, 3.2, 0, 0.25, 'enlace-servicio-' + (i + 1)));
   punteada(cx[0], 3.45, cx[4] - cx[0], 0, 'enlace-internal');
   texto(a, 'HTTP /internal entre servicios', { x: 3.0, y: 3.5, w: 4.4, h: 0.25, fontSize: 12, color: C.atenuado, align: 'center', objectName: 'rotulo-internal' });
-  nodo('postgres', ['postgres', 'una base y un rol por servicio', 'usan: users-playlists, catalog, playback-metrics'], 0.45, 3.85, 3.2, 1.05);
-  nodo('redis-cache', ['redis-cache', 'caché LRU, sin persistencia', 'usan: catalog, playback-metrics, gateway-auth'], 3.8, 3.85, 2.7, 1.05);
+  nodo('postgres', ['postgres', 'una base y un rol por servicio', 'usan: users-playlists, catalog,\nplayback-metrics'], 0.45, 3.85, 3.2, 1.05);
+  nodo('redis-cache', ['redis-cache', 'caché LRU, sin persistencia', 'usan: catalog, playback-metrics,\ngateway-auth'], 3.8, 3.85, 2.7, 1.05);
   nodo('redis', ['redis', [['Redis Streams', { color: C.rosa, bold: true }], [' · durable']], 'playbacks y track_published', 'y revocación de sesiones'], 6.65, 3.85, 2.65, 1.05);
   texto(a, 'Python 3.12 · FastAPI · PostgreSQL 16 · Redis · React 18 · Docker Compose',
     { x: 0.5, y: 5.02, w: 8.7, h: 0.25, fontSize: 13, color: C.atenuado, objectName: 'stack' });
@@ -92,7 +92,7 @@ function agregar(pres) {
   texto(s, 'costo de auth_request en p50', { x: 5.2, y: 3.95, w: 2.3, h: 0.2, fontSize: 12, color: C.atenuado, objectName: 'dato-auth-etiqueta' });
   texto(s, '15 / 34 ms', { x: 7.6, y: 3.55, w: 1.95, h: 0.35, fontFace: F.titulo, bold: true, fontSize: 20, objectName: 'dato-songs-cifra' });
   texto(s, 'GET /api/songs p50 / p95', { x: 7.6, y: 3.95, w: 1.95, h: 0.2, fontSize: 12, color: C.atenuado, objectName: 'dato-songs-etiqueta' });
-  pista(s, 'Lado A · 08 —\nfailover → 0 de 293 → costo: 3 ms', { w: 2.8, h: 0.9 });
+  pista(s, 'Lado A · 08 — failover\n→ 0 de 293  → 3 ms', { w: 2.4 });
   s.addNotes(NOTAS_RAMA_03);
 }
 

@@ -24,9 +24,9 @@ function agregar(pres) {
     { x: 0.5, y: 3.1, w: 5.4, h: 0.65, fontSize: 18, color: C.atenuado, objectName: 'frase' });
   texto(s, 'Equipo FLDSMDFR · Sistemas Distribuidos', { x: 0.5, y: 4.1, w: 6, h: 0.25, fontSize: 12, color: C.atenuado, objectName: 'equipo-titulo' });
   EQUIPO.forEach(([lado, nombre], i) => {
-    const x = 0.5 + i * 2.3;
-    texto(s, lado, { x, y: 4.5, w: 2.1, h: 0.3, fontFace: F.mano, fontSize: 16, color: C.rosa, objectName: 'integrante-lado-' + (i + 1) });
-    texto(s, nombre, { x, y: 4.8, w: 2.1, h: 0.45, fontSize: 13, objectName: 'integrante-nombre-' + (i + 1) });
+    const x = [0.5, 2.65, 5.45, 7.3][i], cw = [2.1, 2.75, 1.8, 2.2][i];
+    texto(s, lado, { x, y: 4.5, w: cw, h: 0.3, fontFace: F.mano, fontSize: 16, color: C.atenuado, objectName: 'integrante-lado-' + (i + 1) });
+    texto(s, nombre, { x, y: 4.8, w: cw, h: 0.45, fontSize: 12, objectName: 'integrante-nombre-' + (i + 1) });
   });
   casete(s, { x: 6.15, y: 0.6, w: 3.4, rot: 4, color: C.rosa, etiqueta: 'Lado A' });
   pista(s, 'Lado A · 01 — quiénes somos\n→ qué es → por qué casete', { y: 3.45, w: 2.4 });
