@@ -12,7 +12,7 @@ from pptx.util import Emu
 MELOXO_PPTX = os.environ.get(
     "MELOXO_PPTX", os.path.join(os.path.dirname(os.path.abspath(__file__)), "meloxo.pptx")
 )
-ESPERADAS = 2
+ESPERADAS = 6
 
 FUENTES = {"Montserrat", "Roboto", "Caveat"}
 PALETA = {"141317", "201F25", "4A4852", "F4F1EA", "BDB9AF", "FF3D8B", "00D1BE", "FFD233", "4A5CFF"}
@@ -190,3 +190,17 @@ def test_sin_unbounded():
         for nombre in z.namelist():
             if nombre.endswith((".xml", ".rels")):
                 assert b"Unbounded" not in z.read(nombre), nombre
+
+
+def _textos(lam):
+    return "\n".join(f.text_frame.text for f in formas(lam.shapes) if f.has_text_frame)
+
+
+def test_textos_a1(pres):
+    esperado = {3: ["12 pistas", "8", "140"], 4: ["Oyente", "Compositor", "Administrador"], 5: ["Así se ve"]}
+    for n, claves in esperado.items():
+        t = _textos(pres.slides[n - 1])
+        for c in claves:
+            assert c in t, f"lámina {n}: falta {c!r}"
+    nombres = [f.name for f in formas(pres.slides[4].shapes)]
+    assert "video-demo" in nombres
