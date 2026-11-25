@@ -1,8 +1,8 @@
 # Interfaz web
 
-La app que usa la gente: una SPA hecha con React, Vite y TypeScript. Como es una sola página, navegar no recarga nada y el audio sigue sonando. En producción, FastAPI sirve los archivos compilados, así que no hace falta un servidor aparte.
+La app que usa la gente: una SPA hecha con React, Vite y TypeScript. Como es una sola página, navegar no recarga nada y el audio sigue sonando. En producción, el nginx de [`edge`](../edge/README.md) sirve los archivos compilados.
 
-Usa Node 24, la misma versión del [`Dockerfile`](../Dockerfile).
+Usa Node 24, la misma versión del [`edge/Dockerfile`](../edge/Dockerfile).
 
 ## Comandos
 

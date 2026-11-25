@@ -14,11 +14,10 @@ type Pending = {
   song_id: string;
   listened_seconds: number;
   posted: boolean;
-  queuedAt?: number;
   sent_seconds: number;
 };
 
-type Current = { id: string; songId: string; listened: number; last: number | null; reported: boolean; posted: boolean; queuedAt?: number };
+type Current = { id: string; songId: string; listened: number; last: number | null; reported: boolean; posted: boolean };
 
 function load(): Pending[] {
   try {
@@ -96,7 +95,6 @@ export class PlaybackReporter {
         song_id: current.songId,
         listened_seconds: seconds,
         posted: current.posted,
-        queuedAt: current.queuedAt,
         sent_seconds: current.posted ? THRESHOLD_SECONDS : 0,
       });
     }
@@ -114,20 +112,13 @@ export class PlaybackReporter {
 
   private async deliver(entry: Pending): Promise<void> {
     if (!entry.posted) {
-      const seconds = entry.listened_seconds;
-      const result = await this.send("/api/playbacks", {
+      await this.send("/api/playbacks", {
         method: "POST",
-        json: { playback_id: entry.playback_id, song_id: entry.song_id, listened_seconds: seconds },
+        json: { playback_id: entry.playback_id, song_id: entry.song_id, listened_seconds: entry.listened_seconds },
       });
       entry.posted = true;
-      entry.sent_seconds = seconds;
-      if (result && typeof result === "object" && "queued" in result && result.queued) {
-        entry.queuedAt = Date.now();
-      }
-      if (this.current?.id === entry.playback_id) {
-        this.current.posted = true;
-        this.current.queuedAt = entry.queuedAt;
-      }
+      entry.sent_seconds = entry.listened_seconds;
+      if (this.current?.id === entry.playback_id) this.current.posted = true;
       this.save();
     }
     if (entry.listened_seconds > entry.sent_seconds) {
@@ -152,9 +143,7 @@ export class PlaybackReporter {
         await this.deliver(entry);
         this.remove(entry);
       } catch (error) {
-        const awaitingInsert = error instanceof ApiError && error.code === "playback_not_found"
-          && entry.queuedAt !== undefined && Date.now() - entry.queuedAt < 86400_000;
-        if (isPermanent(error) && !awaitingInsert) {
+        if (isPermanent(error)) {
           this.remove(entry);
         } else {
           failed = true;
