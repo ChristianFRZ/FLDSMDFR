@@ -1,0 +1,14 @@
+{
+  "name": "presentacion-meloxo",
+  "private": true,
+  "description": "Generador de la presentación de MELOXO (pptxgenjs)",
+  "scripts": {
+    "fondo": "node build/fondo.js",
+    "build": "node build/build.js"
+  },
+  "dependencies": {
+    "pptxgenjs": "^4.0.1",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.35.5"
+  }
+}
