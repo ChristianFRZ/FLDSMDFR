@@ -197,10 +197,14 @@ def _textos(lam):
 
 
 def test_textos_a1(pres):
-    esperado = {3: ["12 pistas", "8", "140"], 4: ["Oyente", "Compositor", "Administrador"], 5: ["Así se ve"]}
+    esperado = {2: ["monolito"], 3: ["12 pistas", "8 miembros", "140"],
+                4: ["Oyente", "Compositor", "Administrador"], 5: ["Así se ve"]}
     for n, claves in esperado.items():
         t = _textos(pres.slides[n - 1])
         for c in claves:
             assert c in t, f"lámina {n}: falta {c!r}"
-    nombres = [f.name for f in formas(pres.slides[4].shapes)]
-    assert "video-demo" in nombres
+    video = [f for f in formas(pres.slides[4].shapes) if f.name == "video-demo"]
+    assert len(video) == 1 and video[0].shape_type == MSO_SHAPE_TYPE.PICTURE
+    for n in range(1, 6):
+        pista = next(f for f in formas(pres.slides[n - 1].shapes) if f.name == "pista")
+        assert pista.text_frame.text.startswith(f"Lado A · 0{n}"), f"lámina {n}: pista"
