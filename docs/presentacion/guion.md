@@ -1,24 +1,24 @@
 # Guion de la presentación MELOXO
 
-Tiempo estimado a 150 palabras por minuto, calculado con el texto de las notas del orador de cada lámina, más unos 25 s del video de demostración en la lámina 5.
+Tiempo estimado a 150 palabras por minuto, calculado con el texto de las notas del orador de cada lámina. El video de demostración de la lámina 5 (unos 24 s) corre mientras se narra, así que no suma tiempo: el tiempo real total es de unos 14:30.
 
 | Orador | Láminas | Palabras | Tiempo estimado |
 |---|---|---|---|
-| Lado A·1 · Christian Franco Ramírez | 1–5 | 576 | 4:15 |
-| Lado A·2 · Miriam Amisadai López Hernández | 6–8 | 478 | 3:11 |
-| Lado B·1 · Erick Nava Santiago | 9–12 | 575 | 3:50 |
+| Lado A·1 · Christian Franco Ramírez | 1–5 | 557 | 3:43 |
+| Lado A·2 · Miriam Amisadai López Hernández | 6–8 | 476 | 3:10 |
+| Lado B·1 · Erick Nava Santiago | 9–12 | 584 | 3:54 |
 | Lado B·2 · Brent Armando Pérez Paitán | 13–16 | 541 | 3:36 |
-| **Total** | 1–16 | 2170 | **14:53** |
+| **Total** | 1–16 | 2158 | **14:23** |
 
-El total (14:53) queda dentro del rango objetivo de 14 a 15 minutos, con poco margen; no se añadió relleno. Conviene ensayar con cronómetro.
+El total (14:23) queda dentro del rango objetivo de 14 a 15 minutos, con poco margen; no se añadió relleno. Conviene ensayar con cronómetro.
 
 ## Lado A·1 · Christian Franco Ramírez
 
-Láminas 1–5. Tiempo objetivo: 4:15.
+Láminas 1–5. Tiempo objetivo: 3:43.
 
-### Lámina 1 · Portada (0:40)
+### Lámina 1 · Portada (0:32)
 
-Buenas tardes a todos, somos el equipo FLDSMDFR: Christian Franco, Miriam López, Erick Nava y yo, Brent Pérez, de Sistemas Distribuidos. Les presentamos MELOXO, tu casetera de confianza. MELOXO es un servicio de streaming musical construido alrededor del casete compartido: un casete tiene hasta 12 pistas repartidas en dos lados, se arma entre amigos, lleva dedicatorias y se reparte por enlace. No hay feed ni recomendaciones: la música se descubre porque alguien te la regala. Hoy les vamos a contar cómo MELOXO pasó de ser un monolito a un sistema distribuido, y qué decisiones y mediciones nos llevaron ahí.
+Buenas tardes a todos, somos el equipo FLDSMDFR: Miriam López, Erick Nava, Brent Pérez y yo, Christian Franco, de Sistemas Distribuidos. Les presentamos MELOXO, tu casetera de confianza. MELOXO es un servicio de streaming musical construido alrededor del casete compartido: aquí la música no se busca ni se recomienda, se descubre porque alguien te la regala. Hoy les vamos a contar cómo MELOXO pasó de ser un monolito a un sistema distribuido, y qué decisiones y mediciones nos llevaron ahí.
 
 ### Lámina 2 · El monolito (0:45)
 
@@ -26,41 +26,41 @@ Empecemos por el problema. La primera versión de MELOXO fue un monolito: una so
 
 ### Lámina 3 · El casete compartido (0:47)
 
-Entonces, ¿qué es MELOXO? Es un servicio de streaming musical construido alrededor del casete compartido. Un casete tiene hasta 12 pistas repartidas en dos lados, el lado A y el lado B, y se arma entre hasta 8 miembros. Cada pista puede llevar una dedicatoria de hasta 140 caracteres, como la nota que le dejarías a un amigo en un casete de verdad. Y para sumar gente no hay buscador de personas: se invita por enlace. Aquí a la derecha vemos un casete real de la app, con sus dos lados y sus dedicatorias. Lo importante: no hay feed, no hay seguidores de personas y no hay likes. Solo se siguen artistas; la música se comparte en pequeño.
+Entonces, ¿qué es MELOXO? Es un servicio de streaming musical construido alrededor del casete compartido. Un casete tiene hasta 12 pistas repartidas en dos lados, el lado A y el lado B, y se arma entre hasta 8 miembros. Cada pista puede llevar una dedicatoria de hasta 140 caracteres, como la nota que le dejarías a un amigo en un casete de verdad. Y para sumar gente no hay buscador de personas: se invita por enlace. Aquí a la izquierda vemos un casete real de la app, con sus dos lados y sus dedicatorias. Lo importante: no hay feed, no hay seguidores de personas y no hay likes. Solo se siguen artistas; la música se comparte en pequeño.
 
 ### Lámina 4 · Tres roles y objetivo AP (0:47)
 
 MELOXO tiene tres roles. El Oyente es el usuario base: arma casetes con sus amigos, deja dedicatorias y sigue artistas. El Compositor es un oyente aprobado que publica su propia música: sube un MP3 de hasta 15 megas, con portada de hasta 2, y puede programar la fecha de publicación. Y el Administrador aprueba a los compositores, revisa la auditoría, importa el catálogo de Jamendo y consulta las métricas y la salud del sistema. Abajo a la derecha está el objetivo de disponibilidad que guía todo el diseño: elegimos AP, es decir, que la música se pueda reproducir aunque fallen las métricas, los avisos o Jamendo. El reproductor que ven es el que no debe dejar de sonar.
 
-### Lámina 5 · Demo en video (1:17)
+### Lámina 5 · Demo en video (0:52)
 
-_El video de unos 25 s corre durante esta lámina; está incluido en el tiempo._
+_El video de unos 24 s corre mientras se narra esta lámina; no suma tiempo._
 
 Ahora, en lugar de explicarlo, vamos a verlo. Este es un video corto, de unos 25 segundos, grabado sobre la aplicación real levantada con docker compose. Les pido que se fijen en tres momentos. Primero, cómo se crea un casete nuevo: le ponemos el nombre, Para el profe, y la etiqueta del casete se va escribiendo sola. Segundo, cómo se agregan dos pistas, cada una con su dedicatoria, y cómo el casete pasa a mostrar sus dos pistas en el lado A. Y tercero, al final, el reproductor sonando: la pista actual aparece en el panel de la derecha y en la barra de abajo. Mientras corre el video lo narramos. Después de la demo, Miriam les explica cómo está construido todo esto por dentro: la arquitectura de contenedores.
 
 ## Lado A·2 · Miriam Amisadai López Hernández
 
-Láminas 6–8. Tiempo objetivo: 3:11.
+Láminas 6–8. Tiempo objetivo: 3:10.
 
-### Lámina 6 · Nueve contenedores (1:17)
+### Lámina 6 · Nueve contenedores (1:05)
 
-Gracias, Christian. Ahora veamos cómo está construido todo esto por dentro. MELOXO corre en nueve contenedores de larga vida con Docker Compose. Arriba está el edge: nginx es la entrada única; hacia fuera solo entra nginx, y en local también se publica PostgreSQL para las pruebas. Para cada petición a la API, nginx le consulta a gateway-auth con auth_request, que valida el token y el rol y no tiene base de datos; después reparte por ruta a users-playlists, a las dos réplicas de catalog-streaming o a playback-metrics. Entre servicios hablamos HTTP por rutas internas: users-playlists le pide pistas a catalog-streaming, y catalog-streaming consulta a users-playlists; playback-metrics le pide pistas a catalog-streaming y el estado de cuenta a users-playlists; y gateway-auth consulta el estado de cuenta a users-playlists. Abajo están los datos. PostgreSQL, con una base y un rol por servicio. Redis, durable, con dos Redis Streams: playbacks, de catalog-streaming a playback-metrics, y track_published, de catalog-streaming a users-playlists; además guarda la revocación de sesiones. Y redis-cache, una instancia aparte con desalojo LRU y sin persistencia, que usan catalog-streaming, playback-metrics y gateway-auth. El stack: Python 3.12, FastAPI, PostgreSQL 16, Redis, React 18 y Docker Compose.
+Gracias, Christian. Ahora veamos cómo está construido todo esto por dentro. MELOXO corre en nueve contenedores de larga vida con Docker Compose. Arriba está el edge: nginx es la entrada única; hacia fuera solo entra nginx, y en local también se publica PostgreSQL para las pruebas. Para cada petición a la API, nginx le consulta a gateway-auth con auth_request, que valida el token y el rol y no tiene base de datos; después reparte por ruta a users-playlists, a las dos réplicas de catalog-streaming o a playback-metrics. Entre servicios hablamos HTTP por rutas internas: se consultan unos a otros. Abajo están los datos. PostgreSQL, con una base y un rol por servicio. Redis, durable, con dos Redis Streams: playbacks, de catalog-streaming a playback-metrics, y track_published, de catalog-streaming a users-playlists; además guarda la revocación de sesiones. Y redis-cache, aparte con desalojo LRU y sin persistencia, que usan catalog-streaming, playback-metrics y gateway-auth. El stack: Python 3.12, FastAPI, PostgreSQL 16, Redis, React 18 y Docker Compose.
 
 ### Lámina 7 · Monolito contra tres servicios (1:02)
 
 Separar el monolito en servicios no fue gratis, así que lo medimos. Hicimos la misma prueba de carga sobre el monolito y sobre los tres servicios, en la misma computadora, con 50 usuarios simultáneos. Estas son las medianas y los percentiles 95, en milisegundos. El primer byte de audio pasó de 12 y 39 a 9 y 20. GET /api/songs pasó de 36 y 71 a 12 y 26: el catálogo ya no compite con el resto por el mismo proceso. Pero fíjense en la fila de abajo: en GET /api/playlists, la mediana sube de 27 a 31 milisegundos, probablemente por el salto HTTP extra, porque ahora la lista le pide las pistas al servicio de catálogo. Es una inferencia nuestra, no lo aislamos. Lo decimos tal cual: ahí la separación parece costar. Eso sí, el p95 baja de 66 a 55, así que las peores peticiones mejoran. Los tres umbrales de latencia se siguen cumpliendo.
 
-### Lámina 8 · Failover con nginx (0:52)
+### Lámina 8 · Failover con nginx (1:03)
 
-Aquí está la pieza que protege a todo lo demás: nginx en el borde. Cada petición pasa primero por auth_request, que valida el token JWT antes de llegar a cualquier servicio; si el token no sirve, ni siquiera entra. Detrás del borde tenemos dos réplicas del servicio de catálogo y streaming, y nginx reparte la carga entre ellas. Para comprobar que esto sirve, hicimos una prueba de carga y a mitad de ella apagamos una de las réplicas. Resultado: 0 de 293 peticiones fallaron; los usuarios no notaron nada. Tiene un precio, claro: verificar el token en cada petición cuesta alrededor de 3 milisegundos en p50. Y GET /api/songs se mantiene en 15 milisegundos en p50 y 34 en p95. Para nosotros, ese costo vale la tolerancia a fallos.
+Aquí está la pieza que protege a todo lo demás: nginx en el borde. Cada petición pasa primero por auth_request, que valida el token JWT antes de llegar a cualquier servicio; si el token no sirve, ni siquiera entra. Detrás del borde tenemos dos réplicas del servicio de catálogo y streaming, y nginx reparte la carga entre ellas. Para comprobar que esto sirve, hicimos una prueba de carga y a mitad de ella apagamos una de las réplicas. Resultado: 0 de 293 peticiones fallaron; los usuarios no notaron nada. Tiene un precio, claro: verificar el token en cada petición cuesta alrededor de 3 milisegundos en p50. Así, GET /api/songs queda en 15 milisegundos en p50 y 34 en p95: ya con auth_request, frente a los 12 y 26 de la lámina anterior, sumando esos 3 ms de auth_request en p50. Para nosotros, ese costo vale la tolerancia a fallos. Erick nos cuenta qué pasa cuando algo falla.
 
 ## Lado B·1 · Erick Nava Santiago
 
-Láminas 9–12. Tiempo objetivo: 3:50.
+Láminas 9–12. Tiempo objetivo: 3:54.
 
 ### Lámina 9 · Apertura del lado B (0:45)
 
-Gracias, Miriam. Hasta aquí vimos cómo MELOXO se reparte en servicios y qué cuesta medirlo. Ahora damos vuelta al casete: en el lado B van las canciones difíciles, lo que pasa cuando algo falla. Soy Erick Nava y les voy a contar tres cosas. Primero, cómo un servicio caído no arrastra a los demás, con timeouts, reintentos y un circuit breaker. Segundo, cómo no perdemos reproducciones cuando playback-metrics se cae, y cómo cerramos una sesión en el mismo instante en que cambia el rol. Y tercero, cómo los avisos de lanzamientos siguen funcionando aunque catálogo no responda, gracias a la mensajería con Redis Streams. Todo esto lo medimos, así que vienen cifras.
+Gracias, Miriam. Hasta aquí vimos cómo MELOXO se reparte en servicios y y cuánto cuesta. Ahora damos vuelta al casete: en el lado B van las canciones difíciles, lo que pasa cuando algo falla. Soy Erick Nava y les voy a contar tres cosas. Primero, cómo un servicio caído no arrastra a los demás, con timeouts, reintentos y un circuit breaker. Segundo, cómo no perdemos reproducciones cuando playback-metrics se cae, y cómo cerramos una sesión en el mismo instante en que cambia el rol. Y tercero, cómo los avisos de lanzamientos siguen funcionando aunque catálogo no responda, gracias a la mensajería con Redis Streams. Todo esto lo medimos, así que vienen cifras.
 
 ### Lámina 10 · Circuit breaker (0:56)
 
@@ -70,9 +70,9 @@ Empecemos por la primera línea de defensa. Cada llamada entre servicios espera 
 
 Ahora dos casos donde antes algo dependía de una espera. El primero, las reproducciones. Cuando playback-metrics está caído, POST /api/playbacks no falla: catálogo responde 202 y deja la reproducción en una cola de Redis Streams. Antes dependíamos de que el navegador reintentara, y si se cerraba la pestaña, se perdía. En la prueba detuvimos playback-metrics y hicimos tres reproducciones: las tres respondieron 202 y, al volver el servicio, se aplicaron las tres sin duplicar. Incluso con Redis reiniciado y 20 eventos pendientes, se aplicaron exactamente los 20. El segundo caso, la revocación de sesión. Antes, si un administrador cambiaba un rol o suspendía una cuenta, el token anterior podía seguir valiendo hasta 30 segundos por la caché. Ahora la revocación vive en Redis: el token anterior tarda 0,04 segundos en dar 401. Y un evento de reproducción se ve en el historial con una mediana de 0,033 segundos y un máximo de 0,07. La saga con estados la dejamos fuera a propósito.
 
-### Lámina 12 · Outbox (1:04)
+### Lámina 12 · Outbox (1:08)
 
-Cerramos con mensajería. Cuando se publica una pista, quienes siguen al artista reciben un aviso, y antes eso dependía de que catálogo respondiera. Ahora catálogo escribe la pista y el evento track_published en la misma transacción: es el patrón outbox. Un relevo, cada 2 segundos, lee los eventos sin relevar y los publica en Redis Streams; solo después los marca como relevados. Users-playlists consume de forma idempotente: la clave es el identificador de la pista, así que un evento repetido no cambia nada. Y si un mensaje falla, tras 5 intentos va a la cola de mensajes muertos, sin atascar a los demás. El resultado: 132 eventos relevados y 0 pendientes; de ellos, 101 llegaron como avisos, porque las pistas de Jamendo, ocultas o borradas se marcan sin publicar. Y los avisos ya no dependen de catálogo: con catálogo caído responden completos. Queda pendiente track_hidden: una pista que se oculta después de publicarse sigue apareciendo en los avisos ya guardados.
+Cerramos con mensajería. Cuando se publica una pista, quienes siguen al artista reciben un aviso, y antes eso dependía de que catálogo respondiera. Ahora catálogo escribe la pista y el evento track_published en la misma transacción: es el patrón outbox. Un relevo, cada 2 segundos, lee los eventos sin relevar y los publica en Redis Streams; solo después los marca como relevados. Users-playlists consume de forma idempotente: la clave es el identificador de la pista, así que un evento repetido no cambia nada. Y si un mensaje falla, tras 5 intentos va a la cola de mensajes muertos, sin atascar a los demás. El resultado: 132 eventos relevados y 0 pendientes; de ellos, 101 llegaron como avisos, porque las pistas de Jamendo, ocultas o borradas se marcan sin publicar. Y los avisos ya no dependen de catálogo: con catálogo caído responden completos. Queda pendiente track_hidden: una pista que se oculta después de publicarse sigue apareciendo en los avisos ya guardados. Brent cierra con la caché y lo que aprendimos.
 
 ## Lado B·2 · Brent Armando Pérez Paitán
 
@@ -84,7 +84,7 @@ Gracias, Erick. Yo soy Brent Pérez y cierro el lado B con la última rama, la 0
 
 ### Lámina 14 · Prueba de carga (0:58)
 
-Para ver si aguantaba, usamos Locust: 50 clientes durante 2 minutos, primero sin redis-cache y luego con ella, con los mismos parámetros y sin tocar nada más. Sin caché fueron 5373 peticiones, con caché 5203, y en las dos corridas cero fallos. Con la caché, redis-cache terminó con 1368 aciertos, 1189 fallos y ninguna clave desalojada. Y ahora la parte honesta. La búsqueda de Locust usa solo seis palabras distintas, así que casi todas sus lecturas son aciertos de caché. Además, el contador de 1368 aciertos y 1189 fallos incluye otras claves: los fallos incluyen las lecturas de versión y de estado de cuenta, no solo la lista. Con consultas más variadas la mejora sería menor: por eso decimos que estas cifras son optimistas. Las playlists y el primer byte de audio no cambian, porque esas rutas no se cachean; la diferencia entre corridas es ruido.
+Para ver si aguantaba, usamos Locust: 50 clientes durante 2 minutos, primero sin redis-cache y luego con ella, con los mismos parámetros y sin tocar nada más. Sin caché fueron 5373 peticiones, con caché 5203, y en las dos corridas cero fallos. Con la caché, redis-cache terminó con 1368 aciertos, 1189 fallos y ninguna clave desalojada. Y ahora la parte honesta. La búsqueda de Locust usa solo seis palabras distintas, así que casi todas sus búsquedas son aciertos de caché. Además, el contador de 1368 aciertos y 1189 fallos incluye otras claves: los fallos incluyen las lecturas de versión y de estado de cuenta, no solo la lista. Con consultas más variadas la mejora sería menor: por eso decimos que estas cifras son optimistas. Las playlists y el primer byte de audio no cambian, porque esas rutas no se cachean; la diferencia entre corridas es ruido.
 
 ### Lámina 15 · Aprendizajes y pendientes (0:52)
 

@@ -97,7 +97,7 @@ Sin animaciones.
 |---|---|---|---|
 | 1 | Paso 1: catalog-streaming | Aparecer al hacer clic | Desvanecer |
 | 2 | Paso 2: relevo de catálogo | Aparecer al hacer clic | Desvanecer |
-| 3 | Pasos 3 y 4: users-playlists y aviso | Aparecer al hacer clic | Desvanecer |
+| 3 | Pasos 3 y 4: users-playlists y aviso, junto con la caja "cola de mensajes muertos tras 5 intentos" (en el mismo clic) | Aparecer al hacer clic | Desvanecer |
 | 4 | 132 relevados, 0 sin relevar | Aparecer al hacer clic | Desvanecer |
 
 ### Lámina 13 · Una caché separada que acelera
@@ -105,8 +105,8 @@ Sin animaciones.
 |---|---|---|---|
 | 1 | sin caché 38 ms (GET /api/songs) | Aparecer al hacer clic | Desvanecer |
 | 2 | con caché 13 ms (GET /api/songs) | Aparecer al hacer clic | Desvanecer |
-| 3 | Top de métricas: sin caché 31,6 ms y con caché 7,1 ms | Aparecer al hacer clic | Desvanecer |
-| 4 | Con caché, el top baja de 31,6 a 7,1 ms | Aparecer al hacer clic | Desvanecer |
+| 3 | Barras del top de métricas: sin caché 31,6 ms y con caché 7,1 ms | Aparecer al hacer clic | Desvanecer |
+| 4 | La tarjeta 13 / 28 ms junto con Con caché, el top baja de 31,6 a 7,1 ms (en el mismo clic) | Aparecer al hacer clic | Desvanecer |
 
 ### Lámina 14 · Aguantó la carga
 | Clic | Elemento (texto visible) | Inicio | Efecto |
