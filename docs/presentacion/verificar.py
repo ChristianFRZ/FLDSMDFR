@@ -12,7 +12,7 @@ from pptx.util import Emu
 MELOXO_PPTX = os.environ.get(
     "MELOXO_PPTX", os.path.join(os.path.dirname(os.path.abspath(__file__)), "meloxo.pptx")
 )
-ESPERADAS = 6
+ESPERADAS = 8
 
 FUENTES = {"Montserrat", "Roboto", "Caveat"}
 PALETA = {"141317", "201F25", "4A4852", "F4F1EA", "BDB9AF", "FF3D8B", "00D1BE", "FFD233", "4A5CFF"}
@@ -206,5 +206,22 @@ def test_textos_a1(pres):
     video = [f for f in formas(pres.slides[4].shapes) if f.name == "video-demo"]
     assert len(video) == 1 and video[0].shape_type == MSO_SHAPE_TYPE.PICTURE
     for n in range(1, 6):
+        pista = next(f for f in formas(pres.slides[n - 1].shapes) if f.name == "pista")
+        assert pista.text_frame.text.startswith(f"Lado A · 0{n}"), f"lámina {n}: pista"
+
+
+def test_textos_a2(pres):
+    t6 = _textos(pres.slides[5])
+    for nombre in ["edge", "gateway-auth", "users-playlists", "playback-metrics", "postgres", "redis-cache",
+                   "HTTP /internal", "Redis Streams", "Python 3.12"]:
+        assert nombre in t6, f"lámina 6: falta {nombre!r}"
+    assert "redis" in t6.replace("redis-cache", ""), "lámina 6: falta redis"
+    cajas = [f for f in formas(pres.slides[5].shapes) if f.has_text_frame and f.text_frame.text.startswith("catalog-streaming")]
+    assert len(cajas) == 2, f"lámina 6: {len(cajas)} cajas catalog-streaming, se esperaban 2"
+    t7 = _textos(pres.slides[6])
+    for c in ["12 / 26", "36 / 71", "31 / 55", "27 / 66"]:
+        assert c in t7, f"lámina 7: falta {c!r}"
+    assert "0 / 293" in _textos(pres.slides[7]), "lámina 8: falta '0 / 293'"
+    for n in range(6, 9):
         pista = next(f for f in formas(pres.slides[n - 1].shapes) if f.name == "pista")
         assert pista.text_frame.text.startswith(f"Lado A · 0{n}"), f"lámina {n}: pista"

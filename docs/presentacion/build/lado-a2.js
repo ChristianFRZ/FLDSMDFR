@@ -1,9 +1,67 @@
 // Lado A · 2 (Miriam Amisadai López Hernández): láminas 6–8. Por ahora, solo la rama 03 (lámina 8).
-const { C, F, texto, fondo, titulo, panel, caja, flecha, pista } = require('./tema');
+const { C, F, texto, textoRico, fondo, titulo, panel, caja, flecha, pista } = require('./tema');
 
 const NOTAS_RAMA_03 = 'Aquí está la pieza que protege a todo lo demás: nginx en el borde. Cada petición pasa primero por auth_request, que valida el token JWT antes de llegar a cualquier servicio; si el token no sirve, ni siquiera entra. Detrás del borde tenemos dos réplicas del servicio de catálogo y streaming, y nginx reparte la carga entre ellas. Para comprobar que esto sirve, hicimos una prueba de carga y a mitad de ella apagamos una de las réplicas. Resultado: 0 de 293 peticiones fallaron; los usuarios no notaron nada. Tiene un precio, claro: verificar el token en cada petición cuesta alrededor de 3 milisegundos en p50. Y GET /api/songs se mantiene en 15 milisegundos en p50 y 34 en p95. Para nosotros, ese costo vale la tolerancia a fallos.';
 
+const NOTAS_ARQUITECTURA = 'Gracias, Christian. Ahora veamos cómo está construido todo esto por dentro. MELOXO corre en nueve contenedores de larga vida, orquestados con Docker Compose. Arriba está el edge: nginx es la entrada única, y solo él publica un puerto al host. Debajo, los servicios en fila. gateway-auth valida el token y el rol, y no tiene base de datos. users-playlists lleva las cuentas, los casetes y las invitaciones. catalog-streaming guarda el catálogo y sirve el audio, y lo corremos en dos réplicas. Y playback-metrics registra las reproducciones y calcula las métricas. Entre servicios hablamos HTTP por la ruta interna. Abajo están los datos: un PostgreSQL con una base y un rol por servicio; un Redis que lleva las colas con Redis Streams y la revocación de sesiones; y otro Redis aparte, redis-cache, solo para caché con desalojo LRU, para que sacar lo menos usado nunca toque las colas. El stack es Python 3.12 con FastAPI, PostgreSQL 16, Redis, React 18 y Docker Compose.';
+const NOTAS_RAMA_01_02 = 'Separar el monolito en servicios no fue gratis, así que lo medimos. Hicimos la misma prueba de carga sobre el monolito y sobre los tres servicios, en la misma computadora, con 50 usuarios simultáneos. Estas son las medianas y los percentiles 95, en milisegundos. El primer byte de audio pasó de 12 y 39 a 9 y 20. GET /api/songs pasó de 36 y 71 a 12 y 26: el catálogo ya no compite con el resto por el mismo proceso. Pero fíjense en la fila de abajo: en GET /api/playlists, la mediana sube de 27 a 31 milisegundos. Eso es el salto HTTP extra, porque ahora la lista le pide las pistas al servicio de catálogo. Lo decimos tal cual: ahí la separación cuesta. Eso sí, el p95 baja de 66 a 55, así que las peores peticiones mejoran. Los tres umbrales de latencia se siguen cumpliendo.';
+
 function agregar(pres) {
+  // Lámina 6 · A·06 · arquitectura
+  const a = pres.addSlide();
+  fondo(a);
+  titulo(a, textoRico([['Nueve', { color: C.rosa }], [' contenedores']]), { w: 6 });
+  const nodo = (id, nombre, rol, x, y, w, h, o) => {
+    caja(a, { x, y, w, h, nombre: 'caja-' + id });
+    texto(a, [{ text: nombre, options: { bold: true, breakLine: true } }, { text: rol, options: { fontSize: 12, color: C.atenuado } }],
+      Object.assign({ x: x + 0.05, y, w: w - 0.1, h, fontSize: 13, align: 'center', valign: 'middle', objectName: id }, o));
+  };
+  nodo('edge', 'edge · nginx', 'entrada única: valida sesión y reparte rutas', 0.45, 1.4, 8.82, 0.65);
+  const SV = [['gateway-auth', 'token y rol, sin base'], ['users-playlists', 'cuentas y casetes'], ['catalog-streaming', 'réplica 1 · audio'],
+    ['catalog-streaming', 'réplica 2 · audio'], ['playback-metrics', 'reproducciones']];
+  const cx = [];
+  SV.forEach(([nombre, rol], i) => {
+    const x = 0.45 + i * 1.78;
+    cx.push(x + 0.85);
+    nodo('servicio-' + (i + 1), nombre, rol, x, 2.75, 1.7, 0.8);
+    flecha(a, x + 0.85, 2.05, x + 0.85, 2.75, 'flecha-edge-' + (i + 1));
+  });
+  texto(a, 'HTTP /internal', { x: 1.4, y: 2.25, w: 1.6, h: 0.25, fontSize: 12, color: C.atenuado, objectName: 'etiqueta-http' });
+  nodo('postgres', 'postgres', 'una base y un rol por servicio', 0.5, 4.2, 2.9, 0.7);
+  nodo('redis-cache', 'redis-cache', 'caché con desalojo LRU', 3.6, 4.2, 2.1, 0.7);
+  nodo('redis', 'redis', 'colas y revocación de sesiones', 5.9, 4.2, 3.3, 0.7);
+  flecha(a, cx[1], 3.55, cx[1], 4.2, 'flecha-postgres', C.linea);
+  flecha(a, cx[2], 3.55, cx[2], 4.2, 'flecha-cache', C.linea);
+  flecha(a, cx[3], 3.55, cx[3], 4.2, 'flecha-cola', C.rosa);
+  flecha(a, cx[4], 4.2, cx[4], 3.55, 'flecha-consumo', C.rosa);
+  texto(a, 'Redis Streams', { x: 7.0, y: 3.75, w: 1.2, h: 0.25, fontSize: 12, bold: true, color: C.rosa, align: 'center', objectName: 'etiqueta-streams' });
+  texto(a, 'Python 3.12 · FastAPI · PostgreSQL 16 · Redis · React 18 · Docker Compose',
+    { x: 0.5, y: 5.0, w: 8.7, h: 0.25, fontSize: 13, color: C.atenuado, objectName: 'stack' });
+  pista(a, 'Lado A · 06 — edge\n→ servicios → datos', { x: 6.9, y: 0.45, w: 2.4, h: 0.7 });
+  a.addNotes(NOTAS_ARQUITECTURA);
+
+  // Lámina 7 · A·07 · rama 01→02
+  const r = pres.addSlide();
+  fondo(r);
+  titulo(r, textoRico([['Monolito contra '], ['tres servicios', { color: C.rosa }]]));
+  panel(r, { x: 6.1, y: 1.3, w: 3.4, h: 3.05, nombre: 'panel-servicios' });
+  texto(r, 'monolito', { x: 3.7, y: 1.45, w: 2.2, h: 0.3, bold: true, fontSize: 14, color: C.atenuado, objectName: 'col-monolito' });
+  texto(r, '3 servicios', { x: 6.3, y: 1.45, w: 3.0, h: 0.3, bold: true, fontSize: 14, objectName: 'col-servicios' });
+  texto(r, 'p50 / p95, en ms', { x: 0.5, y: 1.45, w: 3.0, h: 0.3, fontSize: 12, color: C.atenuado, objectName: 'col-unidad' });
+  [['audio', 'Primer byte de audio', 'objetivo p95 < 500 ms', '12 / 39', '9 / 20', C.turquesa],
+    ['songs', 'GET /api/songs', 'objetivo p95 < 300 ms', '36 / 71', '12 / 26', C.turquesa],
+    ['playlists', 'GET /api/playlists/{id}', 'objetivo p95 < 200 ms', '27 / 66', '31 / 55', C.papel]].forEach(([id, nombre, obj, antes, despues, color], i) => {
+    const y = 1.85 + i * 0.85;
+    texto(r, nombre, { x: 0.5, y, w: 3.1, h: 0.3, bold: true, fontSize: 14, objectName: 'fila-' + id });
+    texto(r, obj, { x: 0.5, y: y + 0.32, w: 3.1, h: 0.25, fontSize: 12, color: C.atenuado, objectName: 'fila-' + id + '-objetivo' });
+    texto(r, antes, { x: 3.7, y, w: 2.2, h: 0.5, fontFace: F.titulo, bold: true, fontSize: 24, color: C.atenuado, valign: 'middle', objectName: 'antes-' + id });
+    texto(r, despues, { x: 6.3, y, w: 3.0, h: 0.5, fontFace: F.titulo, bold: true, fontSize: 24, color, valign: 'middle', objectName: 'despues-' + id });
+  });
+  texto(r, textoRico([['En playlists el '], ['p50 sube', { color: C.rosa }], [' de 27 a 31 ms: el salto HTTP extra entre servicios cuesta. El p95 sí baja, de 66 a 55 ms.']]),
+    { x: 0.5, y: 4.6, w: 6.4, h: 0.6, fontSize: 13, color: C.atenuado, objectName: 'nota-playlists' });
+  pista(r, 'Lado A · 07 — medir\n→ comparar → un salto extra', { y: 4.68, w: 2.4, h: 0.62 });
+  r.addNotes(NOTAS_RAMA_01_02);
+
   // Lámina 8 · A·08 · rama 03
   const s = pres.addSlide();
   fondo(s);
