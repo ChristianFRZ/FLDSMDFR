@@ -12,7 +12,7 @@ from pptx.util import Emu
 MELOXO_PPTX = os.environ.get(
     "MELOXO_PPTX", os.path.join(os.path.dirname(os.path.abspath(__file__)), "meloxo.pptx")
 )
-ESPERADAS = 8
+ESPERADAS = 12
 
 FUENTES = {"Montserrat", "Roboto", "Caveat"}
 PALETA = {"141317", "201F25", "4A4852", "F4F1EA", "BDB9AF", "FF3D8B", "00D1BE", "FFD233", "4A5CFF"}
@@ -231,3 +231,40 @@ def test_textos_a2(pres):
     for n in range(6, 9):
         pista = next(f for f in formas(pres.slides[n - 1].shapes) if f.name == "pista")
         assert pista.text_frame.text.startswith(f"Lado A · 0{n}"), f"lámina {n}: pista"
+
+
+def test_textos_b1(pres):
+    def por_nombre(n):
+        return {f.name: f for f in formas(pres.slides[n - 1].shapes)}
+
+    n9 = por_nombre(9)
+    assert "Lado B" in n9["casete-lado"].text_frame.text
+    assert "Lado B: cuando algo falla" in n9["titulo"].text_frame.text
+    for k in ["cerrado", "abierto", "semiabierto"]:
+        assert f"caja-{k}" in por_nombre(10) and k in por_nombre(10)[f"estado-{k}"].text_frame.text, f"lámina 10: falta {k}"
+    n10 = por_nombre(10)
+    assert "5 fallos" in n10["transicion-abre"].text_frame.text and "30 s" in n10["transicion-abre"].text_frame.text
+    assert "15 s" in n10["transicion-prueba"].text_frame.text
+    assert "1,5 s" in n10["nota-timeouts"].text_frame.text
+    n11 = por_nombre(11)
+    assert "202" in n11["cola-despues-cifra"].text_frame.text
+    assert "0 perdidas" in n11["cola-resultado"].text_frame.text
+    assert "30 s" in n11["revocacion-antes-cifra"].text_frame.text
+    assert "0,04 s" in n11["revocacion-despues-cifra"].text_frame.text
+    n12 = por_nombre(12)
+    for k in range(1, 5):
+        assert f"caja-paso-{k}" in n12 and f"paso-{k}" in n12, f"lámina 12: falta paso-{k}"
+    assert "5 intentos" in n12["dlq-texto"].text_frame.text
+    assert "132 publicados" in n12["resultado-cifra"].text_frame.text and "0 sin relevar" in n12["resultado-cifra"].text_frame.text
+    t = {n: _textos(pres.slides[n - 1]) for n in (10, 11, 12)}
+    for c in ["5 fallos", "30 s", "15 s"]:
+        assert c in t[10], f"lámina 10: falta {c!r}"
+    for c in ["202", "0,04 s"]:
+        assert c in t[11], f"lámina 11: falta {c!r}"
+    for c in ["132", "0 sin relevar"]:
+        assert c in t[12], f"lámina 12: falta {c!r}"
+    for n in range(9, 13):
+        pista = next(f for f in formas(pres.slides[n - 1].shapes) if f.name == "pista")
+        assert pista.text_frame.text.startswith(f"Lado B · {n:02d} — "), f"lámina {n}: pista"
+        assert pista.text_frame.text.count("→") == 2, f"lámina {n}: la pista lleva 3 ideas"
+    assert pres.slides[8].notes_slide.notes_text_frame.text.startswith("Gracias, Miriam")

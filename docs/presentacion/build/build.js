@@ -16,7 +16,7 @@ async function main() {
   pres.title = 'MELOXO - Tu casetera de confianza';
   pres.author = 'FLDSMDFR';
   tema.iniciar(pres);
-  for (const lado of ['lado-a1', 'lado-a2']) require('./' + lado).agregar(pres);
+  for (const lado of ['lado-a1', 'lado-a2', 'lado-b1']) require('./' + lado).agregar(pres);
   await pres.writeFile({ fileName: SALIDA });
   // quita las entradas de directorio del zip (Canva y validate las rechazan)
   try { execSync(`zip -dq "${SALIDA}" '*/'`, { stdio: 'ignore' }); } catch (e) { /* sin entradas de directorio: zip sale con 12 */ }
