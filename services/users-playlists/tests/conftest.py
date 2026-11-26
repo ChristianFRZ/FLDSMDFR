@@ -170,8 +170,23 @@ async def admin(make_user):
 
 @pytest.fixture
 def make_song(fake_catalog):
+    """Crea la pista en el catálogo simulado. Si es local y está publicada, también guarda su `track_published`,
+    como si el relevo y el consumidor ya lo hubieran movido: así los avisos la ven."""
+    from sqlalchemy.dialects.postgresql import insert
+
+    from meloxo_common.db import session_scope
+    from tests.fake_catalog import _summary
+    from users_playlists.modules.social.models import ReleaseEvent
+
     async def _make(**kw):
-        return fake_catalog.add_song(**kw)
+        song = fake_catalog.add_song(**kw)
+        if song.status == "published" and song.source == "local" and song.published_at is not None:
+            statement = insert(ReleaseEvent).values(
+                song_id=song.id, artist_id=song.artist_id, published_at=song.published_at, song=_summary(song)
+            )
+            async with session_scope() as session:
+                await session.execute(statement.on_conflict_do_nothing())
+        return song
 
     return _make
 

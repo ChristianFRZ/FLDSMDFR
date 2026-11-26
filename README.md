@@ -4,7 +4,7 @@ Tu Casetera de Confianza. MELOXO es un servicio de streaming musical que gira al
 
 Es el proyecto de la materia de Sistemas Distribuidos del equipo FLDSMDFR: Christian Franco Ramírez, Miriam Amisadai López Hernández, Erick Nava Santiago y Brent Armando Pérez Paitán.
 
-Esta rama, `04-resiliencia-concurrencia`, parte del gateway y las dos réplicas de catálogo de `03-gateway-balanceo` y hace que una falla no se propague: las llamadas entre servicios tienen tiempos de espera, reintentos y un circuit breaker; las reproducciones pasan por una cola en Redis, así que no se pierden si `playback-metrics` cae; y un cambio de rol o una suspensión se ve en la siguiente petición, no 30 s después. El producto es el mismo; cambia cómo está armado por dentro. La rama siguiente, `05-mensajeria`, es una propuesta.
+Esta rama, `05-mensajeria`, parte de las llamadas con timeouts, breaker y cola en Redis de `04-resiliencia-concurrencia` y agrega el primer evento entre servicios: cuando una pista se publica, catálogo publica `track_published` en un stream de Redis y `users-playlists` lo guarda en su propia base. Los avisos de lanzamientos se leen de esa tabla, así que ya no se degradan si catálogo cae, y un lanzamiento que ocurre con `users-playlists` caído espera en el stream hasta que vuelva. El producto es el mismo; cambia cómo está armado por dentro. La rama siguiente, `06-poliglota`, es una propuesta.
 
 ## Con qué está hecho
 
@@ -235,7 +235,7 @@ Los resultados y sus límites están en [`demo/`](demo/README.md#prueba-de-carga
 
 ## Estado de los criterios
 
-Verificado el 2026-11-14 sobre el stack en marcha: 87 pruebas de `common`, 182 de `users-playlists`, 169 de `catalog-streaming`, 110 de `playback-metrics`, 14 de `gateway-auth`, 115 de `edge` (14 de ellas contra el stack), 17 de `demo` y 144 de frontend. Los escenarios 1, 2, 4 a 8, 10 y 11 pasan. El 3 y `seed all` se corrieron después, con una llave real de Jamendo: `seed all` importó 2000 pistas y el escenario 3 pasa, aunque el 503 de una pista de Jamendo tarda 12,1 s porque esta rama no tiene breaker para Jamendo. También pasaron `seed/tests` (18), `infra/tests` (7) y `tests` (2). Las pruebas de navegador (Playwright) no se repitieron en esta rama. Las mediciones de carga son de la corrida del 2026-11-14, en `docker compose` local y sin una red real de por medio. Los criterios completos están en la [sección 6 del PRD](docs/prd.md#6-historias-de-usuario-y-criterios-de-aceptación), y los resultados y avisos de la rama, en [`docs/decisions/04-resiliencia-concurrencia.md`](docs/decisions/04-resiliencia-concurrencia.md#resultados-de-la-verificación).
+Verificado el 2026-11-14 sobre el stack en marcha: 98 pruebas de `common`, 195 de `users-playlists`, 176 de `catalog-streaming`, 110 de `playback-metrics`, 14 de `gateway-auth`, 101 de `edge` sin stack, 17 de `demo`, 18 de `seed/tests`, 7 de `infra/tests` y 2 de `tests`. Los escenarios 1 a 8, 10, 11 y 12 pasan; el 9 es la prueba de carga. No se repitieron en esta rama las pruebas de `edge` contra el stack, las de frontend (Vitest), las de navegador (Playwright), la prueba de carga ni `seed all`: sus cifras (14 de `edge` con stack, 144 de frontend, la carga y las mediciones de F3.4 y F2.5, entre ellas el 503 de 12,1 s de una pista de Jamendo, que sigue sin breaker) son de la rama `04`. Los criterios completos están en la [sección 6 del PRD](docs/prd.md#6-historias-de-usuario-y-criterios-de-aceptación), y los resultados y avisos de la rama, en [`docs/decisions/05-mensajeria.md`](docs/decisions/05-mensajeria.md#resultados-de-la-verificación).
 
 La columna Evidencia dice dónde se comprueba cada criterio; las mediciones marcadas con 01 salen de la corrida del monolito (2026-11-06) y no se repitieron.
 
@@ -285,7 +285,7 @@ De los escenarios del PRD, el 2 (una réplica de catálogo cae) y el 1 (`playbac
 El recorrido completo, con lo que cabe en MELOXO de cada rama y lo que está pendiente de decidir, está en [`docs/ramas.md`](docs/ramas.md).
 
 - `04-resiliencia-concurrencia` (hecha): tiempos de espera, reintentos con backoff, circuit breaker por servicio destino, la cola de reproducciones en Redis Streams (F3.3) y la lista de revocación de sesiones en Redis. Sin saga con estados ni cola de mensajes muertos. [Diseño](docs/specs/2026-11-14-04-resiliencia-concurrencia-design.md) y [decisiones](docs/decisions/04-resiliencia-concurrencia.md).
-- `05-mensajeria` (propuesta): eventos entre servicios con acuse manual, cola de mensajes muertos y outbox, de modo que los avisos de lanzamientos no dependan de que catálogo responda. Falta decidir el broker.
+- `05-mensajeria` (hecha): `track_published` sobre Redis Streams con outbox, consumidor idempotente con acuse tras el commit y cola de mensajes muertos; los avisos de lanzamientos se leen de una tabla local y no dependen de catálogo. Una pista ocultada después de publicarse sigue en los avisos ya guardados (falta `track_hidden`). [Diseño](docs/specs/2026-11-14-05-mensajeria-design.md) y [decisiones](docs/decisions/05-mensajeria.md).
 - `06-poliglota` (propuesta): caché de lectura en Redis y, si el equipo lo aprueba, un almacén documental para la bitácora y los avisos.
 
 ## Documentación
@@ -315,7 +315,7 @@ Los términos que aparecen en el código y en la documentación, agrupados por t
 | Término | Qué significa aquí |
 | --- | --- |
 | Administrador | Rol que modera el catálogo, aprueba Compositores y ve la salud del sistema |
-| Aviso | Notificación de que un artista que sigues publicó algo. Se calcula al leer, no se guarda |
+| Aviso | Notificación de que un artista que sigues publicó algo. Se calcula al leer, a partir de los lanzamientos que `users-playlists` ya guardó al recibir `track_published` |
 | Bitácora | Registro de las acciones administrativas, en la tabla `audit_log` |
 | Casete | La unidad central de MELOXO: hasta 12 pistas en dos lados, armado por hasta 8 personas |
 | Compositor | Oyente aprobado para subir y publicar su propia música |
@@ -467,8 +467,8 @@ Los códigos de respuesta que más aparecen en este proyecto:
 | python-multipart | Lee las subidas de archivos en FastAPI |
 | React | Biblioteca de la interfaz |
 | React Router | Rutas de la interfaz |
-| Redis | Almacén en memoria para la cola de reproducciones y la revocación (rama 04); en la 06 servirá también de caché |
-| Redis Streams | La cola de eventos de Redis. Desde la rama 04 guarda las reproducciones hasta que `playback-metrics` las aplica |
+| Redis | Almacén en memoria para la cola de reproducciones y la revocación (rama 04) y para el stream `track_published` (rama 05); en la 06 servirá también de caché |
+| Redis Streams | La cola de eventos de Redis. Desde la rama 04 guarda las reproducciones hasta que `playback-metrics` las aplica, y desde la 05 los lanzamientos (`track_published`) hasta que `users-playlists` los guarda |
 | respx | Simula las respuestas de Jamendo en las pruebas |
 | SQLAlchemy | ORM de los servicios |
 | TanStack Query | Pide datos a la API y los mantiene en caché en la interfaz |

@@ -131,13 +131,13 @@ async def test_unfollowed_artist_no_notice(client, listener, composer, make_song
     assert (await notices(client, listener))["unread"] == 0
 
 
-async def test_catalog_down_notices_still_show_invites(client, listener, composer, make_song, fake_catalog):
+async def test_catalog_down_notices_still_show_releases(client, listener, composer, make_song, fake_catalog):
     await publish_after_follow(client, listener, composer, make_song)
 
     fake_catalog.down = True
     body = await notices(client, listener)
-    assert body["degraded"] is True
-    assert body["items"] == []
+    assert body["degraded"] is False
+    assert [i["song"]["title"] for i in body["items"]] == ["Nueva"]
 
 
 async def test_releases_include_scheduled_with_date(client, listener, composer, make_song):

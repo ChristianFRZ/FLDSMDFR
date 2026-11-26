@@ -249,7 +249,7 @@ async def test_catalog_down_notices_keep_invites(client, listener, make_user, ma
 
     fake_catalog.down = True
     body = (await client.get("/api/notices", headers=guest.headers)).json()
-    assert body["degraded"] is True
+    assert body["degraded"] is False
     assert [i["type"] for i in body["items"]] == ["invite"]
 
 

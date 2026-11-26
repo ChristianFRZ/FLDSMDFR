@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -85,3 +85,15 @@ class InviteClaim(Base):
     invite_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tape_invites.id", ondelete="CASCADE"), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, index=True)
     status: Mapped[str] = mapped_column(String(10), default="pending")
+
+
+class ReleaseEvent(Base):
+    """Lanzamiento recibido por el stream `track_published`; los avisos se leen de aquí."""
+
+    __tablename__ = "release_events"
+    __table_args__ = (Index("ix_release_events_artist_published", "artist_id", "published_at"),)
+
+    song_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    artist_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    published_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    song: Mapped[dict] = mapped_column(JSONB)

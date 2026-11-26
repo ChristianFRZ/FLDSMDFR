@@ -16,6 +16,7 @@ Paquete de Python con lo que comparten los tres servicios de MELOXO. Aquí no va
 | [`breaker.py`](meloxo_common/breaker.py) | `CircuitBreaker`: abre tras 5 llamadas fallidas en 30 s, pasa a medio abierto a los 15 s y deja pasar una sola llamada de prueba |
 | [`revocation.py`](meloxo_common/revocation.py) | `revoke(user_id)` y `revoked_after(user_id)`: clave `revoked_after:<user_id>` en Redis con TTL de 960 s. `auth.py` rechaza el token cuyo `iat` es anterior. `auth.py` además descarta lo que la caché de estado guardó antes de la revocación, para que el token nuevo traiga el rol nuevo al instante. Si Redis falla o tarda más de 0.3 s, se ignora y manda la caché de 30 s |
 | [`playback_queue.py`](meloxo_common/playback_queue.py) | El contrato de la cola de reproducciones: stream `playbacks`, `QueuedEvent`, `to_fields`/`from_fields`, `enqueue` y `ensure_group` |
+| [`track_events.py`](meloxo_common/track_events.py) | El contrato de `track_published`: streams `track_published` y `track_published:dlq`, grupo `users-playlists`, `MAX_ATTEMPTS` (5), `TrackPublished`, `to_fields`/`from_fields` (lanza `ValueError` con el motivo), `enqueue`, `ensure_group` y `send_to_dlq` |
 | [`redis_client.py`](meloxo_common/redis_client.py) | `get_redis()`: cliente de Redis compartido (`REDIS_URL`; vacío devuelve `None`) y `override_redis()` para las pruebas |
 | [`contracts.py`](meloxo_common/contracts.py) | Modelos de lo que viaja entre servicios |
 | [`boundaries.py`](meloxo_common/boundaries.py) | Detector de imports prohibidos entre servicios y entre módulos |

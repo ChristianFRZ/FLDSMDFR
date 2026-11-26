@@ -11,6 +11,7 @@ from meloxo_common.db import session_scope
 from catalog_streaming.modules.catalog.import_jobs import refresh_metadata
 from catalog_streaming.modules.catalog.jamendo import JamendoClient, JamendoError
 from catalog_streaming.modules.catalog.models import Artist, Song
+from catalog_streaming.modules.catalog.outbox import relay_published_events
 from catalog_streaming.modules.catalog.publishing import publish_due_tracks
 from catalog_streaming.modules.catalog.schemas import ArtistSummary, PublishedRelease, ReleaseCounts, SongSummary, UpcomingRelease
 from catalog_streaming.modules.catalog.service import to_artist_summary, to_summary
@@ -42,6 +43,7 @@ __all__ = [
     "publish_due_tracks",
     "published_since",
     "refresh_metadata",
+    "relay_published_events",
     "release_counts",
     "song_is_playable",
     "songs_owned_by",

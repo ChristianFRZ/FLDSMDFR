@@ -4,7 +4,7 @@ Canciones, artistas, álbumes, importación, subidas y streaming. Sus pruebas es
 
 **Tablas:** `artists`, `albums`, `songs`, `import_jobs` y `published_events`.
 
-**Lo que ofrece a otros módulos (la interfaz HTTP llega en la tarea siguiente):** `get_songs`, `get_artists`, `missing_song`, `song_is_playable`, `songs_owned_by`, `published_since`, `upcoming_for_artists`, `release_counts`, `catalog_by_source`, `jamendo_status`, `publish_due_tracks` y `refresh_metadata`, en [`public.py`](public.py).
+**Lo que ofrece a otros módulos (la interfaz HTTP llega en la tarea siguiente):** `get_songs`, `get_artists`, `missing_song`, `song_is_playable`, `songs_owned_by`, `published_since`, `upcoming_for_artists`, `release_counts`, `catalog_by_source`, `jamendo_status`, `publish_due_tracks`, `relay_published_events` y `refresh_metadata`, en [`public.py`](public.py).
 
 Estos son los archivos del módulo:
 
@@ -16,6 +16,7 @@ Estos son los archivos del módulo:
 | [`import_jobs.py`](import_jobs.py) | Importación por lotes |
 | [`uploads.py`](uploads.py) | Validación y guardado de archivos |
 | [`publishing.py`](publishing.py) | Publicación y moderación |
+| [`outbox.py`](outbox.py) | `relay_published_events`: publica en Redis los `track_published` pendientes |
 | [`composer.py`](composer.py), [`composer_routes.py`](composer_routes.py) | Reglas y rutas del Compositor |
 
 ## Streaming
@@ -41,6 +42,10 @@ El archivo se escribe primero en `tmp/`, se valida y después se mueve con un no
 Cada 30 s, `publish_due_tracks` publica las pistas cuya fecha ya pasó. Usa `FOR UPDATE SKIP LOCKED` para que dos procesos no publiquen la misma pista.
 
 `published_events` es el registro único de `track_published`, y ocultar o restaurar una pista no lo modifica. Al restaurar, un administrador devuelve la pista al estado que tenía, guardado en `status_before_hide`. Solo puede restaurar lo que ocultó un administrador.
+
+## Relevo de `track_published`
+
+Cada 2 s, `relay_published_events` toma hasta 100 filas de `published_events` con `relayed_at` nulo (`FOR UPDATE SKIP LOCKED`, así que las dos réplicas no se pisan), publica cada una con `XADD` en el stream `track_published` y marca `relayed_at` en la misma transacción. Si Redis falla, la transacción se revierte y el siguiente ciclo reintenta; si el proceso cae entre el `XADD` y el commit, el evento sale dos veces y el consumidor lo tolera. La pista de Jamendo, oculta o borrada solo se marca, sin publicar. Las filas anteriores a la rama también salen por este camino. El contrato del mensaje está en [`track_events.py`](../../../../common/meloxo_common/track_events.py).
 
 ## Auditoría y usuarios
 

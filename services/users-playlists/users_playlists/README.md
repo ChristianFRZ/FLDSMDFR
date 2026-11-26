@@ -4,7 +4,7 @@ Paquete de Python del servicio [`users-playlists`](../README.md).
 
 | Archivo o carpeta | Para qué sirve |
 | --- | --- |
-| [`main.py`](main.py) | `create_app()`: rutas de usuarios, playlists, favoritas, seguidos y casetes, y medición de latencia. En el arranque crea el primer administrador si `ADMIN_EMAIL` y `ADMIN_PASSWORD` están definidos. No tiene tareas periódicas |
+| [`main.py`](main.py) | `create_app()`: rutas de usuarios, playlists, favoritas, seguidos y casetes, y medición de latencia. En el arranque crea el primer administrador si `ADMIN_EMAIL` y `ADMIN_PASSWORD` están definidos y, salvo con `DISABLE_SCHEDULER`, lanza la tarea `consumidor_lanzamientos` (`run_release_consumer`), que cancela al salir. No tiene tareas periódicas |
 | [`internal_routes.py`](internal_routes.py) | Rutas `/internal/*` para otros servicios (ver tabla abajo) |
 | [`config.py`](config.py) | `Settings`, que extiende la configuración común con `CATALOG_URL`, los datos del primer administrador, `DEMO_PASSWORD` y los límites de casetes |
 | [`auth.py`](auth.py) | `current_user` y `require_role`: el rol y el estado se leen de la base propia en cada petición, sin caché ni red |

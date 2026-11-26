@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -9,6 +10,7 @@ from meloxo_common.latency import LatencyMiddleware, LatencyRecorder, internal_r
 from users_playlists.config import get_settings
 from users_playlists.internal_routes import router as internal_routes
 from users_playlists.modules.playlists.routes import router as playlists_router
+from users_playlists.modules.social.public import run_release_consumer
 from users_playlists.modules.social.routes import router as social_router
 from users_playlists.modules.social.tape_routes import router as tapes_router
 from users_playlists.modules.users.public import ensure_first_admin
@@ -35,7 +37,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     if settings.ADMIN_EMAIL and settings.ADMIN_PASSWORD:
         await ensure_first_admin(settings.ADMIN_EMAIL, settings.ADMIN_PASSWORD)
+    consumer = None if settings.DISABLE_SCHEDULER else asyncio.create_task(run_release_consumer(), name="consumidor_lanzamientos")
     yield
+    if consumer is not None:
+        consumer.cancel()
 
 
 def create_app() -> FastAPI:

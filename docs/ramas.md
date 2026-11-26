@@ -1,6 +1,6 @@
 # Ramas del proyecto y qué falta
 
-Este documento junta las seis ramas del recorrido del curso. Las cuatro primeras ya están construidas; las otras dos (`05` y `06`) son la propuesta de qué traería cada una en MELOXO. El plan aprobado en el [PRD](prd.md#plan-de-ramas) llegaba hasta la `04`, ya hecha: lo de las ramas `05` y `06` sale de la guía del recorrido del curso, que lo cuenta con el caso de Mexi Banco, y necesita que el equipo lo apruebe antes de convertirse en diseño.
+Este documento junta las seis ramas del recorrido del curso. Las cinco primeras ya están construidas; la `06` es la propuesta de qué traería en MELOXO. El plan aprobado en el [PRD](prd.md#plan-de-ramas) llegaba hasta la `04`: lo de las ramas `05` y `06` sale de la guía del recorrido del curso, que lo cuenta con el caso de Mexi Banco. La `05` ya pasó por el equipo y se construyó; la `06` necesita su aprobación antes de convertirse en diseño.
 
 ## Mapa
 
@@ -10,10 +10,10 @@ Este documento junta las seis ramas del recorrido del curso. Las cuatro primeras
 | `02-separacion` | Hecha | Tres servicios, una base por servicio, nginx de entrada | `02-separacion` |
 | `03-gateway-balanceo` | Hecha | Gateway que valida sesión y rol, dos réplicas de catálogo con failover | `03-gateway-discovery-balanceo` |
 | `04-resiliencia-concurrencia` | Hecha | Timeouts, reintentos, circuit breaker, Redis para revocación y cola | `04-saga-circuit-breaker` |
-| `05-mensajeria` | Propuesta | Eventos entre servicios con acuse manual, cola de mensajes muertos y outbox | `05-mensajeria-base` |
+| `05-mensajeria` | Hecha | `track_published` sobre Redis Streams con acuse manual, cola de mensajes muertos y outbox | `05-mensajeria-base` |
 | `06-poliglota` | Propuesta | Caché en Redis y un almacén documental para lo que no es relacional | `06-poliglota-base` |
 
-Los nombres de `05` y `06` son provisionales. Cada rama nueva sigue el [flujo de siempre](README.md#cómo-se-nombran-las-cosas): diseño en [`specs/`](specs/README.md), plan en [`plans/`](plans/README.md) y decisiones en [`decisions/`](decisions/README.md).
+El nombre de la `06` es provisional. Cada rama nueva sigue el [flujo de siempre](README.md#cómo-se-nombran-las-cosas): diseño en [`specs/`](specs/README.md), plan en [`plans/`](plans/README.md) y decisiones en [`decisions/`](decisions/README.md).
 
 ## Diferencias que ya existen con Mexi Banco
 
@@ -42,7 +42,7 @@ Estado tras la rama: la columna «Lo que ya hay en el código» describe el punt
 
 ## Rama 05: mensajería
 
-La referencia usa RabbitMQ. El PRD de MELOXO ya eligió Redis Streams, que tiene lo necesario: grupos de consumidores, acuse con `XACK`, mensajes pendientes recuperables y una lista de entregas fallidas que se puede llevar a un stream aparte. Hay que decidir con el equipo cuál de los dos usar (ver [decisiones pendientes](#decisiones-pendientes)).
+La referencia usa RabbitMQ. El PRD de MELOXO ya eligió Redis Streams, que tiene lo necesario: grupos de consumidores, acuse con `XACK`, mensajes pendientes recuperables y una lista de entregas fallidas que se puede llevar a un stream aparte. El equipo eligió Redis Streams (ver [decisiones pendientes](#decisiones-pendientes)).
 
 | Función del documento de referencia | ¿Cabe en MELOXO? | Cómo sería aquí | Lo que ya hay en el código |
 | --- | --- | --- | --- |
@@ -53,6 +53,8 @@ La referencia usa RabbitMQ. El PRD de MELOXO ya eligió Redis Streams, que tiene
 | Cola de mensajes muertos | Sí | Mensajes con formato inválido o que fallan N veces van a un stream aparte, con el motivo | Nada todavía |
 | Consumo idempotente | Sí | Tabla de eventos ya aplicados, como `PublishedEvent` | La idea ya está en catálogo |
 | Panel del broker | No hace falta | Redis no trae panel; se puede ver con `redis-cli` o sumarlo a la sección de Salud del admin | La sección de Salud ya lista los servicios |
+
+Estado tras la rama: la columna «Lo que ya hay en el código» describe el punto de partida. Se hizo solo `track_published`: catálogo lo publica desde un relevo del outbox (`relayed_at`, `SKIP LOCKED`), `users-playlists` lo consume con acuse después del commit y lo guarda en `release_events` (idempotente por `song_id`), y lo que no se puede leer o falla cinco veces va a `track_published:dlq` con el motivo. Los avisos se leen de esa tabla y ya no dependen de catálogo. Quedaron fuera los otros eventos, el panel del broker y `track_hidden`: una pista ocultada después de publicarse sigue en los avisos ya guardados. Las [decisiones de la rama](decisions/05-mensajeria.md) dicen cómo quedó cada cosa.
 
 ## Rama 06: persistencia políglota
 
@@ -71,8 +73,8 @@ La referencia usa RabbitMQ. El PRD de MELOXO ya eligió Redis Streams, que tiene
 
 ## Decisiones pendientes
 
-1. **Broker de la rama 05:** Redis Streams (ya aprobado en el PRD, un contenedor menos, pero sin panel ni enrutamiento) o RabbitMQ (como la referencia, con panel y colas de mensajes muertos nativas, pero un componente nuevo).
+1. ~~**Broker de la rama 05:**~~ Resuelta: Redis Streams, sin panel ni enrutamiento pero sin un componente nuevo. Lo decidió el equipo en el [diseño de la rama](specs/2026-11-14-05-mensajeria-design.md#4-decisiones-del-equipo).
 2. ~~**Dónde entra Redis:**~~ Resuelta: entró en la `04`, con la cola de reproducciones y la revocación. La `06` solo agrega la caché.
 3. **MongoDB:** si el equipo lo quiere en la `06`, hay que actualizar el PRD (dueño de cada dato) y la regla de "una base por servicio".
-4. **Nombres de las ramas `05` y `06`.**
+4. **Nombre de la rama `06`.**
 5. ~~**Alcance de la saga en la `04`:**~~ Resuelta: sin saga, solo timeouts, breaker, reintentos, cola y revocación.

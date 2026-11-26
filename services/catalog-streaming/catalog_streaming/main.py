@@ -11,7 +11,7 @@ from meloxo_common.scheduler import periodic
 from catalog_streaming.config import get_settings
 from catalog_streaming.internal_routes import router as internal_routes
 from catalog_streaming.modules.catalog.composer_routes import router as composer_router
-from catalog_streaming.modules.catalog.public import publish_due_tracks, refresh_metadata
+from catalog_streaming.modules.catalog.public import publish_due_tracks, refresh_metadata, relay_published_events
 from catalog_streaming.modules.catalog.routes import router as catalog_router
 from catalog_streaming.playback_routes import router as playback_router
 
@@ -35,6 +35,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if not get_settings().DISABLE_SCHEDULER:
         tasks = [
             periodic("publicar_programadas", 30, publish_due_tracks),
+            periodic("relevar_publicaciones", 2, relay_published_events),
             periodic("refrescar_jamendo", 24 * 3600, refresh_metadata, first_delay=3600),
         ]
     yield
