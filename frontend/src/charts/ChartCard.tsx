@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { Chart, ChartConfiguration } from "chart.js";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { api } from "../api/client";
+import { useTheme } from "../theme";
 import { ChartCanvas } from "./ChartCanvas";
 import { exportCsv, exportPng } from "./export";
 
@@ -43,8 +44,9 @@ export function ChartCard({ title, subtitle, url, columns, rows = defaultRows as
   const [, redraw] = useState(0);
   const [exportFailed, setExportFailed] = useState(false);
   const query = useQuery({ queryKey: ["metric", url], queryFn: () => api<unknown>(url), refetchInterval: refresh });
+  const { resolved } = useTheme();
   const data = useMemo(() => (query.data ? rows(query.data as never) : []), [query.data, rows]);
-  const config = useMemo(() => (chart && data.length ? chart(data) : null), [chart, data]);
+  const config = useMemo(() => (chart && data.length ? chart(data) : null), [chart, data, resolved]);
   const keep = useCallback((created: Chart | null) => {
     instance.current = created;
     redraw((n) => n + 1);

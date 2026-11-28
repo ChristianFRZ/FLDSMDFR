@@ -2,7 +2,7 @@
 import time
 from datetime import UTC, datetime, timedelta
 
-from common import COMPOSE, admin, check, compose, demo_stack, new_composer, new_user, run, sql, upload_track
+from common import COMPOSE, admin, check, compose, demo_stack, restore_catalog, new_composer, new_user, run, sql, upload_track
 
 TRACKS = 10
 WAIT_SECONDS = 45
@@ -27,8 +27,8 @@ def scenario() -> None:
     songs = [upload_track(composer, f"Escenario 8, pista {n}", later)["id"] for n in range(TRACKS)]
     ids = ",".join(f"'{song}'" for song in songs)
     try:
-        # Con la app apagada vencen todas a la vez, y las dos réplicas las encuentran al arrancar.
-        compose(COMPOSE, "stop", "app")
+        # Con catalog-streaming apagado vencen todas a la vez, y las dos réplicas las encuentran al arrancar.
+        compose(COMPOSE, "stop", "catalog-streaming")
         sql(f"update songs set publish_at = now() - interval '1 minute' where id in ({ids})")
 
         with demo_stack(replicas=2) as urls:
@@ -39,10 +39,11 @@ def scenario() -> None:
             events = sql(f"select count(*) from published_events where song_id in ({ids})")
             check(events == str(TRACKS), f"{events} eventos track_published, uno por pista")
 
-            notices = follower.at(urls[1]).ok("GET", "/api/notices")["items"]
+            notices = follower.ok("GET", "/api/notices")["items"]
             announced = [n["song"]["id"] for n in notices if n["type"] == "release"]
             check(sorted(announced) == sorted(songs), f"el seguidor recibió {len(announced)} avisos, uno por pista")
     finally:
+        restore_catalog()  # también si falló el stop o el sql, antes de borrar por la API
         for song in songs:
             composer.ok("DELETE", f"/api/composer/tracks/{song}")
 

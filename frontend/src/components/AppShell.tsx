@@ -1,8 +1,8 @@
 import { type ReactNode } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
-import logo from "../assets/meloxo-horizontal-color-dark.svg";
 import { useAuth } from "../auth/AuthContext";
 import { Icon, type IconName } from "./Icon";
+import { Logo } from "./Logo";
 
 /** `short` es lo que se lee en las pestañas del teléfono. El nombre accesible sigue siendo `label`. */
 type NavItem = { to: string; label: string; short?: string; icon: IconName };
@@ -30,7 +30,7 @@ export function AppShell({ library, nowPlaying, player, topActions }: Props) {
       <a className="skip" href="#content">Saltar al contenido</a>
       <aside className="panel side" aria-label="Navegación">
         <Link to="/" aria-label="MELOXO, inicio">
-          <img className="brand" src={logo} alt="" />
+          <Logo variant="horizontal" className="brand" alt="" />
         </Link>
         <nav className="nav">
           {(extra ? [...nav, extra] : nav).map((item) => (

@@ -8,6 +8,8 @@ Aquí está todo lo que explica el proyecto y no es código. Si llegas por prime
 | Diseños aprobados, con las decisiones del equipo | [`specs/`](specs/README.md) |
 | Planes de implementación que salen de esos diseños | [`plans/`](plans/README.md) |
 | Lo que se decidió sobre la marcha y lo que quedó pendiente | [`decisions/`](decisions/README.md) |
+| Las seis ramas del recorrido, lo que cabe en cada una y lo pendiente | [`ramas.md`](ramas.md) |
+| Diseño y plan de las animaciones del logo, hechos fuera de las seis ramas | [`superpowers/specs/`](superpowers/specs/2026-11-14-animaciones-logo-design.md) y [`superpowers/plans/`](superpowers/plans/2026-11-14-animaciones-logo.md) |
 | Maqueta de la interfaz | [`design/`](design/README.md) |
 | Logo, colores y guía de marca | [`brand/`](brand/README.md) |
 
@@ -27,12 +29,12 @@ Estas son las reglas del repositorio. Cada una sale de la guía oficial de su he
 | Diseños y planes | Fecha, rama y tema | `2026-11-05-01-monolito-design.md` | Así se ordenan solos por fecha |
 | Decisiones | Número de rama y nombre | `01-monolito.md` | Adaptado de [MADR](https://adr.github.io/madr/), pero con un archivo por rama |
 | Archivos de Compose | `compose.yaml` | `compose.demo.yaml` | Es el nombre preferido según [Docker](https://docs.docker.com/compose/intro/compose-application-model/) |
-| Migraciones | Número de 4 dígitos y tema | `0009_tapes.py` | Ver [`backend/migrations/versions/`](../backend/migrations/versions/README.md) |
+| Migraciones | Número de 4 dígitos y tema | `0009_tapes.py` | Ver [`services/users-playlists/migrations/versions/`](../services/users-playlists/migrations/versions/README.md) |
 
 Los textos de `docs/` y los README van en español, igual que la interfaz.
 
 ## Por qué las carpetas están así
 
-- **Backend por dominio.** Cada [módulo](../backend/app/modules/README.md) guarda juntos sus rutas, modelos y servicios, y [`backend/tests/`](../backend/tests/README.md) repite esa forma. Es lo que recomienda la [guía de buenas prácticas de FastAPI](https://github.com/zhanymkanov/fastapi-best-practices) para un monolito con varios dominios, y es lo que permite separar los servicios en la rama 02.
+- **Servicios con módulos por dominio.** Cada [módulo](../services/users-playlists/users_playlists/modules/README.md) de un servicio guarda juntos sus rutas, modelos y servicios, y [`tests/`](../services/users-playlists/tests/README.md) de cada servicio repite esa forma. Es lo que recomienda la [guía de buenas prácticas de FastAPI](https://github.com/zhanymkanov/fastapi-best-practices) para organizar por dominio, y es lo que permitió separar el monolito en tres servicios en la rama 02.
 - **Interfaz por pantallas y piezas.** [Bulletproof React](https://github.com/alan2207/bulletproof-react/blob/master/docs/project-structure.md) propone una carpeta `features/` para proyectos grandes. En [`frontend/src/`](../frontend/src/README.md), las carpetas `player/`, `charts/`, `auth/` y `api/` ya cumplen ese papel, y `pages/` sigue las rutas, así que moverlo todo no aportaría nada.
 - **[`demo/`](../demo/README.md) en la raíz.** El PRD pide ahí los scripts. No son pruebas unitarias: corren contra la app levantada.

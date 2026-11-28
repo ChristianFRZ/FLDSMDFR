@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import { useAddSong } from "../components/AddSong";
 import { Attribution } from "../components/Attribution";
-import { Icon } from "../components/Icon";
+import { Icon, type IconName } from "../components/Icon";
 import { Note } from "../components/Note";
 import { Tape } from "../components/Tape";
 import { clock } from "./format";
@@ -91,7 +91,7 @@ function Seek() {
   );
 }
 
-function Popover({ label, icon, active, children }: { label: string; icon: "note" | "queue"; active?: boolean; children: ReactNode }) {
+function Popover({ label, icon, active, children }: { label: string; icon: IconName; active?: boolean; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
@@ -126,16 +126,80 @@ function Popover({ label, icon, active, children }: { label: string; icon: "note
   );
 }
 
+const sleepOptions = [
+  { label: "15 minutos", value: { minutes: 15 } },
+  { label: "30 minutos", value: { minutes: 30 } },
+  { label: "1 hora", value: { minutes: 60 } },
+  { label: "Al terminar la pista", value: "track" as const },
+];
+
+const clockTime = new Intl.DateTimeFormat("es", { timeStyle: "short" });
+
+function SleepTimerPanel() {
+  const { sleepTimer, setSleepTimer } = usePlayer();
+  return (
+    <div className="sleep">
+      {sleepTimer && (
+        <p className="pop-empty">
+          {sleepTimer.kind === "track" ? "Se detiene al terminar esta pista." : `Se detiene a las ${clockTime.format(sleepTimer.endsAt)}.`}
+        </p>
+      )}
+      <ul className="sleep-options">
+        {sleepOptions.map((option) => (
+          <li key={option.label}>
+            <button type="button" onClick={() => setSleepTimer(option.value)}>{option.label}</button>
+          </li>
+        ))}
+      </ul>
+      {sleepTimer && (
+        <button className="ghost" type="button" aria-label="Desactivar temporizador" onClick={() => setSleepTimer(null)}>
+          Desactivar
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SleepTimerButton() {
+  const { sleepTimer } = usePlayer();
+  return (
+    <Popover label="Temporizador" icon="moon" active={!!sleepTimer}>
+      <SleepTimerPanel />
+    </Popover>
+  );
+}
+
 function QueueList() {
-  const { queue, jump } = usePlayer();
+  const { queue, jump, removeFromQueue, moveInQueue } = usePlayer();
   if (!queue.length) return <p className="pop-empty">No hay más pistas en la cola.</p>;
   return (
     <ol className="queue-list">
       {queue.map((song, offset) => (
         <li key={`${song.id}-${offset}`}>
-          <button type="button" onClick={() => jump(offset)}>
+          <button className="queue-jump" type="button" onClick={() => jump(offset)}>
             <b>{song.title}</b>
             <small>{song.artist}</small>
+          </button>
+          <button
+            className="plain"
+            type="button"
+            aria-label={`Subir ${song.title} en la cola`}
+            disabled={offset === 0}
+            onClick={() => moveInQueue(offset, offset - 1)}
+          >
+            <Icon name="up" />
+          </button>
+          <button
+            className="plain"
+            type="button"
+            aria-label={`Bajar ${song.title} en la cola`}
+            disabled={offset === queue.length - 1}
+            onClick={() => moveInQueue(offset, offset + 1)}
+          >
+            <Icon name="down" />
+          </button>
+          <button className="plain" type="button" aria-label={`Quitar ${song.title} de la cola`} onClick={() => removeFromQueue(offset)}>
+            <Icon name="trash" />
           </button>
         </li>
       ))}
@@ -213,18 +277,14 @@ function AddButton() {
 }
 
 function Volume() {
-  const { volume, setVolume } = usePlayer();
-  const lastVolume = useRef(volume || 0.8);
+  const { volume, setVolume, toggleMute } = usePlayer();
   return (
     <>
       <button
         className="plain"
         type="button"
         aria-label={volume === 0 ? "Activar sonido" : "Silenciar"}
-        onClick={() => {
-          if (volume > 0) lastVolume.current = volume;
-          setVolume(volume === 0 ? lastVolume.current : 0);
-        }}
+        onClick={toggleMute}
       >
         <Icon name={volume === 0 ? "mute" : "volume"} />
       </button>
@@ -290,6 +350,7 @@ function PlayerSheet({ onClose }: { onClose: () => void }) {
       <div className="sheet-tools">
         <FavoriteButton />
         <AddButton />
+        <SleepTimerButton />
         <Volume />
       </div>
       {current?.dedication && (
@@ -371,6 +432,7 @@ function WideBar() {
           )}
         </Popover>
         <Popover label="Cola" icon="queue"><QueueList /></Popover>
+        <SleepTimerButton />
         <Volume />
         <button className="plain" type="button" aria-label="Pantalla completa" disabled={!current} onClick={() => setFull(true)}>
           <Icon name="expand" />

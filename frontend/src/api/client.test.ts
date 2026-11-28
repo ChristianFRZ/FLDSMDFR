@@ -31,6 +31,14 @@ describe("api", () => {
     expect(headers.get("authorization")).toBe("Bearer viejo");
   });
 
+  test("un 502 de edge con el JSON de la API es un ApiError y no toca la sesión", async () => {
+    const body = { error: { code: "upstream_unavailable", message: "Servicio no disponible", detail: null } };
+    fetchMock.mockResolvedValueOnce(json(502, body));
+    await expect(api("/api/metrics/top")).rejects.toMatchObject({ status: 502, code: "upstream_unavailable" });
+    expect(getAccessToken()).toBe("viejo");
+    expect(urls()).toEqual(["/api/metrics/top"]);
+  });
+
   test("renueva el token una sola vez ante 401 y reintenta", async () => {
     fetchMock.mockResolvedValueOnce(expired()).mockResolvedValueOnce(renewed()).mockResolvedValueOnce(json(200, { ok: 1 }));
     await expect(api("/api/songs")).resolves.toEqual({ ok: 1 });

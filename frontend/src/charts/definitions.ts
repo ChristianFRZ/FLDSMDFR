@@ -1,5 +1,5 @@
 import type { ChartConfiguration, ChartOptions, Scale, ScriptableContext, TooltipItem } from "chart.js";
-import { barStyle, baseOptions, GRID, lineStyle, noGridX, SERIES, SURFACE } from "./index";
+import { barStyle, baseOptions, GRID_COLOR, lineStyle, noGridX, SERIES, SURFACE_COLOR } from "./index";
 import type { Column, Row } from "./ChartCard";
 
 const dayFormat = new Intl.DateTimeFormat("es", { day: "numeric", month: "short" });
@@ -196,7 +196,7 @@ export function heatmapChart(rows: Row[]): ChartConfiguration {
           data: rows.map((r) => ({ x: pad(r.hour as number), y: DAYS[(r.dow as number) - 1], v: r.plays })),
           // Una sola tinta: más reproducciones, más intensa. Sin reproducciones, la celda queda neutra.
           backgroundColor: (context: ScriptableContext<"matrix">) =>
-            cell(context) ? `rgba(240, 66, 138, ${0.2 + (0.8 * cell(context)) / max})` : GRID,
+            cell(context) ? `rgba(240, 66, 138, ${0.2 + (0.8 * cell(context)) / max})` : GRID_COLOR(),
           borderWidth: 0,
           width: ({ chart }: ScriptableContext<"matrix">) => (chart.chartArea?.width ?? 0) / 24 - 2,
           height: ({ chart }: ScriptableContext<"matrix">) => (chart.chartArea?.height ?? 0) / 7 - 2,
@@ -243,7 +243,7 @@ export function sourceChart(rows: Row[]): ChartConfiguration {
         {
           data: rows.map((r) => r.count as number),
           backgroundColor: rows.map((_, index) => SERIES[index % SERIES.length]),
-          borderColor: SURFACE,
+          borderColor: SURFACE_COLOR(),
           borderWidth: 2,
         },
       ],

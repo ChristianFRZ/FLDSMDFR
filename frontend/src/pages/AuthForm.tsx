@@ -1,5 +1,5 @@
 import type { FormEvent, ReactNode } from "react";
-import logo from "../assets/meloxo-stacked-color-dark.svg";
+import { Logo } from "../components/Logo";
 import { Note } from "../components/Note";
 
 type Props = {
@@ -21,7 +21,7 @@ export function AuthForm({ title, dedication, error, busy, action, onSubmit, chi
   return (
     <main className="auth">
       <div className="auth-brand">
-        <img src={logo} alt="MELOXO" />
+        <Logo variant="stacked" alt="MELOXO" />
         <Note tape className="auth-note">{dedication}</Note>
       </div>
       <form className="panel auth-form" onSubmit={submit}>

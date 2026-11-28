@@ -5,3 +5,8 @@ Hay un archivo por rama con lo que se resolvió durante la construcción y no es
 | Archivo | Rama |
 | --- | --- |
 | [`01-monolito.md`](01-monolito.md) | `01-monolito` |
+| [`02-separacion.md`](02-separacion.md) | `02-separacion` |
+| [`03-gateway-balanceo.md`](03-gateway-balanceo.md) | `03-gateway-balanceo` |
+| [`04-resiliencia-concurrencia.md`](04-resiliencia-concurrencia.md) | `04-resiliencia-concurrencia` |
+| [`05-mensajeria.md`](05-mensajeria.md) | `05-mensajeria` |
+| [`06-poliglota.md`](06-poliglota.md) | `06-poliglota` |

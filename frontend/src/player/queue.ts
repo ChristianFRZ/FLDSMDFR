@@ -59,6 +59,45 @@ export function setShuffle<T>(queue: Queue<T>, shuffle: boolean): Queue<T> {
 
 export const setRepeat = <T,>(queue: Queue<T>, repeat: Repeat): Queue<T> => ({ ...queue, repeat });
 
+/** Justo después de la pista actual. Si se piden varias, la última queda primero. */
+export function enqueueNext<T>(queue: Queue<T>, item: T): Queue<T> {
+  const order = [...queue.order];
+  order.splice(queue.cursor + 1, 0, queue.items.length);
+  return { ...queue, items: [...queue.items, item], order };
+}
+
+/** Al final de lo que sigue. */
+export const enqueueLast = <T,>(queue: Queue<T>, item: T): Queue<T> => ({
+  ...queue,
+  items: [...queue.items, item],
+  order: [...queue.order, queue.items.length],
+});
+
+const inUpcoming = <T,>(queue: Queue<T>, offset: number) =>
+  Number.isInteger(offset) && offset >= 0 && queue.cursor + 1 + offset < queue.order.length;
+
+/** Quita la pista también de `items`, para que no vuelva cuando la cola da la vuelta. */
+export function removeUpcoming<T>(queue: Queue<T>, offset: number): Queue<T> {
+  if (!inUpcoming(queue, offset)) return queue;
+  const at = queue.cursor + 1 + offset;
+  const gone = queue.order[at];
+  return {
+    ...queue,
+    items: queue.items.filter((_, index) => index !== gone),
+    order: queue.order.filter((_, position) => position !== at).map((index) => (index > gone ? index - 1 : index)),
+  };
+}
+
+/** Mueve una pista dentro de lo que sigue. Ambos números cuentan como en `upcoming`. */
+export function moveUpcoming<T>(queue: Queue<T>, from: number, to: number): Queue<T> {
+  if (!inUpcoming(queue, from) || !inUpcoming(queue, to)) return queue;
+  const head = queue.order.slice(0, queue.cursor + 1);
+  const rest = queue.order.slice(queue.cursor + 1);
+  const [moved] = rest.splice(from, 1);
+  rest.splice(to, 0, moved);
+  return { ...queue, order: [...head, ...rest] };
+}
+
 /** `offset` cuenta desde la pista actual: 0 es la siguiente de `upcoming`. */
 export const jumpTo = <T,>(queue: Queue<T>, offset: number): Queue<T> => ({
   ...queue,

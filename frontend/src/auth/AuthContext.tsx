@@ -9,6 +9,9 @@ type Auth = {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** `true` tras un login o registro correctos (no al recuperar una sesión guardada): toca la animación de entrada. */
+  entered: boolean;
+  clearEntered: () => void;
 };
 
 const AuthContext = createContext<Auth | null>(null);
@@ -17,6 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queries = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(hasSession());
+  const [entered, setEntered] = useState(false);
 
   useEffect(() => {
     if (hasSession()) {
@@ -27,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     return onSessionEnded(() => {
       setUser(null);
+      setEntered(false);
       queries.clear();
     });
   }, [queries]);
@@ -34,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const enter = useCallback(async (tokens: Tokens) => {
     setSession(tokens);
     setUser(await api<User>("/api/users/me"));
+    setEntered(true);
   }, []);
 
   const login = useCallback(
@@ -58,10 +64,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setSession(null);
     setUser(null);
+    setEntered(false);
     queries.clear();
   }, [queries]);
 
-  const value = useMemo(() => ({ user, loading, login, register, logout }), [user, loading, login, register, logout]);
+  const clearEntered = useCallback(() => setEntered(false), []);
+
+  const value = useMemo(
+    () => ({ user, loading, login, register, logout, entered, clearEntered }),
+    [user, loading, login, register, logout, entered, clearEntered],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

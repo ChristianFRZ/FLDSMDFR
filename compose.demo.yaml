@@ -1,12 +1,13 @@
-# Overlay de los escenarios 3 y 8. Lo levantan los propios scripts de demo/.
-# Puerto libre en vez de 8080: dos réplicas no pueden compartir el mismo.
+# Overlay de los escenarios 3 y 8, sobre catalog-streaming. Lo levantan los propios scripts de demo/.
+# Puerto de host libre para cada réplica (el 8002 interno): los scripts las consultan directo.
+# El nginx de entrada las alcanza igual, por el DNS de Docker.
 # Jamendo cortado: la API por URL y el audio por host, porque el proxy abre audio_url directo.
 # 192.0.2.1 es una dirección reservada para documentación: nadie responde.
 services:
-  app:
+  catalog-streaming:
     environment:
       JAMENDO_API_URL: http://192.0.2.1:9/v3.0
     extra_hosts:
       - "prod-1.storage.jamendo.com:192.0.2.1"
     ports: !override
-      - "8080"
+      - "127.0.0.1::8002"

@@ -1,5 +1,17 @@
 import { describe, expect, test } from "vitest";
-import { createQueue, currentItem, next, prev, setShuffle, upcoming, jumpTo } from "./queue";
+import {
+  createQueue,
+  currentItem,
+  enqueueLast,
+  enqueueNext,
+  jumpTo,
+  moveUpcoming,
+  next,
+  prev,
+  removeUpcoming,
+  setShuffle,
+  upcoming,
+} from "./queue";
 
 const items = ["a", "b", "c", "d"];
 const noShuffle = { shuffle: false, repeat: "off" as const };
@@ -88,5 +100,73 @@ describe("cola", () => {
 
   test("una cola vacía no tiene pista actual", () => {
     expect(currentItem(createQueue([], 0, noShuffle))).toBeUndefined();
+  });
+});
+
+describe("cola editable", () => {
+  test("reproducir siguiente la pone justo después de la actual", () => {
+    const q = enqueueNext(createQueue(items, 1, noShuffle), "x");
+    expect(currentItem(q)).toBe("b");
+    expect(upcoming(q)).toEqual(["x", "c", "d"]);
+  });
+
+  test("dos pedidos de siguiente: el último queda primero", () => {
+    const q = enqueueNext(enqueueNext(createQueue(items, 0, noShuffle), "x"), "y");
+    expect(upcoming(q)).toEqual(["y", "x", "b", "c", "d"]);
+  });
+
+  test("agregar a la cola la pone al final de lo que sigue", () => {
+    const q = enqueueLast(createQueue(items, 1, noShuffle), "x");
+    expect(currentItem(q)).toBe("b");
+    expect(upcoming(q)).toEqual(["c", "d", "x"]);
+  });
+
+  test("lo agregado suena cuando llega su turno", () => {
+    let q = enqueueNext(createQueue(items, 3, noShuffle), "x");
+    q = next(q, true).queue;
+    expect(currentItem(q)).toBe("x");
+  });
+
+  test("agregar en modo aleatorio no cambia la pista actual", () => {
+    const q = enqueueLast(createQueue(items, 2, { shuffle: true, repeat: "off" }), "x");
+    expect(currentItem(q)).toBe("c");
+    expect(upcoming(q)).toHaveLength(4);
+    expect(upcoming(q)).toContain("x");
+  });
+
+  test("quitar una pista de lo que sigue", () => {
+    const q = removeUpcoming(createQueue(items, 0, noShuffle), 1);
+    expect(currentItem(q)).toBe("a");
+    expect(upcoming(q)).toEqual(["b", "d"]);
+  });
+
+  test("una pista quitada no vuelve cuando la cola da la vuelta", () => {
+    let q = removeUpcoming(createQueue(items, 0, { shuffle: true, repeat: "all" }), 0);
+    const removed = items.filter((item) => item !== currentItem(q) && !upcoming(q).includes(item))[0];
+    for (let i = 0; i < upcoming(q).length + 1; i++) q = next(q, true).queue;
+    const seen = new Set<string>();
+    for (let i = 0; i < 6; i++) {
+      seen.add(currentItem(q)!);
+      q = next(q, true).queue;
+    }
+    expect(seen.has(removed)).toBe(false);
+  });
+
+  test("quitar no toca la pista actual ni las anteriores", () => {
+    const q = removeUpcoming(createQueue(items, 2, noShuffle), 0);
+    expect(currentItem(q)).toBe("c");
+    expect(q.items).toEqual(["a", "b", "c"]);
+  });
+
+  test("reordenar lo que sigue", () => {
+    const q = moveUpcoming(createQueue(items, 0, noShuffle), 0, 2);
+    expect(currentItem(q)).toBe("a");
+    expect(upcoming(q)).toEqual(["c", "d", "b"]);
+  });
+
+  test("reordenar fuera de rango no cambia nada", () => {
+    const q = createQueue(items, 0, noShuffle);
+    expect(upcoming(moveUpcoming(q, 0, 9))).toEqual(["b", "c", "d"]);
+    expect(upcoming(removeUpcoming(q, 9))).toEqual(["b", "c", "d"]);
   });
 });

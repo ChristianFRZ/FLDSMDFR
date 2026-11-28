@@ -5,31 +5,186 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: meloxo
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
       POSTGRES_DB: meloxo
+      USERS_DB_PASSWORD: ${USERS_DB_PASSWORD:?Falta USERS_DB_PASSWORD en .env}
+      CATALOG_DB_PASSWORD: ${CATALOG_DB_PASSWORD:?Falta CATALOG_DB_PASSWORD en .env}
+      PLAYBACKS_DB_PASSWORD: ${PLAYBACKS_DB_PASSWORD:?Falta PLAYBACKS_DB_PASSWORD en .env}
     ports:
       - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U meloxo -d meloxo"]
       interval: 3s
       timeout: 3s
       retries: 20
 
-  app:
-    build: .
-    env_file: .env
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis-cache:
+    image: redis:7-alpine
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru", "--save", "", "--appendonly", "no"]
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  users-playlists:
+    build:
+      context: .
+      dockerfile: services/users-playlists/Dockerfile
     environment:
-      DATABASE_URL: postgresql+asyncpg://meloxo:${POSTGRES_PASSWORD}@postgres:5432/meloxo
-    ports:
-      - "8080:8080"
+      DATABASE_URL: postgresql+asyncpg://users_playlists:${USERS_DB_PASSWORD:?Falta USERS_DB_PASSWORD en .env}@postgres:5432/users_playlists
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
+      REDIS_URL: redis://redis:6379/0
+      CATALOG_URL: http://catalog-streaming:8002
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8001/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  catalog-streaming:
+    build:
+      context: .
+      dockerfile: services/catalog-streaming/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://catalog:${CATALOG_DB_PASSWORD:?Falta CATALOG_DB_PASSWORD en .env}@postgres:5432/catalog
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
+      REDIS_URL: redis://redis:6379/0
+      CACHE_REDIS_URL: redis://redis-cache:6379/0
+      USERS_URL: http://users-playlists:8001
+      JAMENDO_CLIENT_ID: ${JAMENDO_CLIENT_ID:-}
+      JAMENDO_AUDIO_MODE: ${JAMENDO_AUDIO_MODE:-proxy}
+      MEDIA_DIR: /media
+    deploy:
+      replicas: 2
     volumes:
       - media:/media
     depends_on:
+      redis:
+        condition: service_healthy
       postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8002/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  gateway-auth:
+    build:
+      context: .
+      dockerfile: services/gateway-auth/Dockerfile
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
+      REDIS_URL: redis://redis:6379/0
+      CACHE_REDIS_URL: redis://redis-cache:6379/0
+      USERS_URL: http://users-playlists:8001
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+      users-playlists:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8004/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  playback-metrics:
+    build:
+      context: .
+      dockerfile: services/playback-metrics/Dockerfile
+    environment:
+      DATABASE_URL: postgresql+asyncpg://playbacks:${PLAYBACKS_DB_PASSWORD:?Falta PLAYBACKS_DB_PASSWORD en .env}@postgres:5432/playbacks
+      JWT_SECRET: ${JWT_SECRET:?Falta JWT_SECRET en .env (mínimo 32 caracteres, por ejemplo openssl rand -hex 32)}
+      REDIS_URL: redis://redis:6379/0
+      CACHE_REDIS_URL: redis://redis-cache:6379/0
+      CATALOG_URL: http://catalog-streaming:8002
+      USERS_URL: http://users-playlists:8001
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8003/internal/health', timeout=3).status == 200 else 1)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+
+  edge:
+    build:
+      context: .
+      dockerfile: edge/Dockerfile
+    ports:
+      - "8080:80"
+    restart: always
+    depends_on:
+      users-playlists:
+        condition: service_healthy
+      gateway-auth:
+        condition: service_healthy
+      catalog-streaming:
+        condition: service_healthy
+      playback-metrics:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  seed:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: seed/Dockerfile
+    environment:
+      USERS_URL: http://users-playlists:8001
+      CATALOG_URL: http://catalog-streaming:8002
+      PLAYBACK_URL: http://playback-metrics:8003
+      MEDIA_DIR: /media
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-}
+    volumes:
+      - media:/media
+    depends_on:
+      users-playlists:
+        condition: service_healthy
+      catalog-streaming:
+        condition: service_healthy
+      playback-metrics:
         condition: service_healthy
 
 volumes:
   pgdata:
   media:
+  redisdata:

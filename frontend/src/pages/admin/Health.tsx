@@ -19,7 +19,9 @@ const ACTIVITY_REFRESH_MS = 30 * 60_000;
 const LATENCY_URL = "/api/metrics/latency?minutes=60";
 
 const names: Record<string, string> = {
-  app: "Aplicación",
+  "users-playlists": "Usuarios y playlists",
+  "catalog-streaming": "Catálogo y streaming",
+  "playback-metrics": "Reproducción y métricas",
   database: "Base de datos",
   jamendo: "Jamendo",
   aggregates: "Agregados",

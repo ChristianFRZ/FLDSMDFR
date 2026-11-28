@@ -5,7 +5,8 @@ Código en React y TypeScript. Cada carpeta tiene su propio README.
 | Carpeta o archivo | Contenido |
 | --- | --- |
 | [`main.tsx`](main.tsx) | Arranque de la app y carga de las fuentes, instaladas con Fontsource |
-| [`App.tsx`](App.tsx) | Rutas |
+| [`App.tsx`](App.tsx) | Rutas, la apertura animada (`IntroGate`) y la animación de entrada tras el login en `Shell` |
+| [`theme.ts`](theme.ts) | Tema claro, oscuro o el del sistema, y su preferencia guardada |
 | [`api/`](api/README.md) | Cliente HTTP y tipos |
 | [`auth/`](auth/README.md) | Sesión y rutas por rol |
 | [`pages/`](pages/README.md) | Una pantalla por ruta |
